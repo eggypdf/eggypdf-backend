@@ -1,0 +1,9 @@
+flask
+flask-cors
+pypdf
+pikepdf
+pdf2docx
+Pillow
+reportlab
+werkzeug
+gunicorn
