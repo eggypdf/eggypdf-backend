@@ -607,38 +607,44 @@ def unlock_pdf():
 
     saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
     f.save(saved)
+    out = make_output_path('pdf')
 
     try:
-        # Try pikepdf first — more reliable for unlocking
         import pikepdf
-        try:
-            pdf = pikepdf.open(saved, password=password)
-        except pikepdf.PasswordError:
-            cleanup(saved)
-            return jsonify({"error": "Incorrect password. Please try again."}), 400
-        except Exception:
-            # Fall back to pypdf
-            pdf = None
 
-        out = make_output_path('pdf')
+        # Try with provided password first, then empty string
+        passwords_to_try = [password, '', 'owner', 'user']
+        opened = False
 
-        if pdf is not None:
-            # Save without encryption using pikepdf
-            pdf.save(out)
-            pdf.close()
-        else:
-            # pypdf fallback
-            reader = PdfReader(saved)
-            if reader.is_encrypted:
-                result = reader.decrypt(password)
-                if result == 0:
-                    cleanup(saved)
-                    return jsonify({"error": "Incorrect password. Please try again."}), 400
-            writer = PdfWriter()
-            for page in reader.pages:
-                writer.add_page(page)
-            with open(out, 'wb') as fh:
-                writer.write(fh)
+        for pwd in passwords_to_try:
+            try:
+                pdf = pikepdf.open(saved, password=pwd)
+                pdf.save(out)
+                pdf.close()
+                opened = True
+                break
+            except pikepdf.PasswordError:
+                continue
+            except Exception:
+                break
+
+        if not opened:
+            # Last resort — pypdf
+            try:
+                reader = PdfReader(saved)
+                if reader.is_encrypted:
+                    result = reader.decrypt(password)
+                    if result == 0:
+                        cleanup(saved)
+                        return jsonify({"error": "Could not unlock this PDF. Make sure the password is correct."}), 400
+                writer = PdfWriter()
+                for page in reader.pages:
+                    writer.add_page(page)
+                with open(out, 'wb') as fh:
+                    writer.write(fh)
+            except Exception as e2:
+                cleanup(saved)
+                return jsonify({"error": f"Unlock failed: {str(e2)}"}), 500
 
     except Exception as e:
         cleanup(saved)
