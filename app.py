@@ -609,21 +609,36 @@ def unlock_pdf():
     f.save(saved)
 
     try:
-        reader = PdfReader(saved)
+        # Try pikepdf first — more reliable for unlocking
+        import pikepdf
+        try:
+            pdf = pikepdf.open(saved, password=password)
+        except pikepdf.PasswordError:
+            cleanup(saved)
+            return jsonify({"error": "Incorrect password. Please try again."}), 400
+        except Exception:
+            # Fall back to pypdf
+            pdf = None
 
-        if reader.is_encrypted:
-            if not reader.decrypt(password):
-                cleanup(saved)
-                return jsonify({"error": "Incorrect password. Please try again."}), 400
-
-        writer = PdfWriter()
-        for page in reader.pages:
-            writer.add_page(page)
-
-        # Remove encryption by writing without it
         out = make_output_path('pdf')
-        with open(out, 'wb') as fh:
-            writer.write(fh)
+
+        if pdf is not None:
+            # Save without encryption using pikepdf
+            pdf.save(out)
+            pdf.close()
+        else:
+            # pypdf fallback
+            reader = PdfReader(saved)
+            if reader.is_encrypted:
+                result = reader.decrypt(password)
+                if result == 0:
+                    cleanup(saved)
+                    return jsonify({"error": "Incorrect password. Please try again."}), 400
+            writer = PdfWriter()
+            for page in reader.pages:
+                writer.add_page(page)
+            with open(out, 'wb') as fh:
+                writer.write(fh)
 
     except Exception as e:
         cleanup(saved)
