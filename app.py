@@ -1078,61 +1078,62 @@ def ai_suggestions():
         import urllib.error
         import json as json_lib
 
-        # Try models in order until one works
-        models = [
-            "gemini-1.5-flash",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-pro",
-            "gemini-pro",
-        ]
-
         payload_dict = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.7,
-                "maxOutputTokens": 600
-            }
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 600}
         }
 
-        result = None
-        last_error = None
+        # Try every combination of API version + model name
+        combos = [
+            ("v1beta", "gemini-1.5-flash"),
+            ("v1beta", "gemini-1.5-flash-001"),
+            ("v1beta", "gemini-1.5-pro"),
+            ("v1beta", "gemini-1.5-pro-latest"),
+            ("v1",     "gemini-1.5-flash"),
+            ("v1",     "gemini-1.5-pro"),
+            ("v1beta", "gemini-1.0-pro"),
+            ("v1",     "gemini-1.0-pro"),
+            ("v1beta", "gemini-pro"),
+        ]
 
-        for model in models:
+        result = None
+        errors = []
+
+        for api_ver, model in combos:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+                url = (f"https://generativelanguage.googleapis.com"
+                       f"/{api_ver}/models/{model}:generateContent"
+                       f"?key={GEMINI_API_KEY}")
                 payload = json_lib.dumps(payload_dict).encode("utf-8")
                 req = urllib.request.Request(
-                    url,
-                    data=payload,
+                    url, data=payload,
                     headers={"Content-Type": "application/json"},
                     method="POST"
                 )
                 with urllib.request.urlopen(req, timeout=20) as resp:
                     result = json_lib.loads(resp.read().decode("utf-8"))
-                break  # success — stop trying
+                break
             except urllib.error.HTTPError as e:
                 if e.code == 400:
-                    # Bad API key — no point trying other models
-                    return jsonify({"error": "Invalid API key. Check GEMINI_API_KEY on Render."}), 400
+                    body = e.read().decode("utf-8", errors="ignore")
+                    return jsonify({"error": f"API key rejected (400): {body[:200]}"}), 400
                 if e.code == 429:
                     return jsonify({"error": "Daily AI limit reached. Try again tomorrow."}), 429
-                last_error = f"{model}: HTTP {e.code}"
+                errors.append(f"{api_ver}/{model}={e.code}")
                 continue
-            except Exception as e:
-                last_error = str(e)
+            except Exception as ex:
+                errors.append(f"{api_ver}/{model}={str(ex)[:40]}")
                 continue
 
         if result is None:
-            return jsonify({"error": f"No Gemini model available. Last error: {last_error}"}), 500
+            return jsonify({"error": f"All Gemini models failed: {'; '.join(errors)}"}), 500
 
         text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
         text = text.replace("```json", "").replace("```", "").strip()
 
         suggestions = json_lib.loads(text)
-
         if not isinstance(suggestions, list):
             raise ValueError("Gemini did not return a list")
-
         suggestions = [str(s).strip() for s in suggestions if s]
 
         return jsonify({"suggestions": suggestions})
