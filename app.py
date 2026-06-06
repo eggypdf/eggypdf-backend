@@ -1074,46 +1074,51 @@ def ai_suggestions():
         return jsonify({"error": "Invalid type. Use bullets, summary, or skills."}), 400
 
     try:
-        import requests as req_lib
+        import urllib.request
+        import urllib.error
         import json as json_lib
 
-        # Use gemini-2.0-flash — latest free model
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
 
-        payload = {
+        payload = json_lib.dumps({
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.7,
-                "maxOutputTokens": 600,
-                "responseMimeType": "application/json"
+                "maxOutputTokens": 600
             }
-        }
+        }).encode("utf-8")
 
-        response = req_lib.post(url, json=payload, timeout=20)
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
 
-        if response.status_code == 400:
-            return jsonify({"error": "Invalid API key. Please check your GEMINI_API_KEY on Render."}), 400
-        if response.status_code == 429:
-            return jsonify({"error": "Daily AI limit reached. Try again tomorrow."}), 429
-        if response.status_code != 200:
-            return jsonify({"error": f"Gemini API error: {response.status_code}"}), 500
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            result = json_lib.loads(resp.read().decode("utf-8"))
 
-        result = response.json()
-        text = result['candidates'][0]['content']['parts'][0]['text'].strip()
-
-        # Strip any markdown fences Gemini might add
-        text = text.replace('```json', '').replace('```', '').strip()
+        text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+        text = text.replace("```json", "").replace("```", "").strip()
 
         suggestions = json_lib.loads(text)
 
         if not isinstance(suggestions, list):
-            raise ValueError("Response was not a list")
+            raise ValueError("Gemini did not return a list")
 
-        # Ensure clean strings
         suggestions = [str(s).strip() for s in suggestions if s]
 
         return jsonify({"suggestions": suggestions})
 
+    except urllib.error.HTTPError as e:
+        code = e.code
+        if code == 400:
+            return jsonify({"error": "Invalid API key. Check GEMINI_API_KEY on Render."}), 400
+        if code == 404:
+            return jsonify({"error": "Gemini model not found. Contact support."}), 404
+        if code == 429:
+            return jsonify({"error": "Daily AI limit reached. Try again tomorrow."}), 429
+        return jsonify({"error": f"Gemini API error: {code}"}), 500
     except Exception as e:
         return jsonify({"error": f"AI failed: {str(e)}"}), 500
 
