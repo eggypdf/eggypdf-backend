@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>About Us – EggyPDF</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;
+  --text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;
+  --bg:#f9fafb;--white:#fff;--radius:12px;
+}
+body{font-family:'Inter',sans-serif;color:var(--text);background:var(--bg);min-height:100vh;display:flex;flex-direction:column}
+a{text-decoration:none;color:inherit}
+
+/* HEADER */
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem;position:sticky;top:0;z-index:100}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;height:62px;gap:1rem}
+.logo{font-size:1.2rem;font-weight:700;color:var(--text)}.logo span{color:var(--brand)}
+.back-btn{font-size:13.5px;color:var(--muted);padding:6px 14px;border-radius:7px;border:1px solid var(--border);background:var(--white);cursor:pointer;transition:background 0.15s;display:inline-flex;align-items:center;gap:6px}
+.back-btn:hover{background:var(--bg);color:var(--text)}
+
+/* HERO BAND */
+.hero-band{background:linear-gradient(135deg,var(--brand-light) 0%,#fff 60%);border-bottom:1px solid var(--border);padding:52px 1.5rem 44px;text-align:center}
+.hero-band .badge{display:inline-block;background:var(--brand-light);color:var(--brand-dark);font-size:12px;font-weight:700;padding:5px 16px;border-radius:20px;border:1px solid #fcd97a;margin-bottom:18px;letter-spacing:0.05em;text-transform:uppercase}
+.hero-band h1{font-family:'Playfair Display',serif;font-size:2.4rem;font-weight:700;color:var(--text);margin-bottom:10px;line-height:1.2}
+.hero-band h1 span{color:var(--brand)}
+.hero-band .sub{font-size:15px;color:var(--muted);max-width:520px;margin:0 auto}
+
+/* CONTENT */
+.content-wrap{max-width:760px;margin:0 auto;padding:56px 1.5rem 72px;flex:1}
+
+/* PARAGRAPH BLOCKS */
+.story-block{margin-bottom:40px;padding-bottom:40px;border-bottom:1px solid var(--border);display:flex;gap:20px;align-items:flex-start}
+.story-block:last-of-type{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.block-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;margin-top:3px}
+.block-body h3{font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px}
+.block-body p{font-size:15px;color:var(--muted);line-height:1.85}
+.block-body p strong{color:var(--text);font-weight:600}
+
+/* QUOTE */
+.quote-wrap{background:var(--brand-light);border:1.5px solid #fcd97a;border-radius:16px;padding:36px 40px;text-align:center;margin-top:52px}
+.quote-wrap .quote-mark{font-size:3rem;color:#fcd97a;font-family:'Playfair Display',serif;line-height:0.8;margin-bottom:12px;display:block}
+.quote-wrap blockquote{font-family:'Playfair Display',serif;font-size:1.25rem;font-style:italic;color:var(--brand-dark);line-height:1.6;margin-bottom:14px}
+.quote-wrap cite{font-size:13px;color:var(--muted);font-weight:600;font-style:normal}
+
+/* FOOTER */
+footer{background:#1c1c28;color:#9ca3af;padding:36px 1.5rem 20px}
+.footer-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border-top:1px solid #2e2e40;padding-top:18px}
+.footer-logo{font-size:1rem;font-weight:700;color:#fff}
+.footer-logo span{color:var(--brand)}
+.footer-inner p{font-size:13px;color:#6b7280}
+.footer-links{display:flex;gap:20px}
+.footer-links a{font-size:13px;color:#9ca3af;transition:color 0.15s}
+.footer-links a:hover{color:var(--brand)}
+
+@media(max-width:600px){
+  .hero-band h1{font-size:1.7rem}
+  .story-block{flex-direction:column;gap:12px}
+  .quote-wrap{padding:24px 20px}
+  .quote-wrap blockquote{font-size:1.05rem}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <a href="index.html" class="logo">Eggy<span>PDF</span></a>
+    <a href="index.html" class="back-btn">← Back to Home</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero-band">
+  <span class="badge">🥚 Our Story</span>
+  <h1>About <span>EggyPDF</span></h1>
+  <p class="sub">We're on a mission to make PDF tools simple, fast, and free for everyone.</p>
+</div>
+
+<!-- CONTENT -->
+<div class="content-wrap">
+
+  <div class="story-block">
+    <div class="block-icon" style="background:#fff0eb">💡</div>
+    <div class="block-body">
+      <h3>Why We Built This</h3>
+      <p>EggyPDF was born from a simple frustration. Most PDF tools online are cluttered with ads, locked behind expensive subscriptions, or just too complicated for everyday people to use. There had to be a better way.</p>
+    </div>
+  </div>
+
+  <div class="story-block">
+    <div class="block-icon" style="background:#edfaf3">🔒</div>
+    <div class="block-body">
+      <h3>Free Tools, Built Securely</h3>
+      <p>EggyPDF offers a growing suite of <strong>free PDF tools</strong> including merge, split, compress, convert, watermark, protect and more. All tools run on a fast, lightweight backend so files are processed quickly and securely. Every uploaded file is automatically deleted from the server within one hour, because your privacy matters.</p>
+    </div>
+  </div>
+
+  <div class="story-block">
+    <div class="block-icon" style="background:#fff8e6">📋</div>
+    <div class="block-body">
+      <h3>The Resume Builder</h3>
+      <p>The <strong>Resume Builder</strong> was built with one goal in mind: making it easy for anyone, whether a fresh graduate or a seasoned professional, to create a polished and job-ready resume in minutes. Smart suggestions, live preview, and instant PDF download. No design skills required.</p>
+    </div>
+  </div>
+
+  <div class="story-block">
+    <div class="block-icon" style="background:#f3e6ff">🚀</div>
+    <div class="block-body">
+      <h3>Always Growing</h3>
+      <p>EggyPDF is growing, and so is its toolset. More tools are hatching soon 🥚. From AI-powered summarization to digital signing, Excel conversion, and beyond. The mission is simple: keep every core tool free, always.</p>
+    </div>
+  </div>
+
+  <div class="quote-wrap">
+    <span class="quote-mark">"</span>
+    <blockquote>Crack open your documents. We'll handle the rest.</blockquote>
+    <cite>EggyPDF</cite>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <a href="index.html" class="footer-logo">Eggy<span>PDF</span></a>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="index.html#toolsGrid">All Tools</a>
+      <a href="privacy-policy.html">Privacy Policy</a>
+    </div>
+    <p>© 2026 EggyPDF. All rights reserved.</p>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Free Resume Builder – EggyPDF</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;
+  --text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;
+  --bg:#f9fafb;--white:#fff;--radius:10px;
+  --green:#16a34a;--red:#ef4444;
+}
+body{font-family:'Inter',sans-serif;color:var(--text);background:var(--bg);min-height:100vh}
+a{text-decoration:none;color:inherit}
+button{font-family:inherit;cursor:pointer}
+input,textarea,select{font-family:inherit}
+
+/* ── HEADER ── */
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem;position:sticky;top:0;z-index:100}
+.header-inner{max-width:100%;margin:0 auto;display:flex;align-items:center;height:60px;gap:1rem}
+.logo{font-size:1.15rem;font-weight:700;color:var(--text)}.logo span{color:var(--brand)}
+.back-btn{font-size:13.5px;color:var(--muted);padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--white);cursor:pointer;transition:background 0.15s}
+.back-btn:hover{background:var(--bg)}
+.header-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn-download{padding:8px 20px;border-radius:7px;font-size:13.5px;font-weight:700;border:none;background:var(--brand);color:var(--white);cursor:pointer;transition:background 0.15s;display:flex;align-items:center;gap:7px}
+.btn-download:hover{background:var(--brand-dark)}
+.btn-clear{padding:8px 14px;border-radius:7px;font-size:13.5px;font-weight:600;border:1.5px solid var(--border);background:var(--white);color:var(--muted);cursor:pointer;transition:background 0.15s}
+.btn-clear:hover{background:var(--bg)}
+
+/* ── HERO STRIP ── */
+.hero-strip{background:linear-gradient(135deg,var(--brand-light),var(--white));padding:20px 1.5rem;border-bottom:1px solid var(--border);text-align:center}
+.hero-strip h1{font-size:1.5rem;font-weight:700;margin-bottom:4px}
+.hero-strip h1 span{color:var(--brand)}
+.hero-strip p{font-size:13.5px;color:var(--muted)}
+
+/* ── TEMPLATE SELECTOR ── */
+.template-bar{background:var(--white);border-bottom:1px solid var(--border);padding:10px 1.5rem;display:flex;align-items:center;gap:10px;overflow-x:auto;scrollbar-width:none}
+.template-bar::-webkit-scrollbar{display:none}
+.template-label{font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;margin-right:4px}
+.tpl-btn{padding:6px 16px;border-radius:20px;font-size:12.5px;font-weight:600;border:1.5px solid var(--border);background:var(--white);cursor:pointer;white-space:nowrap;transition:all 0.15s;color:var(--muted)}
+.tpl-btn.active{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.tpl-btn:hover:not(.active){border-color:var(--brand);color:var(--brand-dark)}
+
+/* ── MAIN LAYOUT ── */
+.builder-wrap{display:grid;grid-template-columns:420px 1fr;height:calc(100vh - 148px);overflow:hidden}
+
+/* ── FORM PANEL ── */
+.form-panel{overflow-y:auto;padding:20px;border-right:1px solid var(--border);background:var(--white);scrollbar-width:thin}
+.form-panel::-webkit-scrollbar{width:4px}
+.form-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* Section */
+.form-section{margin-bottom:20px;border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.section-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg);cursor:pointer;user-select:none;transition:background 0.15s}
+.section-header:hover{background:#f0f0f5}
+.section-title{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:var(--text)}
+.section-icon{font-size:16px}
+.section-toggle{font-size:12px;color:var(--muted);transition:transform 0.2s}
+.section-toggle.open{transform:rotate(180deg)}
+.section-body{padding:16px;display:none}
+.section-body.open{display:block}
+
+/* Form fields */
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.field-row.single{grid-template-columns:1fr}
+.field-group{display:flex;flex-direction:column;gap:4px}
+.field-group label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em}
+.field-group input,.field-group textarea,.field-group select{
+  padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;
+  font-size:13.5px;color:var(--text);transition:border-color 0.15s;
+  background:var(--white);resize:none;
+}
+.field-group input:focus,.field-group textarea:focus,.field-group select:focus{outline:none;border-color:var(--brand)}
+.field-group textarea{min-height:80px;line-height:1.5}
+
+/* AI Suggest button */
+.ai-row{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.ai-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid var(--brand);background:var(--brand-light);color:var(--brand-dark);cursor:pointer;transition:all 0.15s}
+.ai-btn:hover{background:var(--brand);color:var(--white)}
+.ai-label{font-size:11.5px;color:var(--muted)}
+
+/* Suggestion chips */
+.suggestions{display:none;flex-wrap:wrap;gap:6px;margin-top:8px;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border)}
+.suggestions.show{display:flex}
+.chip{padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:500;background:var(--white);border:1.5px solid var(--border);cursor:pointer;transition:all 0.15s;color:var(--text);line-height:1.4;max-width:100%}
+.chip:hover{border-color:var(--brand);background:var(--brand-light);color:var(--brand-dark)}
+
+/* Add entry button */
+.add-entry-btn{width:100%;padding:9px;border-radius:8px;border:2px dashed var(--border);background:none;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all 0.15s;margin-top:8px}
+.add-entry-btn:hover{border-color:var(--brand);color:var(--brand-dark);background:var(--brand-light)}
+
+/* Entry card */
+.entry-card{background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;position:relative}
+.entry-remove{position:absolute;top:8px;right:8px;background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:4px}
+.entry-remove:hover{background:#fef2f2}
+
+/* Skills */
+.skills-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.skill-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--brand-light);border:1.5px solid #fcd97a;border-radius:20px;font-size:12px;font-weight:600;color:var(--brand-dark)}
+.skill-tag button{background:none;border:none;color:var(--brand-dark);cursor:pointer;font-size:13px;line-height:1;padding:0}
+.skill-input-row{display:flex;gap:8px;margin-top:6px}
+.skill-input-row input{flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px}
+.skill-input-row input:focus{outline:none;border-color:var(--brand)}
+.skill-add-btn{padding:8px 14px;border-radius:7px;background:var(--brand);color:var(--white);border:none;font-size:13px;font-weight:600;cursor:pointer}
+
+/* Progress bar */
+.progress-section{padding:12px 16px;background:var(--bg);border-top:1px solid var(--border)}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-dark));border-radius:3px;transition:width 0.4s ease}
+
+/* ── PREVIEW PANEL ── */
+.preview-panel{overflow-y:auto;background:#e5e7eb;padding:24px;display:flex;flex-direction:column;align-items:center}
+.preview-paper{
+  width:210mm;
+  background:var(--white);
+  box-shadow:0 4px 24px rgba(0,0,0,0.15);
+  border-radius:3px;
+  font-family:'Inter',sans-serif;
+  font-size:11px;
+  line-height:1.5;
+  color:#1a1a1a;
+  overflow:hidden;
+  flex-shrink:0;
+}
+
+/* ── RESUME TEMPLATE: CLASSIC ── */
+.resume-classic .resume-header{padding:28px 32px 20px;background:#1a1a2e;color:#fff;text-align:center}
+.resume-classic .resume-name{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;letter-spacing:0.5px;margin-bottom:6px}
+.resume-classic .resume-contact{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-size:10px;opacity:0.85}
+.resume-classic .resume-contact span{display:flex;align-items:center;gap:4px}
+.resume-classic .resume-body{padding:20px 32px}
+.resume-classic .resume-section{margin-bottom:16px}
+.resume-classic .section-heading{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#1a1a2e;border-bottom:2px solid var(--brand);padding-bottom:4px;margin-bottom:10px}
+.resume-classic .entry-title{font-size:11.5px;font-weight:700;color:#1a1a2e}
+.resume-classic .entry-sub{display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:4px}
+.resume-classic .entry-desc{font-size:10.5px;color:#374151;line-height:1.6}
+.resume-classic .skills-list{display:flex;flex-wrap:wrap;gap:6px}
+.resume-classic .skill-pill{padding:3px 10px;background:var(--brand-light);border:1px solid #fcd97a;border-radius:20px;font-size:9.5px;font-weight:600;color:var(--brand-dark)}
+.resume-classic .summary-text{font-size:10.5px;color:#374151;line-height:1.7}
+.resume-classic .resume-entry{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f3f4f6}
+.resume-classic .resume-entry:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+
+/* ── RESUME TEMPLATE: MODERN ── */
+.resume-modern{display:grid;grid-template-columns:1fr 2fr}
+.resume-modern .sidebar{background:#1a1a2e;color:#fff;padding:24px 18px;min-height:297mm}
+.resume-modern .sidebar .resume-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;margin-bottom:4px;line-height:1.3}
+.resume-modern .sidebar .resume-title{font-size:10px;color:var(--brand);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px}
+.resume-modern .sidebar-section{margin-bottom:18px}
+.resume-modern .sidebar-heading{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--brand);border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:8px}
+.resume-modern .sidebar-text{font-size:9.5px;color:#cbd5e1;line-height:1.6}
+.resume-modern .contact-item{font-size:9.5px;color:#cbd5e1;margin-bottom:4px;display:flex;align-items:flex-start;gap:5px}
+.resume-modern .skill-bar-wrap{margin-bottom:6px}
+.resume-modern .skill-bar-name{font-size:9.5px;color:#e2e8f0;margin-bottom:3px}
+.resume-modern .skill-bar{height:4px;background:#333;border-radius:2px;overflow:hidden}
+.resume-modern .skill-bar-fill{height:100%;background:var(--brand);border-radius:2px}
+.resume-modern .main-content{padding:24px 20px;background:#fff}
+.resume-modern .main-section{margin-bottom:16px}
+.resume-modern .main-heading{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#1a1a2e;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.resume-modern .main-heading::after{content:'';flex:1;height:2px;background:var(--brand)}
+.resume-modern .entry-title{font-size:11px;font-weight:700;color:#1a1a2e}
+.resume-modern .entry-sub{display:flex;justify-content:space-between;font-size:9.5px;color:#6b7280;margin-bottom:3px}
+.resume-modern .entry-desc{font-size:10px;color:#374151;line-height:1.6}
+.resume-modern .resume-entry{margin-bottom:10px}
+
+/* ── RESUME TEMPLATE: MINIMAL ── */
+.resume-minimal .resume-header{padding:28px 36px 16px;border-bottom:3px solid #1a1a2e}
+.resume-minimal .resume-name{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.resume-minimal .resume-job-title{font-size:12px;color:var(--brand-dark);font-weight:600;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px}
+.resume-minimal .resume-contact{display:flex;gap:16px;flex-wrap:wrap;font-size:10px;color:#6b7280}
+.resume-minimal .resume-contact-block{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:4px}
+.resume-minimal .contact-row{display:flex;gap:8px;font-size:10.5px;align-items:baseline}
+.resume-minimal .contact-lbl{font-weight:700;color:#1a1a2e;min-width:54px;font-size:10px}
+.resume-minimal .contact-val{color:#4b5563;word-break:break-word}
+.resume-minimal .resume-body{padding:16px 36px}
+.resume-minimal .section-heading{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#1a1a2e;margin-bottom:8px;margin-top:16px}
+.resume-minimal .entry-title{font-size:11.5px;font-weight:700}
+.resume-minimal .entry-sub{display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:3px}
+.resume-minimal .entry-desc{font-size:10.5px;color:#4b5563;line-height:1.6}
+.resume-minimal .skills-list{display:flex;flex-wrap:wrap;gap:5px}
+.resume-minimal .skill-pill{padding:2px 9px;border:1px solid #1a1a2e;border-radius:3px;font-size:9.5px;font-weight:500;color:#1a1a2e}
+.resume-minimal .resume-entry{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f3f4f6}
+.resume-minimal .resume-entry:last-child{border-bottom:none}
+.resume-minimal .summary-text{font-size:10.5px;color:#4b5563;line-height:1.7}
+
+
+/* ── PHOTO UPLOAD ── */
+.photo-drop-zone{border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--bg);position:relative}
+.photo-drop-zone:hover,.photo-drop-zone.drag{border-color:var(--brand);background:var(--brand-light)}
+.photo-drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.photo-placeholder-text{pointer-events:none}
+.photo-loaded{display:none;align-items:center;gap:12px;justify-content:center}
+.photo-thumb{width:54px;height:54px;border-radius:50%;object-fit:cover;border:2.5px solid var(--brand)}
+.photo-remove-btn{position:relative;z-index:10}
+.photo-tip{font-size:11px;color:#166534;margin-top:7px;line-height:1.5;background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:8px 10px;text-align:left}
+
+/* Photo in resume preview */
+.resume-photo-wrap{display:flex;align-items:center;gap:20px}
+.resume-photo-wrap .text-side{flex:1}
+.resume-photo-circle{width:80px;height:80px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2.5px solid #1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.resume-photo-img{width:100%;height:100%;object-fit:cover;display:block;cursor:move;-webkit-user-drag:none;user-select:none}
+
+/* ── MOBILE LAYOUT ── */
+@media(max-width:900px){
+  .builder-wrap{grid-template-columns:1fr;height:auto;overflow:visible}
+  .form-panel{height:auto;overflow:visible;border-right:none;border-bottom:1px solid var(--border)}
+  .preview-panel{padding:16px}
+  .preview-paper{width:100%;min-height:auto;font-size:9px}
+  .resume-modern{grid-template-columns:1fr}
+  .resume-modern .sidebar{min-height:auto}
+}
+@media(max-width:600px){
+  .field-row{grid-template-columns:1fr}
+  .hero-strip h1{font-size:1.2rem}
+}
+
+/* Tooltip */
+.tooltip{position:relative;display:inline-block}
+.tooltip .tip{visibility:hidden;background:#1a1a2e;color:#fff;font-size:11px;padding:5px 9px;border-radius:5px;position:absolute;bottom:125%;left:50%;transform:translateX(-50%);white-space:nowrap;z-index:10;opacity:0;transition:opacity 0.2s}
+.tooltip:hover .tip{visibility:visible;opacity:1}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <a href="index.html" class="logo">Eggy<span>PDF</span></a>
+    <button class="back-btn" onclick="history.back()">← Back</button>
+    <div class="header-actions">
+      <button class="btn-clear" onclick="clearAll()">🗑️ Clear</button>
+      <button class="btn-download" onclick="downloadPDF()">⬇️ Download PDF</button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO STRIP -->
+<div class="hero-strip">
+  <h1>Free <span>Resume Builder</span> 🥚</h1>
+  <p>Fill in your details and get a professional resume instantly. No signup needed.</p>
+</div>
+
+<!-- TEMPLATE SELECTOR -->
+<div class="template-bar">
+  <span class="template-label">Template:</span>
+  <button class="tpl-btn active" onclick="setTemplate('minimal',this)">✨ Minimal</button>
+  <button class="tpl-btn" onclick="setTemplate('classic',this)">📄 Classic</button>
+  <button class="tpl-btn" onclick="setTemplate('modern',this)">🎨 Modern</button>
+</div>
+
+<!-- BUILDER -->
+<div class="builder-wrap">
+
+  <!-- FORM PANEL -->
+  <div class="form-panel" id="formPanel">
+
+    <!-- Progress -->
+    <div class="progress-section" style="margin-bottom:16px;border-radius:var(--radius);border:1.5px solid var(--border)">
+      <div class="progress-label">
+        <span>Profile completion</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+
+    <!-- 1. PERSONAL INFO -->
+    <div class="form-section">
+      <div class="section-header" onclick="toggleSection('personal')">
+        <div class="section-title"><span class="section-icon">👤</span> Personal Information</div>
+        <span class="section-toggle open" id="toggle-personal">▼</span>
+      </div>
+      <div class="section-body open" id="body-personal">
+        <!-- PROFILE PHOTO -->
+        <div class="field-row single" style="margin-bottom:12px">
+          <div class="field-group">
+            <label>Profile Photo <span style="font-weight:400;text-transform:none;color:var(--muted)">(optional)</span></label>
+            <div class="photo-drop-zone" id="photoDropZone"
+                 ondragover="event.preventDefault();this.classList.add('drag')"
+                 ondragleave="this.classList.remove('drag')"
+                 ondrop="handlePhotoDrop(event)"
+                 onclick="if(profilePhoto) return false;">
+              <input type="file" id="photoInput" accept="image/*" onchange="handlePhotoFile(this.files[0])"/>
+              <div class="photo-placeholder-text" id="photoPlaceholder">
+                <div style="font-size:2rem;margin-bottom:5px">🖼️</div>
+                <div style="font-size:13px;font-weight:600;color:var(--text)">Drag & drop photo here</div>
+                <div style="font-size:11.5px;color:var(--muted);margin-top:2px">or click to browse · JPG or PNG</div>
+              </div>
+              <div class="photo-loaded" id="photoLoaded">
+                <img id="photoThumb" class="photo-thumb" src="" alt=""/>
+                <div style="text-align:left">
+                  <div style="font-size:12.5px;font-weight:600">Photo ready ✓</div>
+                  <div style="font-size:11px;color:var(--muted);margin:2px 0">Drag the photo on the resume to reposition</div>
+                  <button type="button" class="photo-remove-btn" onclick="event.stopPropagation();removePhoto()" style="font-size:11.5px;color:#ef4444;background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;position:relative;z-index:10">Remove photo</button>
+                </div>
+              </div>
+            </div>
+            <div class="photo-tip">💡 <strong>ATS Tip:</strong> Most applicant tracking systems skip photos entirely. Only upload one if your region or employer specifically requires it.</div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label>First Name</label>
+            <input type="text" id="firstName" placeholder="e.g. Ahmed" oninput="updatePreview();updateProgress()"/>
+          </div>
+          <div class="field-group">
+            <label>Last Name</label>
+            <input type="text" id="lastName" placeholder="e.g. Khan" oninput="updatePreview();updateProgress()"/>
+          </div>
+        </div>
+        <div class="field-row single">
+          <div class="field-group">
+            <label>Job Title</label>
+            <input type="text" id="jobTitle" placeholder="e.g. Software Engineer" oninput="updatePreview()"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="email@example.com" oninput="updatePreview()"/>
+          </div>
+          <div class="field-group">
+            <label>Phone</label>
+            <input type="text" id="phone" placeholder="+971 50 000 0000" oninput="updatePreview()"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Location</label>
+            <input type="text" id="location" placeholder="Dubai, UAE" oninput="updatePreview()"/>
+          </div>
+          <div class="field-group">
+            <label>LinkedIn (optional)</label>
+            <input type="text" id="linkedin" placeholder="linkedin.com/in/yourname" oninput="updatePreview()"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. SUMMARY -->
+    <div class="form-section">
+      <div class="section-header" onclick="toggleSection('summary')">
+        <div class="section-title"><span class="section-icon">📝</span> Professional Summary</div>
+        <span class="section-toggle" id="toggle-summary">▼</span>
+      </div>
+      <div class="section-body" id="body-summary">
+        <div class="field-group">
+          <label>Summary</label>
+          <textarea id="summary" placeholder="Write a short summary about yourself..." oninput="updatePreview();updateProgress()" rows="4"></textarea>
+        </div>
+        <div class="ai-row">
+          <button class="ai-btn" onclick="showSummarySuggestions()">✨ Get suggestions</button>
+          <span class="ai-label">Pick a suggestion or write your own</span>
+        </div>
+        <div class="suggestions" id="summary-suggestions"></div>
+      </div>
+    </div>
+
+    <!-- 3. EXPERIENCE -->
+    <div class="form-section">
+      <div class="section-header" onclick="toggleSection('experience')">
+        <div class="section-title"><span class="section-icon">💼</span> Work Experience</div>
+        <span class="section-toggle" id="toggle-experience">▼</span>
+      </div>
+      <div class="section-body" id="body-experience">
+        <div id="experienceEntries"></div>
+        <button class="add-entry-btn" onclick="addExperience()">+ Add Work Experience</button>
+      </div>
+    </div>
+
+    <!-- 4. EDUCATION -->
+    <div class="form-section">
+      <div class="section-header" onclick="toggleSection('education')">
+        <div class="section-title"><span class="section-icon">🎓</span> Education</div>
+        <span class="section-toggle" id="toggle-education">▼</span>
+      </div>
+      <div class="section-body" id="body-education">
+        <div id="educationEntries"></div>
+        <button class="add-entry-btn" onclick="addEducation()">+ Add Education</button>
+      </div>
+    </div>
+
+    <!-- 5. SKILLS -->
+    <div class="form-section">
+      <div class="section-header" onclick="toggleSection('skills')">
+        <div class="section-title"><span class="section-icon">⚡</span> Skills</div>
+        <span class="section-toggle" id="toggle-skills">▼</span>
+      </div>
+      <div class="section-body" id="body-skills">
+        <div class="skills-wrap" id="skillsList"></div>
+        <div class="skill-input-row">
+          <input type="text" id="skillInput" placeholder="Type a skill and press Add" onkeydown="if(event.key==='Enter')addSkill()"/>
+          <button class="skill-add-btn" onclick="addSkill()">Add</button>
+        </div>
+        <div class="ai-row" style="margin-top:10px">
+          <button class="ai-btn" onclick="showSkillSuggestions()">✨ Suggest skills</button>
+          <span class="ai-label">Based on your job title</span>
+        </div>
+        <div class="suggestions" id="skills-suggestions"></div>
+      </div>
+    </div>
+
+    <!-- 6. LANGUAGES -->
+    <div class="form-section">
+      <div class="section-header" onclick="toggleSection('languages')">
+        <div class="section-title"><span class="section-icon">🌍</span> Languages</div>
+        <span class="section-toggle" id="toggle-languages">▼</span>
+      </div>
+      <div class="section-body" id="body-languages">
+        <div id="languageEntries"></div>
+        <button class="add-entry-btn" onclick="addLanguage()">+ Add Language</button>
+      </div>
+    </div>
+
+  </div><!-- /form-panel -->
+
+  <!-- PREVIEW PANEL -->
+  <div class="preview-panel" id="previewPanel">
+    <div class="preview-paper" id="resumePreview">
+      <!-- Generated by JS -->
+    </div>
+  </div>
+
+</div><!-- /builder-wrap -->
+
+<script>
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let currentTemplate = 'minimal';
+let skills = [];
+let experiences = [];
+let educations = [];
+let languages = [];
+let expCount = 0;
+let eduCount = 0;
+let langCount = 0;
+
+// ═══════════════════════════════════════
+// PRE-WRITTEN SUGGESTIONS LIBRARY
+// ═══════════════════════════════════════
+const summaryLib = {
+  default: [
+    "Results-driven professional with a proven track record of delivering high-quality work in fast-paced environments. Adept at problem-solving and cross-functional collaboration.",
+    "Motivated and detail-oriented professional seeking to leverage my skills and experience to contribute meaningfully to a dynamic organization.",
+    "Dedicated team player with excellent communication skills and a passion for continuous learning and professional development.",
+    "Ambitious professional with strong analytical skills and a commitment to excellence. Experienced in managing multiple priorities while maintaining attention to detail."
+  ],
+  engineer: [
+    "Results-driven Software Engineer with expertise in full-stack development and a passion for building scalable, user-centric applications. Proven ability to deliver robust solutions on time.",
+    "Experienced Software Engineer skilled in modern frameworks and agile methodologies. Committed to writing clean, maintainable code and driving technical innovation.",
+  ],
+  teacher: [
+    "Passionate educator with a dedication to fostering student growth and creating engaging learning environments. Skilled in curriculum development and differentiated instruction.",
+    "Committed teacher with strong classroom management skills and a talent for making complex concepts accessible to diverse learners.",
+  ],
+  accountant: [
+    "Detail-oriented Accountant with expertise in financial reporting, budgeting, and tax compliance. Proven ability to analyze complex financial data and provide strategic insights.",
+    "Meticulous finance professional with strong analytical skills and deep knowledge of accounting principles, ERP systems, and regulatory compliance.",
+  ],
+  doctor: [
+    "Compassionate and dedicated Medical Professional committed to providing exceptional patient care. Skilled in diagnosis, treatment planning, and interdisciplinary collaboration.",
+    "Experienced healthcare professional with a strong foundation in clinical practice and patient management, committed to evidence-based medicine.",
+  ],
+  manager: [
+    "Dynamic and results-oriented Manager with a strong track record of leading high-performing teams and driving operational excellence. Expert in strategic planning and stakeholder management.",
+    "Experienced leader with exceptional interpersonal skills and the ability to motivate teams to exceed targets consistently.",
+  ],
+  designer: [
+    "Creative and detail-driven Designer with a passion for crafting visually compelling user experiences. Proficient in industry-leading design tools and user-centered design principles.",
+    "Innovative designer with a keen eye for aesthetics and a deep understanding of brand identity, UI/UX, and visual communication.",
+  ],
+  sales: [
+    "High-performing Sales Professional with a proven ability to exceed revenue targets and build lasting client relationships. Expert in consultative selling and market development.",
+    "Dynamic sales expert with strong negotiation skills and a results-driven approach to growing market share and driving business development.",
+  ]
+};
+
+const experienceLib = {
+  default: [
+    "Collaborated with cross-functional teams to deliver projects on time and within budget.",
+    "Identified process inefficiencies and implemented solutions that improved team productivity.",
+    "Mentored junior team members and contributed to knowledge-sharing initiatives.",
+    "Maintained detailed records and prepared comprehensive reports for senior management.",
+    "Developed and maintained strong relationships with key stakeholders."
+  ],
+  engineer: [
+    "Designed and developed scalable web applications using modern frameworks, improving system performance by 40%.",
+    "Led the migration of legacy systems to cloud infrastructure, reducing operational costs by 30%.",
+    "Collaborated with product and design teams to implement user-facing features with a focus on performance.",
+    "Conducted code reviews and established best practices that improved code quality across the team.",
+    "Implemented automated testing pipelines reducing production bugs by 60%."
+  ],
+  teacher: [
+    "Developed and delivered engaging lesson plans aligned with national curriculum standards for a class of 30+ students.",
+    "Implemented differentiated instruction strategies to accommodate diverse learning styles and abilities.",
+    "Achieved a 95% student satisfaction rate through innovative teaching methods and personalized feedback.",
+    "Organized extracurricular activities and parent-teacher meetings to enhance student development.",
+    "Utilized digital tools and e-learning platforms to enhance student engagement and learning outcomes."
+  ],
+  accountant: [
+    "Managed full-cycle accounts payable and receivable processes for a portfolio of 50+ client accounts.",
+    "Prepared monthly financial statements and variance analysis reports for senior management review.",
+    "Implemented new accounting software that reduced month-end close time by 3 days.",
+    "Ensured compliance with local tax regulations and coordinated with external auditors during annual audits.",
+    "Analyzed financial data to identify cost-saving opportunities resulting in 15% budget reduction."
+  ],
+  manager: [
+    "Led and mentored a team of 15 professionals, achieving a 25% improvement in team performance metrics.",
+    "Developed and executed strategic plans that resulted in a 35% increase in departmental efficiency.",
+    "Managed a budget of $2M+ and consistently delivered projects under budget and ahead of schedule.",
+    "Established performance KPIs and implemented regular review processes to drive accountability.",
+    "Built strong relationships with key clients and stakeholders, resulting in 90% client retention rate."
+  ],
+  sales: [
+    "Consistently exceeded quarterly sales targets by 120%, generating over $1.5M in annual revenue.",
+    "Developed and maintained a portfolio of 80+ key accounts through proactive relationship management.",
+    "Identified new market opportunities and successfully launched products in 3 new territories.",
+    "Trained and onboarded 5 new sales team members, reducing ramp-up time by 40%.",
+    "Negotiated and closed high-value contracts with Fortune 500 companies."
+  ],
+  designer: [
+    "Created visually compelling UI/UX designs for mobile and web applications serving 1M+ users.",
+    "Developed comprehensive brand identity systems including logos, color palettes, and design guidelines.",
+    "Collaborated with development teams using Figma to ensure pixel-perfect implementation.",
+    "Conducted user research and usability testing sessions to inform data-driven design decisions.",
+    "Reduced user drop-off rates by 30% through redesigning key user flows and interfaces."
+  ]
+};
+
+const skillsLib = {
+  engineer: ["JavaScript","Python","React","Node.js","SQL","Git","AWS","Docker","TypeScript","REST APIs"],
+  teacher: ["Curriculum Development","Classroom Management","Student Assessment","Microsoft Office","Google Workspace","Lesson Planning","E-Learning","Communication","Leadership","Team Collaboration"],
+  accountant: ["QuickBooks","SAP","Microsoft Excel","Financial Reporting","Tax Compliance","Budgeting","Accounts Payable","Accounts Receivable","Financial Analysis","IFRS"],
+  manager: ["Strategic Planning","Team Leadership","Budget Management","Project Management","Stakeholder Engagement","Performance Management","Problem Solving","Communication","Microsoft Office","CRM Software"],
+  designer: ["Figma","Adobe Photoshop","Adobe Illustrator","UI/UX Design","Wireframing","Prototyping","Brand Identity","Typography","Color Theory","Adobe XD"],
+  sales: ["CRM Software","Lead Generation","Negotiation","Client Relationship Management","Sales Forecasting","Cold Calling","Presentation Skills","Market Research","Salesforce","Microsoft Office"],
+  doctor: ["Patient Assessment","Clinical Diagnosis","Electronic Medical Records","Medical Research","Patient Communication","Emergency Care","Pharmacology","Surgical Assistance","Team Collaboration","Preventive Medicine"],
+  default: ["Microsoft Office","Communication","Team Collaboration","Problem Solving","Time Management","Leadership","Analytical Thinking","Attention to Detail","Adaptability","Project Management"]
+};
+
+// ═══════════════════════════════════════
+// DETECT JOB CATEGORY
+// ═══════════════════════════════════════
+function detectCategory(){
+  const title = (document.getElementById('jobTitle').value || '').toLowerCase();
+  if(/engineer|developer|programmer|software|coding|tech|it /i.test(title)) return 'engineer';
+  if(/teacher|educator|professor|instructor|tutor/i.test(title)) return 'teacher';
+  if(/account|finance|financial|auditor|tax|bookkeep/i.test(title)) return 'accountant';
+  if(/manager|director|head of|vp |chief|lead/i.test(title)) return 'manager';
+  if(/design|creative|ui|ux|graphic|visual/i.test(title)) return 'designer';
+  if(/sale|business dev|account exec|commercial/i.test(title)) return 'sales';
+  if(/doctor|physician|medical|surgeon|nurse|health/i.test(title)) return 'doctor';
+  return 'default';
+}
+
+// ═══════════════════════════════════════
+// SUGGESTIONS
+// ═══════════════════════════════════════
+function showSummarySuggestions(){
+  const cat = detectCategory();
+  const list = summaryLib[cat] || summaryLib.default;
+  const wrap = document.getElementById('summary-suggestions');
+  wrap.innerHTML = list.map(s =>
+    `<div class="chip" onclick="useSuggestion('summary','${s.replace(/'/g,"&apos;")}')">${s.substring(0,80)}...</div>`
+  ).join('');
+  wrap.classList.add('show');
+}
+
+function showSkillSuggestions(){
+  const cat = detectCategory();
+  const list = skillsLib[cat] || skillsLib.default;
+  const wrap = document.getElementById('skills-suggestions');
+  wrap.innerHTML = list.map(s =>
+    `<div class="chip" onclick="addSkillFromSuggestion('${s}')">${s}</div>`
+  ).join('');
+  wrap.classList.add('show');
+}
+
+function showExpSuggestions(idx){
+  const cat = detectCategory();
+  const list = experienceLib[cat] || experienceLib.default;
+  const wrap = document.getElementById(`exp-suggestions-${idx}`);
+  if(!wrap) return;
+  wrap.innerHTML = list.map(s =>
+    `<div class="chip" onclick="useExpSuggestion(${idx},'${s.replace(/'/g,"&apos;")}')">${s.substring(0,70)}...</div>`
+  ).join('');
+  wrap.classList.add('show');
+}
+
+function useSuggestion(fieldId, text){
+  document.getElementById(fieldId).value = text;
+  document.getElementById(fieldId+'-suggestions') && document.getElementById(fieldId+'-suggestions').classList.remove('show');
+  updatePreview();updateProgress();
+}
+
+function useExpSuggestion(idx, text){
+  const ta = document.getElementById(`exp-desc-${idx}`);
+  if(ta){ ta.value = (ta.value ? ta.value + '\n' : '') + text; updatePreview(); }
+  document.getElementById(`exp-suggestions-${idx}`) && document.getElementById(`exp-suggestions-${idx}`).classList.remove('show');
+}
+
+function addSkillFromSuggestion(skill){
+  if(!skills.includes(skill)){ skills.push(skill); renderSkills(); updatePreview(); }
+}
+
+// ═══════════════════════════════════════
+// SECTION TOGGLE
+// ═══════════════════════════════════════
+function toggleSection(id){
+  const body = document.getElementById('body-'+id);
+  const toggle = document.getElementById('toggle-'+id);
+  body.classList.toggle('open');
+  toggle.classList.toggle('open');
+}
+
+// ═══════════════════════════════════════
+// SKILLS
+// ═══════════════════════════════════════
+function addSkill(){
+  const input = document.getElementById('skillInput');
+  const val = input.value.trim();
+  if(val && !skills.includes(val)){ skills.push(val); renderSkills(); updatePreview(); }
+  input.value = '';
+}
+
+function removeSkill(i){ skills.splice(i,1); renderSkills(); updatePreview(); }
+
+function renderSkills(){
+  document.getElementById('skillsList').innerHTML = skills.map((s,i) =>
+    `<span class="skill-tag">${s}<button onclick="removeSkill(${i})">×</button></span>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════
+// EXPERIENCE
+// ═══════════════════════════════════════
+function addExperience(){
+  const idx = expCount++;
+  experiences.push({idx});
+  const wrap = document.getElementById('experienceEntries');
+  const div = document.createElement('div');
+  div.className = 'entry-card';
+  div.id = `exp-${idx}`;
+  div.innerHTML = `
+    <button class="entry-remove" onclick="removeExperience(${idx})">✕</button>
+    <div class="field-row single" style="margin-bottom:8px">
+      <div class="field-group"><label>Job Title</label>
+        <input type="text" id="exp-title-${idx}" placeholder="e.g. Sales Manager" oninput="updatePreview()"/>
+      </div>
+    </div>
+    <div class="field-row" style="margin-bottom:8px">
+      <div class="field-group"><label>Company</label>
+        <input type="text" id="exp-company-${idx}" placeholder="Company Name" oninput="updatePreview()"/>
+      </div>
+      <div class="field-group"><label>Location</label>
+        <input type="text" id="exp-location-${idx}" placeholder="Dubai, UAE" oninput="updatePreview()"/>
+      </div>
+    </div>
+    <div class="field-row" style="margin-bottom:8px">
+      <div class="field-group"><label>Start Date</label>
+        <input type="text" id="exp-start-${idx}" placeholder="Jan 2020" oninput="updatePreview()"/>
+      </div>
+      <div class="field-group"><label>End Date</label>
+        <input type="text" id="exp-end-${idx}" placeholder="Dec 2023 or Present" oninput="updatePreview()"/>
+      </div>
+    </div>
+    <div class="field-group" style="margin-bottom:8px">
+      <label>Description</label>
+      <textarea id="exp-desc-${idx}" placeholder="Describe your responsibilities and achievements..." oninput="updatePreview()" rows="4"></textarea>
+    </div>
+    <div class="ai-row">
+      <button class="ai-btn" onclick="showExpSuggestions(${idx})">✨ Suggest achievements</button>
+      <span class="ai-label">Pick and edit to personalize</span>
+    </div>
+    <div class="suggestions" id="exp-suggestions-${idx}"></div>
+  `;
+  wrap.appendChild(div);
+  toggleSection('experience');
+  document.getElementById('body-experience').classList.add('open');
+  document.getElementById('toggle-experience').classList.add('open');
+}
+
+function removeExperience(idx){
+  const el = document.getElementById(`exp-${idx}`);
+  if(el) el.remove();
+  experiences = experiences.filter(e => e.idx !== idx);
+  updatePreview();
+}
+
+// ═══════════════════════════════════════
+// EDUCATION
+// ═══════════════════════════════════════
+function addEducation(){
+  const idx = eduCount++;
+  educations.push({idx});
+  const wrap = document.getElementById('educationEntries');
+  const div = document.createElement('div');
+  div.className = 'entry-card';
+  div.id = `edu-${idx}`;
+  div.innerHTML = `
+    <button class="entry-remove" onclick="removeEducation(${idx})">✕</button>
+    <div class="field-row single" style="margin-bottom:8px">
+      <div class="field-group"><label>Degree / Certificate</label>
+        <input type="text" id="edu-degree-${idx}" placeholder="e.g. Bachelor of Business Administration" oninput="updatePreview()"/>
+      </div>
+    </div>
+    <div class="field-row" style="margin-bottom:8px">
+      <div class="field-group"><label>School / University</label>
+        <input type="text" id="edu-school-${idx}" placeholder="University Name" oninput="updatePreview()"/>
+      </div>
+      <div class="field-group"><label>Location</label>
+        <input type="text" id="edu-location-${idx}" placeholder="Dubai, UAE" oninput="updatePreview()"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field-group"><label>Start Year</label>
+        <input type="text" id="edu-start-${idx}" placeholder="2018" oninput="updatePreview()"/>
+      </div>
+      <div class="field-group"><label>End Year</label>
+        <input type="text" id="edu-end-${idx}" placeholder="2022" oninput="updatePreview()"/>
+      </div>
+    </div>
+  `;
+  wrap.appendChild(div);
+  document.getElementById('body-education').classList.add('open');
+  document.getElementById('toggle-education').classList.add('open');
+}
+
+function removeEducation(idx){
+  const el = document.getElementById(`edu-${idx}`);
+  if(el) el.remove();
+  updatePreview();
+}
+
+// ═══════════════════════════════════════
+// LANGUAGES
+// ═══════════════════════════════════════
+function addLanguage(){
+  const idx = langCount++;
+  const wrap = document.getElementById('languageEntries');
+  const div = document.createElement('div');
+  div.className = 'entry-card';
+  div.id = `lang-${idx}`;
+  div.innerHTML = `
+    <button class="entry-remove" onclick="removeLang(${idx})">✕</button>
+    <div class="field-row">
+      <div class="field-group"><label>Language</label>
+        <input type="text" id="lang-name-${idx}" placeholder="e.g. Arabic" oninput="updatePreview()"/>
+      </div>
+      <div class="field-group"><label>Level</label>
+        <select id="lang-level-${idx}" onchange="updatePreview()">
+          <option value="">Select level</option>
+          <option>Native</option>
+          <option>Fluent</option>
+          <option>Advanced</option>
+          <option>Intermediate</option>
+          <option>Basic</option>
+        </select>
+      </div>
+    </div>
+  `;
+  wrap.appendChild(div);
+  document.getElementById('body-languages').classList.add('open');
+  document.getElementById('toggle-languages').classList.add('open');
+}
+
+function removeLang(idx){
+  const el = document.getElementById(`lang-${idx}`);
+  if(el) el.remove();
+  updatePreview();
+}
+
+// ═══════════════════════════════════════
+// GET ALL DATA
+// ═══════════════════════════════════════
+function getData(){
+  // Experiences
+  const exps = [];
+  document.querySelectorAll('[id^="exp-title-"]').forEach(el => {
+    const idx = el.id.split('-').pop();
+    exps.push({
+      title: el.value,
+      company: document.getElementById(`exp-company-${idx}`)?.value || '',
+      location: document.getElementById(`exp-location-${idx}`)?.value || '',
+      start: document.getElementById(`exp-start-${idx}`)?.value || '',
+      end: document.getElementById(`exp-end-${idx}`)?.value || '',
+      desc: document.getElementById(`exp-desc-${idx}`)?.value || ''
+    });
+  });
+
+  // Educations
+  const edus = [];
+  document.querySelectorAll('[id^="edu-degree-"]').forEach(el => {
+    const idx = el.id.split('-').pop();
+    edus.push({
+      degree: el.value,
+      school: document.getElementById(`edu-school-${idx}`)?.value || '',
+      location: document.getElementById(`edu-location-${idx}`)?.value || '',
+      start: document.getElementById(`edu-start-${idx}`)?.value || '',
+      end: document.getElementById(`edu-end-${idx}`)?.value || ''
+    });
+  });
+
+  // Languages
+  const langs = [];
+  document.querySelectorAll('[id^="lang-name-"]').forEach(el => {
+    const idx = el.id.split('-').pop();
+    langs.push({
+      name: el.value,
+      level: document.getElementById(`lang-level-${idx}`)?.value || ''
+    });
+  });
+
+  return {
+    firstName: document.getElementById('firstName').value,
+    lastName: document.getElementById('lastName').value,
+    jobTitle: document.getElementById('jobTitle').value,
+    email: document.getElementById('email').value,
+    phone: document.getElementById('phone').value,
+    location: document.getElementById('location').value,
+    linkedin: document.getElementById('linkedin').value,
+    summary: document.getElementById('summary').value,
+    skills, exps, edus, langs
+  };
+}
+
+// ═══════════════════════════════════════
+// PROGRESS
+// ═══════════════════════════════════════
+function updateProgress(){
+  const d = getData();
+  let score = 0;
+  if(d.firstName) score += 15;
+  if(d.email) score += 10;
+  if(d.phone) score += 10;
+  if(d.jobTitle) score += 10;
+  if(d.summary) score += 15;
+  if(d.exps.length > 0 && d.exps[0].title) score += 20;
+  if(d.edus.length > 0 && d.edus[0].degree) score += 10;
+  if(d.skills.length > 0) score += 10;
+  score = Math.min(score, 100);
+  document.getElementById('progressFill').style.width = score + '%';
+  document.getElementById('progressPct').textContent = score + '%';
+}
+
+// ═══════════════════════════════════════
+// TEMPLATE
+// ═══════════════════════════════════════
+function setTemplate(tpl, btn){
+  currentTemplate = tpl;
+  document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updatePreview();
+}
+
+// ═══════════════════════════════════════
+// RENDER PREVIEW
+// ═══════════════════════════════════════
+function updatePreview(){
+  const d = getData();
+  const name = [d.firstName, d.lastName].filter(Boolean).join(' ') || 'Your Name';
+
+  let html = '';
+
+  if(currentTemplate === 'classic'){
+    html = renderClassic(d, name);
+  } else if(currentTemplate === 'modern'){
+    html = renderModern(d, name);
+  } else {
+    html = renderMinimal(d, name);
+  }
+
+  document.getElementById('resumePreview').innerHTML = html;
+}
+
+function descToList(desc){
+  if(!desc) return '';
+  const lines = desc.split('\n').filter(l => l.trim());
+  if(lines.length <= 1) return `<p class="entry-desc">${desc}</p>`;
+  return '<ul style="padding-left:14px;margin:3px 0">' + lines.map(l => `<li style="margin-bottom:2px;font-size:10px;color:#374151">${l.trim()}</li>`).join('') + '</ul>';
+}
+
+function renderClassic(d, name){
+  return `<div class="resume-classic">
+    <div class="resume-header" style="display:flex;align-items:center;gap:18px;justify-content:center;text-align:center">
+      ${profilePhoto ? `<div class="resume-photo-circle" style="border-color:rgba(255,255,255,0.7)">
+        <img class="resume-photo-img" id="resumePhotoImg" src="${profilePhoto}"
+          style="object-position:${photoPosX}% ${photoPosY}%"
+          draggable="false" title="Drag to reposition"/>
+      </div>` : ''}
+      <div>
+        <div class="resume-name">${name}</div>
+        ${d.jobTitle ? `<div style="font-size:11px;color:var(--brand);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em">${d.jobTitle}</div>` : ''}
+        <div class="resume-contact">
+          ${d.email ? `<span>✉ ${d.email}</span>` : ''}
+          ${d.phone ? `<span>📱 ${d.phone}</span>` : ''}
+          ${d.location ? `<span>📍 ${d.location}</span>` : ''}
+          ${d.linkedin ? `<span>🔗 ${d.linkedin}</span>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="resume-body">
+      ${d.summary ? `<div class="resume-section">
+        <div class="section-heading">Professional Summary</div>
+        <p class="summary-text">${d.summary}</p>
+      </div>` : ''}
+      ${d.exps.filter(e=>e.title).length ? `<div class="resume-section">
+        <div class="section-heading">Work Experience</div>
+        ${d.exps.filter(e=>e.title).map(e => `
+          <div class="resume-entry">
+            <div class="entry-title">${e.title}</div>
+            <div class="entry-sub"><span>${e.company}${e.location?' — '+e.location:''}</span><span>${e.start}${e.end?' – '+e.end:''}</span></div>
+            ${descToList(e.desc)}
+          </div>`).join('')}
+      </div>` : ''}
+      ${d.edus.filter(e=>e.degree).length ? `<div class="resume-section">
+        <div class="section-heading">Education</div>
+        ${d.edus.filter(e=>e.degree).map(e => `
+          <div class="resume-entry">
+            <div class="entry-title">${e.degree}</div>
+            <div class="entry-sub"><span>${e.school}${e.location?' — '+e.location:''}</span><span>${e.start}${e.end?' – '+e.end:''}</span></div>
+          </div>`).join('')}
+      </div>` : ''}
+      ${d.skills.length ? `<div class="resume-section">
+        <div class="section-heading">Skills</div>
+        <div class="skills-list">${d.skills.map(s=>`<span class="skill-pill">${s}</span>`).join('')}</div>
+      </div>` : ''}
+      ${d.langs.filter(l=>l.name).length ? `<div class="resume-section">
+        <div class="section-heading">Languages</div>
+        <div class="skills-list">${d.langs.filter(l=>l.name).map(l=>`<span class="skill-pill">${l.name}${l.level?' — '+l.level:''}</span>`).join('')}</div>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderModern(d, name){
+  return `<div class="resume-modern">
+    <div class="sidebar">
+      ${profilePhoto ? `<div style="display:flex;justify-content:center;margin-bottom:16px">
+        <div class="resume-photo-circle" style="width:86px;height:86px;border-color:rgba(255,255,255,0.5)">
+          <img class="resume-photo-img" id="resumePhotoImg" src="${profilePhoto}"
+            style="object-position:${photoPosX}% ${photoPosY}%"
+            draggable="false" title="Drag to reposition"/>
+        </div>
+      </div>` : ''}
+      <div style="margin-bottom:20px">
+        <div class="resume-name">${name}</div>
+        ${d.jobTitle?`<div class="resume-title">${d.jobTitle}</div>`:''}
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-heading">Contact</div>
+        ${d.email?`<div class="contact-item">✉ ${d.email}</div>`:''}
+        ${d.phone?`<div class="contact-item">📱 ${d.phone}</div>`:''}
+        ${d.location?`<div class="contact-item">📍 ${d.location}</div>`:''}
+        ${d.linkedin?`<div class="contact-item">🔗 ${d.linkedin}</div>`:''}
+      </div>
+      ${d.skills.length?`<div class="sidebar-section">
+        <div class="sidebar-heading">Skills</div>
+        ${d.skills.map(s=>`<div class="skill-bar-wrap"><div class="skill-bar-name">${s}</div><div class="skill-bar"><div class="skill-bar-fill" style="width:${70+Math.random()*30}%"></div></div></div>`).join('')}
+      </div>`:''}
+      ${d.langs.filter(l=>l.name).length?`<div class="sidebar-section">
+        <div class="sidebar-heading">Languages</div>
+        ${d.langs.filter(l=>l.name).map(l=>`<div class="contact-item">${l.name}${l.level?' — '+l.level:''}</div>`).join('')}
+      </div>`:''}
+    </div>
+    <div class="main-content">
+      ${d.summary?`<div class="main-section">
+        <div class="main-heading">Summary</div>
+        <p style="font-size:10px;color:#374151;line-height:1.7">${d.summary}</p>
+      </div>`:''}
+      ${d.exps.filter(e=>e.title).length?`<div class="main-section">
+        <div class="main-heading">Experience</div>
+        ${d.exps.filter(e=>e.title).map(e=>`
+          <div class="resume-entry">
+            <div class="entry-title">${e.title}</div>
+            <div class="entry-sub"><span>${e.company}${e.location?' · '+e.location:''}</span><span>${e.start}${e.end?' – '+e.end:''}</span></div>
+            ${descToList(e.desc)}
+          </div>`).join('')}
+      </div>`:''}
+      ${d.edus.filter(e=>e.degree).length?`<div class="main-section">
+        <div class="main-heading">Education</div>
+        ${d.edus.filter(e=>e.degree).map(e=>`
+          <div class="resume-entry">
+            <div class="entry-title">${e.degree}</div>
+            <div class="entry-sub"><span>${e.school}${e.location?' · '+e.location:''}</span><span>${e.start}${e.end?' – '+e.end:''}</span></div>
+          </div>`).join('')}
+      </div>`:''}
+    </div>
+  </div>`;
+}
+
+function renderMinimal(d, name){
+  const hasContact = [d.email,d.phone,d.location,d.linkedin].filter(Boolean).length;
+  return `<div class="resume-minimal">
+    <div class="resume-header">
+      ${profilePhoto ? `<div class="resume-photo-wrap">
+        <div class="resume-photo-circle" id="resumePhotoCircle">
+          <img class="resume-photo-img" id="resumePhotoImg" src="${profilePhoto}"
+            style="object-position:${photoPosX}% ${photoPosY}%"
+            draggable="false" title="Drag to reposition"/>
+        </div>
+        <div class="text-side">
+          <div class="resume-name">${name}</div>
+          ${d.jobTitle?`<div class="resume-job-title">${d.jobTitle}</div>`:''}
+        </div>
+      </div>` : `<div>
+        <div class="resume-name">${name}</div>
+        ${d.jobTitle?`<div class="resume-job-title">${d.jobTitle}</div>`:''}
+      </div>`}
+    </div>
+    <div class="resume-body">
+      ${hasContact?`<div>
+        <div class="section-heading">Contact</div>
+        <div class="resume-contact-block">
+          ${d.email?`<div class="contact-row"><span class="contact-lbl">Email</span><span class="contact-val">${d.email}</span></div>`:''}
+          ${d.phone?`<div class="contact-row"><span class="contact-lbl">Phone</span><span class="contact-val">${d.phone}</span></div>`:''}
+          ${d.location?`<div class="contact-row"><span class="contact-lbl">Location</span><span class="contact-val">${d.location}</span></div>`:''}
+          ${d.linkedin?`<div class="contact-row"><span class="contact-lbl">LinkedIn</span><span class="contact-val">${d.linkedin}</span></div>`:''}
+        </div>
+      </div>`:''}
+      ${d.summary?`<div><div class="section-heading">Profile</div><p class="summary-text">${d.summary}</p></div>`:''}
+      ${d.exps.filter(e=>e.title).length?`<div>
+        <div class="section-heading">Experience</div>
+        ${d.exps.filter(e=>e.title).map(e=>`
+          <div class="resume-entry">
+            <div class="entry-title">${e.title}</div>
+            <div class="entry-sub"><span>${e.company}${e.location?' · '+e.location:''}</span><span>${e.start}${e.end?' – '+e.end:''}</span></div>
+            ${descToList(e.desc)}
+          </div>`).join('')}
+      </div>`:''}
+      ${d.edus.filter(e=>e.degree).length?`<div>
+        <div class="section-heading">Education</div>
+        ${d.edus.filter(e=>e.degree).map(e=>`
+          <div class="resume-entry">
+            <div class="entry-title">${e.degree}</div>
+            <div class="entry-sub"><span>${e.school}${e.location?' · '+e.location:''}</span><span>${e.start}${e.end?' – '+e.end:''}</span></div>
+          </div>`).join('')}
+      </div>`:''}
+      ${d.skills.length?`<div>
+        <div class="section-heading">Skills</div>
+        <div class="skills-list" style="margin-top:6px">${d.skills.map(s=>`<span class="skill-pill">${s}</span>`).join('')}</div>
+      </div>`:''}
+      ${d.langs.filter(l=>l.name).length?`<div>
+        <div class="section-heading">Languages</div>
+        <div class="skills-list" style="margin-top:6px">${d.langs.filter(l=>l.name).map(l=>`<span class="skill-pill">${l.name}${l.level?' — '+l.level:''}</span>`).join('')}</div>
+      </div>`:''}
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════
+// DOWNLOAD PDF (using browser print)
+// ═══════════════════════════════════════
+function downloadPDF(){
+  const d = getData();
+  const name = [d.firstName, d.lastName].filter(Boolean).join('_') || 'Resume';
+  const content = document.getElementById('resumePreview').innerHTML;
+
+  const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"/>
+<title>${name}_Resume</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed}
+body{font-family:'Inter',sans-serif;background:#fff;color:#1a1a1a}
+@page{size:A4;margin:0}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+${getTemplateCSS()}
+</style>
+</head><body>${content}
+<script>
+window.addEventListener('load', function(){
+  setTimeout(function(){ window.print(); }, 400);
+});
+window.addEventListener('afterprint', function(){ window.close(); });
+<\/script>
+</body></html>`;
+
+  // Try opening a new window first
+  // Hidden iframe — works on desktop & mobile (no popup blocker issue)
+  let frame = document.getElementById('_printFrame');
+  if(frame) frame.remove();
+  frame = document.createElement('iframe');
+  frame.id = '_printFrame';
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(frame);
+  const fdoc = frame.contentWindow.document;
+  fdoc.open(); fdoc.write(html); fdoc.close();
+  setTimeout(function(){
+    try{
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch(e){
+      const blob = new Blob([html],{type:'text/html'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name + '_Resume.html';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      alert('Downloaded as HTML file. Open it and press Print → Save as PDF.');
+    }
+  }, 700);
+}
+
+function getTemplateCSS(){
+  return `
+.resume-photo-wrap{display:flex;align-items:center;gap:20px}
+.resume-photo-wrap .text-side{flex:1}
+.resume-photo-circle{width:80px;height:80px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2.5px solid #1a1a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.resume-photo-img{width:100%;height:100%;object-fit:cover;display:block}
+.resume-classic .resume-header{padding:28px 32px 20px;background:#1a1a2e!important;color:#fff;text-align:center;-webkit-print-color-adjust:exact}
+.resume-classic .resume-name{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;letter-spacing:0.5px;margin-bottom:6px}
+.resume-classic .resume-contact{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-size:10px;opacity:0.85}
+.resume-classic .resume-body{padding:20px 32px}
+.resume-classic .resume-section{margin-bottom:16px}
+.resume-classic .section-heading{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#1a1a2e;border-bottom:2px solid #f5a623;padding-bottom:4px;margin-bottom:10px}
+.resume-classic .entry-title{font-size:11.5px;font-weight:700}
+.resume-classic .entry-sub{display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:4px}
+.resume-classic .entry-desc{font-size:10.5px;color:#374151;line-height:1.6}
+.resume-classic .skills-list{display:flex;flex-wrap:wrap;gap:6px}
+.resume-classic .skill-pill{padding:3px 10px;background:#fff8ed!important;border:1px solid #fcd97a;border-radius:20px;font-size:9.5px;font-weight:600;color:#d4881a;-webkit-print-color-adjust:exact}
+.resume-classic .summary-text{font-size:10.5px;color:#374151;line-height:1.7}
+.resume-classic .resume-entry{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f3f4f6}
+.resume-classic .resume-entry:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.resume-modern{display:grid;grid-template-columns:1fr 2fr}
+.resume-modern .sidebar{background:#1a1a2e!important;color:#fff;padding:24px 18px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.resume-modern .sidebar .resume-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;margin-bottom:4px}
+.resume-modern .sidebar .resume-title{font-size:10px;color:#f5a623;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px}
+.resume-modern .sidebar-heading{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#f5a623;border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:8px}
+.resume-modern .sidebar-section{margin-bottom:18px}
+.resume-modern .contact-item{font-size:9.5px;color:#cbd5e1;margin-bottom:4px}
+.resume-modern .skill-bar-wrap{margin-bottom:6px}
+.resume-modern .skill-bar-name{font-size:9.5px;color:#e2e8f0;margin-bottom:3px}
+.resume-modern .skill-bar{height:4px;background:#333;border-radius:2px;overflow:hidden}
+.resume-modern .skill-bar-fill{height:100%;background:#f5a623!important;border-radius:2px;-webkit-print-color-adjust:exact}
+.resume-modern .main-content{padding:24px 20px}
+.resume-modern .main-section{margin-bottom:16px}
+.resume-modern .main-heading{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#1a1a2e;margin-bottom:10px}
+.resume-modern .entry-title{font-size:11px;font-weight:700}
+.resume-modern .entry-sub{display:flex;justify-content:space-between;font-size:9.5px;color:#6b7280;margin-bottom:3px}
+.resume-modern .entry-desc{font-size:10px;color:#374151;line-height:1.6}
+.resume-minimal .resume-header{padding:28px 36px 16px;border-bottom:3px solid #1a1a2e}
+.resume-minimal .resume-name{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:#1a1a2e;margin-bottom:4px}
+.resume-minimal .resume-job-title{font-size:12px;color:#d4881a;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px}
+.resume-minimal .resume-contact{display:flex;gap:16px;flex-wrap:wrap;font-size:10px;color:#6b7280}
+.resume-minimal .resume-contact-block{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:4px}
+.resume-minimal .contact-row{display:flex;gap:8px;font-size:10.5px;align-items:baseline}
+.resume-minimal .contact-lbl{font-weight:700;color:#1a1a2e;min-width:54px;font-size:10px}
+.resume-minimal .contact-val{color:#4b5563;word-break:break-word}
+.resume-minimal .resume-contact-block{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:4px}
+.resume-minimal .contact-row{display:flex;gap:8px;font-size:10.5px;align-items:baseline}
+.resume-minimal .contact-lbl{font-weight:700;color:#1a1a2e;min-width:54px;font-size:10px}
+.resume-minimal .contact-val{color:#4b5563;word-break:break-word}
+.resume-minimal .resume-body{padding:16px 36px}
+.resume-minimal .section-heading{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#1a1a2e;margin-bottom:8px;margin-top:16px}
+.resume-minimal .entry-title{font-size:11.5px;font-weight:700}
+.resume-minimal .entry-sub{display:flex;justify-content:space-between;font-size:10px;color:#6b7280;margin-bottom:3px}
+.resume-minimal .entry-desc{font-size:10.5px;color:#4b5563;line-height:1.6}
+.resume-minimal .skills-list{display:flex;flex-wrap:wrap;gap:5px}
+.resume-minimal .skill-pill{padding:2px 9px;border:1px solid #1a1a2e;border-radius:3px;font-size:9.5px;font-weight:500;color:#1a1a2e}
+.resume-minimal .resume-entry{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f3f4f6}
+.resume-minimal .summary-text{font-size:10.5px;color:#4b5563;line-height:1.7}
+  `;
+}
+
+// ═══════════════════════════════════════
+// CLEAR ALL
+// ═══════════════════════════════════════
+function clearAll(){
+  if(!confirm('Clear all resume data? This cannot be undone.')) return;
+  document.querySelectorAll('input,textarea,select').forEach(el => el.value = '');
+  skills = []; experiences = []; educations = []; languages = [];
+  expCount = 0; eduCount = 0; langCount = 0;
+  document.getElementById('experienceEntries').innerHTML = '';
+  document.getElementById('educationEntries').innerHTML = '';
+  document.getElementById('languageEntries').innerHTML = '';
+  renderSkills();
+  updatePreview();
+  updateProgress();
+}
+
+
+// ═══════════════════════════════════════
+// PROFILE PHOTO
+// ═══════════════════════════════════════
+let profilePhoto = null;
+let photoPosX = 50, photoPosY = 50;
+let _photoDragging = false, _pStartX, _pStartY, _pStartPX, _pStartPY;
+
+function handlePhotoDrop(e){
+  e.preventDefault();
+  document.getElementById('photoDropZone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if(file) handlePhotoFile(file);
+}
+
+function handlePhotoFile(file){
+  if(!file || !file.type.startsWith('image/')){
+    alert('Please select a valid image file (JPG or PNG).');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    profilePhoto = ev.target.result;
+    photoPosX = 50; photoPosY = 50;
+    document.getElementById('photoThumb').src = profilePhoto;
+    document.getElementById('photoPlaceholder').style.display = 'none';
+    document.getElementById('photoLoaded').style.display = 'flex';
+    document.getElementById('photoInput').style.display = 'none';
+    updatePreview();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto(){
+  profilePhoto = null;
+  const input = document.getElementById('photoInput');
+  input.value = '';
+  input.style.display = 'block';
+  document.getElementById('photoPlaceholder').style.display = 'block';
+  document.getElementById('photoLoaded').style.display = 'none';
+  updatePreview();
+}
+
+// Drag photo inside resume preview to reposition
+function _photoMoveHandler(clientX, clientY){
+  const dx = clientX - _pStartX, dy = clientY - _pStartY;
+  photoPosX = Math.max(0, Math.min(100, _pStartPX - dx * 0.5));
+  photoPosY = Math.max(0, Math.min(100, _pStartPY - dy * 0.5));
+  const img = document.getElementById('resumePhotoImg');
+  if(img) img.style.objectPosition = photoPosX + '% ' + photoPosY + '%';
+}
+
+document.addEventListener('mousedown', function(e){
+  if(e.target && e.target.id === 'resumePhotoImg'){
+    _photoDragging = true;
+    _pStartX = e.clientX; _pStartY = e.clientY;
+    _pStartPX = photoPosX; _pStartPY = photoPosY;
+    e.preventDefault();
+  }
+});
+document.addEventListener('touchstart', function(e){
+  if(e.target && e.target.id === 'resumePhotoImg'){
+    _photoDragging = true;
+    _pStartX = e.touches[0].clientX; _pStartY = e.touches[0].clientY;
+    _pStartPX = photoPosX; _pStartPY = photoPosY;
+    e.preventDefault();
+  }
+},{passive:false});
+document.addEventListener('mousemove', function(e){
+  if(!_photoDragging) return;
+  _photoMoveHandler(e.clientX, e.clientY);
+});
+document.addEventListener('touchmove', function(e){
+  if(!_photoDragging) return;
+  _photoMoveHandler(e.touches[0].clientX, e.touches[0].clientY);
+  e.preventDefault();
+},{passive:false});
+document.addEventListener('mouseup', ()=>{ _photoDragging = false; });
+document.addEventListener('touchend', ()=>{ _photoDragging = false; });
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+updatePreview();
+</script>
+</body>
+</html>

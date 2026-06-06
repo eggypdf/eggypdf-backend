@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>EggyPDF – Free Online PDF Tools | Merge, Compress, Convert PDF</title>
+<meta name="description" content="EggyPDF offers 21 free online PDF tools — merge, split, compress, convert PDF to Word, JPG, Excel and more. No sign up needed. Fast, secure and free forever."/>
+<meta name="keywords" content="free pdf tools, merge pdf, compress pdf, pdf to word, pdf to jpg, split pdf, convert pdf, online pdf editor, pdf converter free"/>
+<meta name="robots" content="index, follow"/>
+<meta name="author" content="EggyPDF"/>
+<link rel="canonical" href="https://eggypdf.com/"/>
+
+<!-- Open Graph (for social sharing) -->
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://eggypdf.com/"/>
+<meta property="og:title" content="EggyPDF – Free Online PDF Tools"/>
+<meta property="og:description" content="Merge, split, compress, convert PDFs and build resumes for free. No account needed."/>
+<meta property="og:site_name" content="EggyPDF"/>
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="EggyPDF – Free Online PDF Tools"/>
+<meta name="twitter:description" content="Merge, split, compress, convert PDFs and build resumes for free. No account needed."/>
+
+<!-- Sitemap reference -->
+<link rel="sitemap" type="application/xml" href="/sitemap.xml"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;
+  --text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;
+  --bg:#f9fafb;--white:#ffffff;--radius:10px;
+  --card-shadow:0 1px 4px rgba(0,0,0,0.07);
+  --card-shadow-hover:0 4px 16px rgba(245,166,35,0.18);
+}
+body{font-family:'Inter',sans-serif;color:var(--text);background:var(--white);font-size:15px;line-height:1.6}
+a{text-decoration:none;color:inherit}
+button{font-family:inherit;cursor:pointer}
+
+/* HEADER */
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem;position:sticky;top:0;z-index:100}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:1.5rem;height:62px}
+
+/* LOGO */
+.logo-wrap{display:flex;align-items:center;gap:10px;flex-shrink:0;cursor:pointer}
+.logo-svg{width:44px;height:44px;overflow:visible}
+.logo-name{font-size:1.25rem;font-weight:700;color:var(--text);letter-spacing:-0.3px}
+.logo-name span{color:var(--brand)}
+
+/* EGG ANIMATION */
+.egg-bottom{transform-origin:22px 32px;animation:eggShake 3s ease-in-out infinite}
+.egg-top{transform-origin:22px 16px;animation:eggCrackTop 3s ease-in-out infinite}
+.egg-crack{opacity:0;animation:crackAppear 3s ease-in-out infinite}
+.pdf-out{transform-origin:22px 28px;opacity:0;animation:pdfEmerge 3s ease-in-out infinite}
+@keyframes eggShake{0%,20%{transform:rotate(0deg)}25%{transform:rotate(-6deg)}30%{transform:rotate(6deg)}35%{transform:rotate(-4deg)}40%,100%{transform:rotate(0deg)}}
+@keyframes eggCrackTop{0%,38%{transform:translateY(0) rotate(0deg);opacity:1}45%{transform:translateY(-7px) rotate(-8deg);opacity:1}60%,85%{transform:translateY(-10px) rotate(-10deg);opacity:0.7}95%,100%{transform:translateY(0) rotate(0deg);opacity:1}}
+@keyframes crackAppear{0%,28%{opacity:0}35%,80%{opacity:1}90%,100%{opacity:0}}
+@keyframes pdfEmerge{0%,35%{opacity:0;transform:translateY(6px) scale(0.6)}48%{opacity:1;transform:translateY(0) scale(1)}78%{opacity:1;transform:translateY(-2px) scale(1)}90%,100%{opacity:0;transform:translateY(-6px) scale(0.8)}}
+
+/* NAV */
+nav{display:flex;align-items:center;gap:2px;flex:1}
+.nav-item{position:relative;padding:8px 12px;font-size:14px;font-weight:500;color:var(--muted);border-radius:7px;cursor:pointer;transition:background 0.15s,color 0.15s;white-space:nowrap}
+.nav-item:hover{background:var(--bg);color:var(--text)}
+.nav-item svg{width:12px;height:12px;margin-left:3px;vertical-align:middle}
+.dropdown-panel{display:none;position:absolute;top:calc(100% + 6px);left:0;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 20px rgba(0,0,0,0.1);min-width:200px;padding:6px 0;z-index:200}
+.nav-item:hover .dropdown-panel{display:block}
+.dropdown-panel a{display:block;padding:8px 16px;font-size:13.5px;color:var(--muted);transition:background 0.1s,color 0.1s}
+.dropdown-panel a:hover{background:var(--brand-light);color:var(--brand-dark)}
+.dp-section{padding:7px 16px 3px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:#c4c4cc}
+.dp-divider{border:none;border-top:1px solid var(--border);margin:5px 0}
+.header-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.btn-ghost{padding:7px 16px;border-radius:7px;font-size:13.5px;font-weight:600;border:1px solid var(--border);background:var(--white);color:var(--text);transition:background 0.15s}
+.btn-ghost:hover{background:var(--bg)}
+.btn-primary{padding:7px 18px;border-radius:7px;font-size:13.5px;font-weight:600;border:none;background:var(--brand);color:var(--white);transition:background 0.15s}
+.btn-primary:hover{background:var(--brand-dark)}
+
+/* HERO */
+.hero{background:linear-gradient(160deg,var(--brand-light) 0%,var(--white) 60%);padding:56px 1.5rem 44px;text-align:center}
+.hero h1{font-size:2.4rem;font-weight:700;line-height:1.2;max-width:640px;margin:0 auto 14px;color:var(--text)}
+.hero h1 em{font-style:normal;color:var(--brand)}
+.hero p{font-size:1rem;color:var(--muted);max-width:520px;margin:0 auto}
+
+/* FILTER BAR */
+.filter-bar{border-bottom:2px solid var(--border);background:var(--white);padding:0 1.5rem;position:sticky;top:62px;z-index:90}
+.filter-inner{max-width:1100px;margin:0 auto;display:flex;overflow-x:auto;scrollbar-width:none}
+.filter-inner::-webkit-scrollbar{display:none}
+.ftab{padding:13px 18px;font-size:13.5px;font-weight:600;border:none;background:none;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:color 0.15s,border-color 0.15s}
+.ftab:hover{color:var(--text)}
+.ftab.active{color:var(--brand-dark);border-bottom-color:var(--brand)}
+
+/* TOOLS */
+.tools-wrap{max-width:1100px;margin:0 auto;padding:36px 1.5rem 56px}
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:14px}
+
+/* WORKING TOOL CARD */
+.tool-card{display:flex;flex-direction:column;gap:9px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px 16px 16px;cursor:pointer;transition:box-shadow 0.17s,border-color 0.17s,transform 0.14s;color:inherit}
+.tool-card:hover{box-shadow:var(--card-shadow-hover);border-color:var(--brand);transform:translateY(-2px)}
+.tool-icon{width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.tool-card h3{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3}
+.tool-card p{font-size:12px;color:var(--muted);line-height:1.5;flex:1}
+
+/* COMING SOON CARD */
+.tool-card-soon{
+  display:flex;flex-direction:column;gap:9px;
+  background:var(--white);border:1.5px dashed var(--border);
+  border-radius:var(--radius);padding:20px 16px 16px;
+  position:relative;overflow:hidden;
+  transition:box-shadow 0.17s,border-color 0.17s,transform 0.14s;
+  cursor:default;
+}
+.tool-card-soon:hover{box-shadow:var(--card-shadow-hover);border-color:var(--brand);transform:translateY(-2px)}
+.tool-card-soon h3{font-size:13.5px;font-weight:700;color:var(--muted);line-height:1.3}
+.tool-card-soon p{font-size:12px;color:#c4c4cc;line-height:1.5;flex:1}
+.soon-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--brand-light);color:var(--brand-dark);
+  font-size:10px;font-weight:700;padding:3px 9px;
+  border-radius:20px;width:fit-content;
+  border:1px solid #fcd97a;
+}
+
+/* CRACKING EGG ANIMATION for coming soon */
+.egg-soon{
+  display:inline-block;
+  animation:eggWiggle 1.8s ease-in-out infinite;
+  font-size:16px;
+}
+@keyframes eggWiggle{
+  0%,100%{transform:rotate(0deg) scale(1)}
+  20%{transform:rotate(-10deg) scale(1.1)}
+  40%{transform:rotate(10deg) scale(1.1)}
+  60%{transform:rotate(-6deg) scale(1.05)}
+  80%{transform:rotate(0deg) scale(1)}
+}
+
+/* icon bg colors */
+.i-merge{background:#fff0eb}.i-split{background:#fffbe6}.i-compress{background:#edfaf3}
+.i-word{background:#e8f0fe}.i-ppt{background:#fff3e6}.i-xl{background:#e6f7e6}
+.i-jpg{background:#fff0f0}.i-html{background:#e8f0fe}.i-pdfa{background:#edfaf3}
+.i-edit{background:#f3e6ff}.i-rotate{background:#fff3e6}.i-wm{background:#e6f7f7}
+.i-pagenum{background:#e8f0fe}.i-crop{background:#edfaf3}.i-forms{background:#fff8e6}
+.i-unlock{background:#fff3e6}.i-protect{background:#e8f0fe}.i-sign{background:#e6f0ff}
+.i-redact{background:#fff0eb}.i-compare{background:#fffbe6}.i-ai{background:#f3e6ff}
+.i-trans{background:#e6f0ff}.i-scan{background:#e6f7ff}
+
+/* FEATURES */
+.features{background:var(--bg);padding:52px 1.5rem}
+.features-inner{max-width:1100px;margin:0 auto}
+.features-inner h2{text-align:center;font-size:1.5rem;font-weight:700;margin-bottom:8px}
+.features-inner .sub{text-align:center;color:var(--muted);font-size:14px;margin-bottom:36px}
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
+.feat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:24px 20px;transition:box-shadow 0.17s,border-color 0.17s}
+.feat-card:hover{box-shadow:var(--card-shadow);border-color:var(--brand)}
+.feat-icon{font-size:2rem;margin-bottom:12px}
+.feat-card h3{font-size:15px;font-weight:700;margin-bottom:6px}
+.feat-card p{font-size:13px;color:var(--muted)}
+
+/* FOOTER */
+footer{background:#1c1c28;color:#9ca3af;padding:44px 1.5rem 24px}
+.footer-inner{max-width:1100px;margin:0 auto}
+.footer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:28px;margin-bottom:36px}
+.fcol h4{color:#fff;font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:12px}
+.fcol a{display:block;color:#9ca3af;font-size:13.5px;margin-bottom:7px;transition:color 0.15s}
+.fcol a:hover{color:var(--brand)}
+.footer-bottom{border-top:1px solid #2e2e40;padding-top:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.footer-bottom p{font-size:13px;color:#6b7280}
+.footer-logo{font-size:1rem;font-weight:700;color:#fff}
+.footer-logo span{color:var(--brand)}
+
+@media(max-width:760px){
+  nav{display:none}
+  .hero h1{font-size:1.7rem}
+  .tools-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .footer-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+/* SIGN-IN MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;padding:1.5rem}
+.modal-overlay.show{display:flex}
+.modal-box{background:var(--white);border-radius:16px;padding:40px 32px;max-width:440px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);position:relative;animation:modalPop 0.3s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes modalPop{from{transform:scale(0.85);opacity:0}to{transform:scale(1);opacity:1}}
+.modal-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;line-height:1;padding:4px}
+.modal-close:hover{color:var(--text)}
+.modal-egg{font-size:3.5rem;margin-bottom:12px;display:block;animation:eggWiggle 2s ease-in-out infinite}
+.modal-box h2{font-size:1.25rem;font-weight:700;margin-bottom:10px;color:var(--text)}
+.modal-box p{font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:20px}
+.modal-cta{display:inline-flex;align-items:center;gap:8px;background:var(--brand);color:var(--white);border:none;border-radius:9px;padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;transition:background 0.15s}
+.modal-cta:hover{background:var(--brand-dark)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <a href="#" class="logo-wrap">
+      <svg class="logo-svg" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g class="egg-bottom">
+          <path d="M6 26 Q6 40 22 40 Q38 40 38 26 L6 26 Z" fill="#fde68a" stroke="#d4a017" stroke-width="1.4"/>
+        </g>
+        <g class="egg-crack">
+          <polyline points="14,26 17,23 20,25 24,21 28,24 31,22" fill="none" stroke="#b45309" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+        <g class="egg-top">
+          <path d="M6 26 Q6 6 22 6 Q38 6 38 26 Z" fill="#fef3c7" stroke="#d4a017" stroke-width="1.4"/>
+        </g>
+        <g class="pdf-out">
+          <rect x="14" y="14" width="16" height="20" rx="2" fill="#e8f0fe" stroke="#3b82f6" stroke-width="1.2"/>
+          <text x="15.5" y="21" font-family="Inter,sans-serif" font-size="5" font-weight="700" fill="#1d4ed8">PDF</text>
+          <rect x="17" y="22" width="6" height="1.5" rx="0.75" fill="#3b82f6"/>
+          <rect x="17" y="25" width="10" height="1.5" rx="0.75" fill="#93c5fd"/>
+          <rect x="17" y="28" width="8" height="1.5" rx="0.75" fill="#93c5fd"/>
+        </g>
+      </svg>
+      <span class="logo-name">Eggy<span>PDF</span></span>
+    </a>
+
+    <nav>
+      <div class="nav-item">
+        All Tools
+        <svg viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+        <div class="dropdown-panel">
+          <div class="dp-section">Organize</div>
+          <a href="tools/merge.html">Merge PDF</a>
+          <a href="tools/split.html">Split PDF</a>
+          <div class="dp-divider"></div>
+          <div class="dp-section">Optimize</div>
+          <a href="tools/compress.html">Compress PDF</a>
+          <div class="dp-divider"></div>
+          <div class="dp-section">Edit</div>
+          <a href="tools/watermark.html">Add Watermark</a>
+          <a href="tools/rotate.html">Rotate PDF</a>
+          <a href="tools/delete-pages.html">Delete Pages</a>
+          <a href="tools/page-numbers.html">Add Page Numbers</a>
+          <a href="tools/crop.html">Crop PDF</a>
+          <div class="dp-divider"></div>
+          <div class="dp-section">Security</div>
+          <a href="tools/protect.html">Protect PDF</a>
+          <a href="tools/unlock.html">Unlock PDF</a>
+        </div>
+      </div>
+      <div class="nav-item">
+        Convert
+        <svg viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+        <div class="dropdown-panel">
+          <div class="dp-section">To PDF</div>
+          <a href="tools/word-to-pdf.html">Word to PDF</a>
+          <a href="tools/ppt-to-pdf.html">PowerPoint to PDF</a>
+          <a href="tools/excel-to-pdf.html">Excel to PDF</a>
+          <a href="tools/jpg-to-pdf.html">JPG to PDF</a>
+          <div class="dp-divider"></div>
+          <div class="dp-section">From PDF</div>
+          <a href="tools/pdf-to-word.html">PDF to Word</a>
+          <a href="tools/pdf-to-ppt.html">PDF to PowerPoint</a>
+          <a href="tools/pdf-to-excel.html">PDF to Excel</a>
+          <a href="tools/pdf-to-text.html">PDF to Text</a>
+          <div class="dp-divider"></div>
+          <div class="dp-section">Create</div>
+          <a href="resume-builder.html" style="color:var(--brand-dark);font-weight:600">📋 Resume Builder</a>
+        </div>
+      </div>
+      <a href="about-us.html" class="nav-item">About Us</a>
+      <a href="#" class="nav-item">Blog</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="btn-ghost" onclick="showSignInModal()">Log in</button>
+      <button class="btn-primary" onclick="showSignInModal()">Sign up free</button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <h1>Your PDF tools, <em>cracked open</em> &amp; ready to use — <em>20+ free tools</em></h1>
+  <p>Merge, split, compress, convert, edit and secure PDF files — all completely free, right in your browser.</p>
+</section>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <div class="filter-inner">
+    <button class="ftab active" onclick="filterTools('all',this)">All</button>
+    <button class="ftab" onclick="filterTools('organize',this)">Organize</button>
+    <button class="ftab" onclick="filterTools('optimize',this)">Optimize</button>
+    <button class="ftab" onclick="filterTools('convert',this)">Convert</button>
+    <button class="ftab" onclick="filterTools('edit',this)">Edit</button>
+    <button class="ftab" onclick="filterTools('security',this)">Security</button>
+    <button class="ftab" onclick="filterTools('ai',this)">AI Tools</button>
+    <button class="ftab" onclick="filterTools('resume',this)">📋 Resume Builder</button>
+  </div>
+</div>
+
+<!-- TOOLS GRID -->
+<section class="tools-wrap">
+  <div class="tools-grid" id="toolsGrid">
+
+    <!-- ① RESUME BUILDER — always first -->
+    <a href="resume-builder.html" class="tool-card" data-cat="resume" style="border-color:#f5a623;background:linear-gradient(135deg,#fff8ed,#fff)">
+      <div class="tool-icon" style="background:#fff3cd;font-size:1.5rem">📋</div>
+      <h3 style="color:#d4881a">Resume Builder <span style="font-size:10px;background:#f5a623;color:#fff;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;margin-left:4px">NEW</span></h3>
+      <p>Create a professional resume with live preview. UAE &amp; Europe formats supported.</p>
+    </a>
+
+    <!-- ② MOST USED DAILY — Merge, Compress, Split -->
+    <a href="tools/merge.html" class="tool-card" data-cat="organize">
+      <div class="tool-icon i-merge">🔗</div>
+      <h3>Merge PDF</h3>
+      <p>Combine multiple PDF files into one document in the order you choose.</p>
+    </a>
+
+    <a href="tools/compress.html" class="tool-card" data-cat="optimize">
+      <div class="tool-icon i-compress">📦</div>
+      <h3>Compress PDF</h3>
+      <p>Reduce your PDF file size without noticeably losing quality.</p>
+    </a>
+
+    <a href="tools/split.html" class="tool-card" data-cat="organize">
+      <div class="tool-icon i-split">✂️</div>
+      <h3>Split PDF</h3>
+      <p>Split a PDF by page range or extract individual pages into separate files.</p>
+    </a>
+
+    <!-- ③ PDF ↔ WORD / OFFICE — high daily demand -->
+    <a href="tools/pdf-to-word.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-word">📝</div>
+      <h3>PDF to Word</h3>
+      <p>Convert your PDF into an editable Word document accurately.</p>
+    </a>
+
+    <a href="tools/word-to-pdf.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-word">📄</div>
+      <h3>Word to PDF</h3>
+      <p>Convert Word documents to PDF quickly while keeping all formatting.</p>
+    </a>
+
+    <a href="tools/ppt-to-pdf.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-ppt">🎞️</div>
+      <h3>PowerPoint to PDF</h3>
+      <p>Convert PowerPoint presentations to PDF keeping all slides intact.</p>
+    </a>
+
+    <a href="tools/excel-to-pdf.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-xl">📊</div>
+      <h3>Excel to PDF</h3>
+      <p>Convert Excel spreadsheets and CSV files into clean PDF documents.</p>
+    </a>
+
+    <!-- ④ IMAGE ↔ PDF — very common -->
+    <a href="tools/jpg-to-pdf.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-jpg">🗃️</div>
+      <h3>JPG to PDF</h3>
+      <p>Combine one or more JPG or PNG images into a single PDF document.</p>
+    </a>
+
+    <a href="tools/pdf-to-jpg.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-jpg">🖼️</div>
+      <h3>PDF to JPG</h3>
+      <p>Convert each PDF page into a high quality JPG image file.</p>
+    </a>
+
+    <a href="tools/png-to-pdf.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-scan">📄</div>
+      <h3>PNG to PDF</h3>
+      <p>Convert PNG, JPG or WebP images into a PDF document instantly.</p>
+    </a>
+
+    <a href="tools/pdf-to-png.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-html">🗂️</div>
+      <h3>PDF to PNG</h3>
+      <p>Convert each PDF page into a crisp, transparent PNG image.</p>
+    </a>
+
+    <!-- ⑤ SECURITY — protect & unlock -->
+    <a href="tools/protect.html" class="tool-card" data-cat="security">
+      <div class="tool-icon i-protect">🔒</div>
+      <h3>Protect PDF</h3>
+      <p>Add a password to your PDF to prevent unauthorized access.</p>
+    </a>
+
+    <a href="tools/unlock.html" class="tool-card" data-cat="security">
+      <div class="tool-icon i-unlock">🔓</div>
+      <h3>Unlock PDF</h3>
+      <p>Remove password protection from a PDF you own. Fast and free.</p>
+    </a>
+
+    <a href="tools/watermark.html" class="tool-card" data-cat="edit">
+      <div class="tool-icon i-wm">💧</div>
+      <h3>Add Watermark</h3>
+      <p>Stamp a custom text watermark diagonally across all pages of your PDF.</p>
+    </a>
+
+    <!-- ⑥ EDIT & ORGANISE -->
+    <a href="tools/rotate.html" class="tool-card" data-cat="edit">
+      <div class="tool-icon i-rotate">🔄</div>
+      <h3>Rotate PDF</h3>
+      <p>Rotate all pages or specific pages in your PDF to the correct orientation.</p>
+    </a>
+
+    <a href="tools/delete-pages.html" class="tool-card" data-cat="edit">
+      <div class="tool-icon i-edit">🗑️</div>
+      <h3>Delete PDF Pages</h3>
+      <p>Remove unwanted pages from your PDF by entering page numbers or ranges.</p>
+    </a>
+
+    <a href="tools/page-numbers.html" class="tool-card" data-cat="edit">
+      <div class="tool-icon i-pagenum">🔢</div>
+      <h3>Add Page Numbers</h3>
+      <p>Add professional page numbers to your PDF. Choose position and style.</p>
+    </a>
+
+    <a href="tools/crop.html" class="tool-card" data-cat="edit">
+      <div class="tool-icon i-crop">✂️</div>
+      <h3>Crop PDF</h3>
+      <p>Crop PDF pages by trimming margins from any side of the document.</p>
+    </a>
+
+    <!-- ⑦ EXTRACT / CONVERT OTHER -->
+    <a href="tools/pdf-to-excel.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-xl">📈</div>
+      <h3>PDF to Excel</h3>
+      <p>Extract tables and data from PDF files directly into Excel spreadsheets.</p>
+    </a>
+
+    <a href="tools/pdf-to-ppt.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-ppt">🎯</div>
+      <h3>PDF to PowerPoint</h3>
+      <p>Convert PDF pages into editable PowerPoint presentation slides.</p>
+    </a>
+
+    <a href="tools/pdf-to-text.html" class="tool-card" data-cat="convert">
+      <div class="tool-icon i-edit">📃</div>
+      <h3>PDF to Text</h3>
+      <p>Extract all readable text from a PDF and download as a plain text file.</p>
+    </a>
+
+    <!-- ⑧ COMING SOON — always last -->
+    <div class="tool-card-soon" data-cat="organize">
+      <div class="tool-icon i-scan">📷</div>
+      <h3>Scan to PDF</h3>
+      <p>Use your phone to scan documents and convert them to PDF instantly.</p>
+      <span class="soon-badge"><span class="egg-soon">🥚</span> Coming Soon</span>
+    </div>
+
+    <div class="tool-card-soon" data-cat="edit">
+      <div class="tool-icon i-edit">✏️</div>
+      <h3>Edit PDF</h3>
+      <p>Add or modify text, images, and shapes directly inside your PDF.</p>
+      <span class="soon-badge"><span class="egg-soon">🥚</span> Coming Soon</span>
+    </div>
+
+    <div class="tool-card-soon" data-cat="edit">
+      <div class="tool-icon i-forms">📋</div>
+      <h3>PDF Forms</h3>
+      <p>Create interactive fillable forms or fill out existing PDF forms online.</p>
+      <span class="soon-badge"><span class="egg-soon">🥚</span> Coming Soon</span>
+    </div>
+
+    <div class="tool-card-soon" data-cat="security">
+      <div class="tool-icon i-sign">✍️</div>
+      <h3>Sign PDF</h3>
+      <p>Add your digital signature to a PDF document online.</p>
+      <span class="soon-badge"><span class="egg-soon">🥚</span> Coming Soon</span>
+    </div>
+
+    <div class="tool-card-soon" data-cat="ai">
+      <div class="tool-icon i-ai">🤖</div>
+      <h3>AI Summarize</h3>
+      <p>Get a concise AI-generated summary of any PDF in seconds.</p>
+      <span class="soon-badge"><span class="egg-soon">🥚</span> Coming Soon</span>
+    </div>
+
+    <div class="tool-card-soon" data-cat="ai">
+      <div class="tool-icon i-trans">🌍</div>
+      <h3>Translate PDF</h3>
+      <p>Translate your PDF into another language while keeping the original layout.</p>
+      <span class="soon-badge"><span class="egg-soon">🥚</span> Coming Soon</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features">
+  <div class="features-inner">
+    <h2>Why choose EggyPDF?</h2>
+    <p class="sub">Simple, fast, and free — no account needed to get started.</p>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon">⚡</div>
+        <h3>Fast processing</h3>
+        <p>Your files are processed on secure servers and ready to download in moments.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🔐</div>
+        <h3>Private &amp; secure</h3>
+        <p>Files are automatically deleted from our servers after one hour.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🌐</div>
+        <h3>Works everywhere</h3>
+        <p>No software to install. Works on Windows, Mac, Linux, iOS and Android.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">💸</div>
+        <h3>Always free</h3>
+        <p>All core tools are free to use. No hidden fees, no sneaky limits.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="fcol">
+        <h4>Product</h4>
+        <a href="#">Home</a>
+        <a href="#">All Tools</a>
+        <a href="#">Blog</a>
+      </div>
+      <div class="fcol">
+        <h4>Tools</h4>
+        <a href="tools/merge.html">Merge PDF</a>
+        <a href="tools/compress.html">Compress PDF</a>
+        <a href="tools/pdf-to-word.html">PDF to Word</a>
+        <a href="tools/protect.html">Protect PDF</a>
+      </div>
+      <div class="fcol">
+        <h4>Legal</h4>
+        <a href="privacy-policy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Use</a>
+        <a href="cookie-policy.html">Cookie Policy</a>
+      </div>
+      <div class="fcol">
+        <h4>Company</h4>
+        <a href="about-us.html">About Us</a>
+        <a href="contact.html">Contact</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-logo">Eggy<span>PDF</span></span>
+      <p>© 2026 EggyPDF. All rights reserved.</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+function filterTools(cat, btn){
+  document.querySelectorAll('.ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tool-card, .tool-card-soon').forEach(card=>{
+    card.style.display=(cat==='all'||card.dataset.cat===cat)?'':'none';
+  });
+}
+</script>
+
+<script>
+function showSignInModal(){
+  document.getElementById('signInModal').classList.add('show');
+  document.body.style.overflow='hidden';
+}
+function closeSignInModal(){
+  document.getElementById('signInModal').classList.remove('show');
+  document.body.style.overflow='';
+}
+function closeModalOnBackdrop(e){
+  if(e.target===document.getElementById('signInModal')) closeSignInModal();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape') closeSignInModal();});
+</script>
+
+<!-- SIGN-IN MODAL -->
+<div class="modal-overlay" id="signInModal" onclick="closeModalOnBackdrop(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeSignInModal()">&#x2715;</button>
+    <span class="modal-egg">🥚</span>
+    <h2>Something great is hatching!</h2>
+    <p>We are working hard to bring you a full account experience with saved files, usage history, and even more powerful tools.<br><br>
+    <strong>In the meantime, every tool on EggyPDF is completely free and works without signing in.</strong> No account needed — just pick a tool and get started right now!</p>
+    <button class="modal-cta" onclick="closeSignInModal()">Use tools for free →</button>
+  </div>
+</div>
+</body>
+</html>
