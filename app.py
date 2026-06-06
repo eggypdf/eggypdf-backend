@@ -1039,95 +1039,83 @@ def pdf_to_ppt():
 # ─── AI: RESUME SUGGESTIONS ───
 @app.route('/api/ai-suggestions', methods=['POST', 'OPTIONS'])
 def ai_suggestions():
-    """
-    Accepts: { "job_title": "...", "type": "bullets" | "summary" | "skills" }
-    Returns: { "suggestions": [...] }
-    Uses Gemini Flash API key stored as GEMINI_API_KEY environment variable on Render.
-    The key is NEVER exposed to the browser — it lives only on the server.
-    """
-    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
     if not GEMINI_API_KEY:
-        return jsonify({"error": "AI service is not configured yet."}), 503
+        return jsonify({"error": "AI service is not configured. Please add GEMINI_API_KEY on Render."}), 503
 
     data = request.get_json(silent=True) or {}
     job_title    = (data.get('job_title') or '').strip()
-    suggest_type = (data.get('type')      or 'bullets').strip()
+    suggest_type = (data.get('type') or 'bullets').strip()
 
     if not job_title:
         return jsonify({"error": "Please provide a job title."}), 400
 
-    # ── Build prompt based on type ──
+    # Build prompt
     if suggest_type == 'bullets':
         prompt = (
             f"Write exactly 5 professional resume bullet points for a {job_title}. "
-            "Each bullet point must start with a strong action verb, include a specific achievement or responsibility, "
-            "and be concise (under 20 words). Return ONLY a JSON array of 5 strings, nothing else. "
-            "Example format: [\"Developed X\", \"Led Y\", \"Improved Z by 40%\", \"Managed A\", \"Delivered B\"]"
+            "Each must start with a strong action verb and be under 20 words. "
+            "Return ONLY a valid JSON array of 5 strings. No explanation, no markdown, no extra text. "
+            'Example: ["Developed scalable apps", "Led a team of 5", "Reduced costs by 30%", "Managed projects", "Delivered features"]'
         )
     elif suggest_type == 'summary':
         prompt = (
-            f"Write exactly 3 different professional summary paragraphs for a {job_title}'s resume. "
-            "Each summary should be 2-3 sentences, confident, and ATS-friendly. "
-            "Return ONLY a JSON array of 3 strings, nothing else."
+            f"Write exactly 3 different professional resume summary paragraphs for a {job_title}. "
+            "Each 2-3 sentences, ATS-friendly, confident tone. "
+            "Return ONLY a valid JSON array of 3 strings. No explanation, no markdown, no extra text."
         )
     elif suggest_type == 'skills':
         prompt = (
-            f"List exactly 8 of the most important and in-demand skills for a {job_title}. "
-            "Return ONLY a JSON array of 8 short skill name strings, nothing else. "
-            "Example: [\"JavaScript\", \"React\", \"Node.js\"]"
+            f"List the 8 most important skills for a {job_title}. "
+            "Return ONLY a valid JSON array of 8 short skill name strings. "
+            'No explanation, no markdown. Example: ["Python", "SQL", "Excel"]'
         )
     else:
-        return jsonify({"error": "Invalid suggestion type."}), 400
+        return jsonify({"error": "Invalid type. Use bullets, summary, or skills."}), 400
 
-    # ── Call Gemini Flash API ──
     try:
-        import urllib.request, json as json_lib
+        import requests as req_lib
+        import json as json_lib
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # Use gemini-2.0-flash — latest free model
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
 
-        payload = json_lib.dumps({
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }],
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.7,
-                "maxOutputTokens": 512,
+                "maxOutputTokens": 600,
+                "responseMimeType": "application/json"
             }
-        }).encode('utf-8')
+        }
 
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
+        response = req_lib.post(url, json=payload, timeout=20)
 
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json_lib.loads(resp.read().decode('utf-8'))
+        if response.status_code == 400:
+            return jsonify({"error": "Invalid API key. Please check your GEMINI_API_KEY on Render."}), 400
+        if response.status_code == 429:
+            return jsonify({"error": "Daily AI limit reached. Try again tomorrow."}), 429
+        if response.status_code != 200:
+            return jsonify({"error": f"Gemini API error: {response.status_code}"}), 500
 
-        # Extract text from Gemini response
+        result = response.json()
         text = result['candidates'][0]['content']['parts'][0]['text'].strip()
 
-        # Clean up any markdown code fences Gemini sometimes adds
+        # Strip any markdown fences Gemini might add
         text = text.replace('```json', '').replace('```', '').strip()
 
-        # Parse the JSON array Gemini returned
         suggestions = json_lib.loads(text)
 
         if not isinstance(suggestions, list):
-            raise ValueError("Gemini did not return a list")
+            raise ValueError("Response was not a list")
+
+        # Ensure clean strings
+        suggestions = [str(s).strip() for s in suggestions if s]
 
         return jsonify({"suggestions": suggestions})
 
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode('utf-8') if e else ''
-        if e.code == 400:
-            return jsonify({"error": "Invalid API key or request. Check your Gemini API key."}), 400
-        elif e.code == 429:
-            return jsonify({"error": "AI daily limit reached. Please try again tomorrow."}), 429
-        return jsonify({"error": f"AI service error: {e.code}"}), 500
     except Exception as e:
-        return jsonify({"error": f"AI request failed: {str(e)}"}), 500
+        return jsonify({"error": f"AI failed: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
