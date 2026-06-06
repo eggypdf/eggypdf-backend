@@ -1078,25 +1078,52 @@ def ai_suggestions():
         import urllib.error
         import json as json_lib
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # Try models in order until one works
+        models = [
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-pro",
+            "gemini-pro",
+        ]
 
-        payload = json_lib.dumps({
+        payload_dict = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.7,
                 "maxOutputTokens": 600
             }
-        }).encode("utf-8")
+        }
 
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
+        result = None
+        last_error = None
 
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            result = json_lib.loads(resp.read().decode("utf-8"))
+        for model in models:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+                payload = json_lib.dumps(payload_dict).encode("utf-8")
+                req = urllib.request.Request(
+                    url,
+                    data=payload,
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=20) as resp:
+                    result = json_lib.loads(resp.read().decode("utf-8"))
+                break  # success — stop trying
+            except urllib.error.HTTPError as e:
+                if e.code == 400:
+                    # Bad API key — no point trying other models
+                    return jsonify({"error": "Invalid API key. Check GEMINI_API_KEY on Render."}), 400
+                if e.code == 429:
+                    return jsonify({"error": "Daily AI limit reached. Try again tomorrow."}), 429
+                last_error = f"{model}: HTTP {e.code}"
+                continue
+            except Exception as e:
+                last_error = str(e)
+                continue
+
+        if result is None:
+            return jsonify({"error": f"No Gemini model available. Last error: {last_error}"}), 500
 
         text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
         text = text.replace("```json", "").replace("```", "").strip()
@@ -1110,15 +1137,6 @@ def ai_suggestions():
 
         return jsonify({"suggestions": suggestions})
 
-    except urllib.error.HTTPError as e:
-        code = e.code
-        if code == 400:
-            return jsonify({"error": "Invalid API key. Check GEMINI_API_KEY on Render."}), 400
-        if code == 404:
-            return jsonify({"error": "Gemini model not found. Contact support."}), 404
-        if code == 429:
-            return jsonify({"error": "Daily AI limit reached. Try again tomorrow."}), 429
-        return jsonify({"error": f"Gemini API error: {code}"}), 500
     except Exception as e:
         return jsonify({"error": f"AI failed: {str(e)}"}), 500
 
