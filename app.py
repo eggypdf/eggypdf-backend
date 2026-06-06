@@ -656,8 +656,8 @@ def unlock_pdf():
                 if result == 0:
                     cleanup(saved)
                     if password:
-                        return jsonify({"error": "Incorrect password. Please check and try again."}), 400
-                    return jsonify({"error": "This PDF is password protected. Please enter the password to unlock it."}), 400
+                        return jsonify({"error": "Incorrect password. Please double-check and try again. If you have forgotten the password, it cannot be recovered."}), 400
+                    return jsonify({"error": "This PDF requires a password to open. Please enter the correct password. Note: if you do not know the password, it cannot be removed — this is a security feature of PDF encryption."}), 400
 
             writer = PdfWriter()
             for page in reader.pages:
@@ -672,8 +672,8 @@ def unlock_pdf():
     if not opened:
         cleanup(saved)
         if password:
-            return jsonify({"error": "Incorrect password. Please check and try again."}), 400
-        return jsonify({"error": "This PDF is password protected. Please enter the password to unlock it."}), 400
+            return jsonify({"error": "Incorrect password. Please double-check and try again. If you have forgotten the password, it cannot be recovered."}), 400
+        return jsonify({"error": "This PDF requires a password to open. Please enter the correct password. Note: if you do not know the password, it cannot be removed — this is a security feature of PDF encryption."}), 400
 
     if not os.path.exists(out) or os.path.getsize(out) == 0:
         cleanup(saved)
@@ -1034,6 +1034,100 @@ def pdf_to_ppt():
         download_name='converted.pptx',
         mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation'
     )
+
+
+# ─── AI: RESUME SUGGESTIONS ───
+@app.route('/api/ai-suggestions', methods=['POST', 'OPTIONS'])
+def ai_suggestions():
+    """
+    Accepts: { "job_title": "...", "type": "bullets" | "summary" | "skills" }
+    Returns: { "suggestions": [...] }
+    Uses Gemini Flash API key stored as GEMINI_API_KEY environment variable on Render.
+    The key is NEVER exposed to the browser — it lives only on the server.
+    """
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "AI service is not configured yet."}), 503
+
+    data = request.get_json(silent=True) or {}
+    job_title    = (data.get('job_title') or '').strip()
+    suggest_type = (data.get('type')      or 'bullets').strip()
+
+    if not job_title:
+        return jsonify({"error": "Please provide a job title."}), 400
+
+    # ── Build prompt based on type ──
+    if suggest_type == 'bullets':
+        prompt = (
+            f"Write exactly 5 professional resume bullet points for a {job_title}. "
+            "Each bullet point must start with a strong action verb, include a specific achievement or responsibility, "
+            "and be concise (under 20 words). Return ONLY a JSON array of 5 strings, nothing else. "
+            "Example format: [\"Developed X\", \"Led Y\", \"Improved Z by 40%\", \"Managed A\", \"Delivered B\"]"
+        )
+    elif suggest_type == 'summary':
+        prompt = (
+            f"Write exactly 3 different professional summary paragraphs for a {job_title}'s resume. "
+            "Each summary should be 2-3 sentences, confident, and ATS-friendly. "
+            "Return ONLY a JSON array of 3 strings, nothing else."
+        )
+    elif suggest_type == 'skills':
+        prompt = (
+            f"List exactly 8 of the most important and in-demand skills for a {job_title}. "
+            "Return ONLY a JSON array of 8 short skill name strings, nothing else. "
+            "Example: [\"JavaScript\", \"React\", \"Node.js\"]"
+        )
+    else:
+        return jsonify({"error": "Invalid suggestion type."}), 400
+
+    # ── Call Gemini Flash API ──
+    try:
+        import urllib.request, json as json_lib
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+
+        payload = json_lib.dumps({
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }],
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 512,
+            }
+        }).encode('utf-8')
+
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json_lib.loads(resp.read().decode('utf-8'))
+
+        # Extract text from Gemini response
+        text = result['candidates'][0]['content']['parts'][0]['text'].strip()
+
+        # Clean up any markdown code fences Gemini sometimes adds
+        text = text.replace('```json', '').replace('```', '').strip()
+
+        # Parse the JSON array Gemini returned
+        suggestions = json_lib.loads(text)
+
+        if not isinstance(suggestions, list):
+            raise ValueError("Gemini did not return a list")
+
+        return jsonify({"suggestions": suggestions})
+
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8') if e else ''
+        if e.code == 400:
+            return jsonify({"error": "Invalid API key or request. Check your Gemini API key."}), 400
+        elif e.code == 429:
+            return jsonify({"error": "AI daily limit reached. Please try again tomorrow."}), 429
+        return jsonify({"error": f"AI service error: {e.code}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"AI request failed: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
