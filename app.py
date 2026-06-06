@@ -1078,7 +1078,7 @@ def ai_suggestions():
         import urllib.error
         import json as json_lib
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
         payload = json_lib.dumps({
             "contents": [{"parts": [{"text": prompt}]}],
