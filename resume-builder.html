@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
+<head>
 <meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="icon" type="image/png" href="/egg.png"/>
+<link rel="apple-touch-icon" href="/egg.png"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Free Resume Builder – EggyPDF</title> <title>Free Resume Builder — Download PDF Resume Instantly | EggyPDF</title>
-<meta name="description" content="Build a professional PDF resume for free. No account needed. Fill your details, choose a template, download instantly. No watermark.">
-<meta name="keywords" content="free resume builder, resume builder pdf, free resume download, professional resume free">
-<meta property="og:title" content="Free Resume Builder | EggyPDF">
-<meta property="og:description" content="Create and download a professional PDF resume for free. No sign-up required.">
-<meta property="og:url" content="https://eggypdf.com/resume-builder.html">
+<title>Free Resume Builder – EggyPDF</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -192,6 +190,36 @@ header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1
 .resume-minimal .summary-text{font-size:10.5px;color:#4b5563;line-height:1.7}
 
 
+
+/* ── DOWNLOAD POPUP ── */
+.dl-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:2000;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
+.dl-overlay.show{display:flex}
+.dl-modal{background:var(--brand-light);border:2.5px solid var(--brand);border-radius:24px;max-width:420px;width:100%;padding:40px 36px 32px;text-align:center;position:relative;box-shadow:0 20px 60px rgba(245,166,35,0.18);animation:dlPop 0.3s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes dlPop{from{transform:scale(0.88);opacity:0}to{transform:scale(1);opacity:1}}
+.dl-close{position:absolute;top:14px;right:16px;background:rgba(245,166,35,0.15);border:none;color:var(--brand-dark);font-size:16px;width:30px;height:30px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;font-weight:700}
+.dl-close:hover{background:rgba(245,166,35,0.3)}
+.dl-egg{font-size:2.6rem;margin-bottom:14px;display:block;animation:dlWiggle 2.5s ease-in-out infinite}
+@keyframes dlWiggle{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+.dl-title{font-size:1.55rem;font-weight:800;color:var(--brand);margin-bottom:10px;line-height:1.2}
+.dl-sub{font-size:14px;color:var(--text);line-height:1.7;margin-bottom:24px}
+.dl-sub strong{color:var(--brand-dark)}
+.dl-error{display:none;font-size:12px;color:#dc2626;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:7px 12px;margin-bottom:12px;text-align:left}
+.dl-email-row{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.dl-email-input{width:100%;padding:13px 20px;border:1.5px solid #fcd97a;border-radius:50px;font-size:14px;font-family:inherit;background:#fff;color:var(--text);outline:none;transition:border-color 0.15s}
+.dl-email-input:focus{border-color:var(--brand)}
+.dl-email-input::placeholder{color:#c9a44e}
+.dl-email-btn{width:100%;padding:14px 20px;background:var(--brand);color:#fff;border:none;border-radius:50px;font-size:14px;font-weight:700;cursor:pointer;transition:background 0.15s;box-shadow:0 4px 12px rgba(245,166,35,0.3)}
+.dl-email-btn:hover{background:var(--brand-dark)}
+.dl-email-btn:disabled{opacity:0.6;cursor:not-allowed}
+.dl-benefit{font-size:11.5px;color:#b45309;margin-bottom:20px}
+.dl-divider{font-size:13px;font-weight:700;color:var(--text);margin:18px 0 16px;letter-spacing:0.08em}
+.dl-free-btn{width:100%;padding:13px;background:#fff;border:2px solid var(--brand);border-radius:50px;font-size:14px;font-weight:700;color:var(--text);cursor:pointer;transition:all 0.15s}
+.dl-free-btn:hover{background:var(--brand);color:#fff}
+.dl-success{display:none;text-align:center;padding:16px 0}
+.dl-success .check-circle{font-size:2.8rem;margin-bottom:12px;display:block}
+.dl-success .s1{font-size:15px;font-weight:700;color:var(--brand-dark);margin-bottom:6px}
+.dl-success .s2{font-size:13px;color:var(--muted);line-height:1.6}
+
 /* ── PHOTO UPLOAD ── */
 .photo-drop-zone{border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--bg);position:relative}
 .photo-drop-zone:hover,.photo-drop-zone.drag{border-color:var(--brand);background:var(--brand-light)}
@@ -223,6 +251,15 @@ header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1
 }
 
 /* Tooltip */
+
+/* AI Loading */
+.ai-loading{display:none;align-items:center;gap:8px;padding:8px 12px;font-size:12.5px;color:var(--brand-dark);background:var(--brand-light);border-radius:8px;margin-top:8px;font-weight:600}
+.ai-loading.show{display:flex}
+.ai-spinner{width:14px;height:14px;border:2px solid #fcd97a;border-top-color:var(--brand);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ai-error{display:none;font-size:12px;color:#dc2626;background:#fef2f2;border:1px solid #fca5a5;border-radius:7px;padding:7px 10px;margin-top:6px}
+.ai-error.show{display:block}
+
 .tooltip{position:relative;display:inline-block}
 .tooltip .tip{visibility:hidden;background:#1a1a2e;color:#fff;font-size:11px;padding:5px 9px;border-radius:5px;position:absolute;bottom:125%;left:50%;transform:translateX(-50%);white-space:nowrap;z-index:10;opacity:0;transition:opacity 0.2s}
 .tooltip:hover .tip{visibility:visible;opacity:1}
@@ -237,7 +274,7 @@ header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1
     <button class="back-btn" onclick="history.back()">← Back</button>
     <div class="header-actions">
       <button class="btn-clear" onclick="clearAll()">🗑️ Clear</button>
-      <button class="btn-download" onclick="downloadPDF()">⬇️ Download PDF</button>
+      <button class="btn-download" onclick="showDownloadModal()">⬇️ Download PDF</button>
     </div>
   </div>
 </header>
@@ -356,9 +393,11 @@ header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1
           <textarea id="summary" placeholder="Write a short summary about yourself..." oninput="updatePreview();updateProgress()" rows="4"></textarea>
         </div>
         <div class="ai-row">
-          <button class="ai-btn" onclick="showSummarySuggestions()">✨ Get suggestions</button>
-          <span class="ai-label">Pick a suggestion or write your own</span>
+          <button class="ai-btn" onclick="showSummarySuggestions()">✨ Write with AI</button>
+          <span class="ai-label">AI writes 3 summaries · max 2 rounds · click one to use it</span>
         </div>
+        <div class="ai-loading" id="summary-loading"><div class="ai-spinner"></div> AI is writing your summary...</div>
+        <div class="ai-error" id="summary-error"></div>
         <div class="suggestions" id="summary-suggestions"></div>
       </div>
     </div>
@@ -400,9 +439,11 @@ header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1
           <button class="skill-add-btn" onclick="addSkill()">Add</button>
         </div>
         <div class="ai-row" style="margin-top:10px">
-          <button class="ai-btn" onclick="showSkillSuggestions()">✨ Suggest skills</button>
-          <span class="ai-label">Based on your job title</span>
+          <button class="ai-btn" onclick="showSkillSuggestions()">✨ Suggest with AI</button>
+          <span class="ai-label">AI suggests top skills for your role</span>
         </div>
+        <div class="ai-loading" id="skills-loading"><div class="ai-spinner"></div> AI is suggesting skills...</div>
+        <div class="ai-error" id="skills-error"></div>
         <div class="suggestions" id="skills-suggestions"></div>
       </div>
     </div>
@@ -446,6 +487,8 @@ let langCount = 0;
 // ═══════════════════════════════════════
 // PRE-WRITTEN SUGGESTIONS LIBRARY
 // ═══════════════════════════════════════
+const BACKEND = 'https://eggypdf-backend-ib0b.onrender.com';
+
 const summaryLib = {
   default: [
     "Results-driven professional with a proven track record of delivering high-quality work in fast-paced environments. Adept at problem-solving and cross-functional collaboration.",
@@ -564,34 +607,248 @@ function detectCategory(){
 // ═══════════════════════════════════════
 // SUGGESTIONS
 // ═══════════════════════════════════════
-function showSummarySuggestions(){
-  const cat = detectCategory();
-  const list = summaryLib[cat] || summaryLib.default;
-  const wrap = document.getElementById('summary-suggestions');
-  wrap.innerHTML = list.map(s =>
-    `<div class="chip" onclick="useSuggestion('summary','${s.replace(/'/g,"&apos;")}')">${s.substring(0,80)}...</div>`
-  ).join('');
+// ═══════════════════════════════════════
+// AI HELPER — calls Render backend securely
+// ═══════════════════════════════════════
+async function callAI(type, jobTitle){
+  const res = await fetch(BACKEND + '/api/ai-suggestions', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({job_title: jobTitle, type: type})
+  });
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.error || 'AI request failed');
+  if(!data.suggestions || !data.suggestions.length) throw new Error('No suggestions returned');
+  return data.suggestions;
+}
+
+function getJobTitle(){
+  // Try current experience job title first, then global job title
+  const globalTitle = document.getElementById('jobTitle')?.value?.trim();
+  return globalTitle || '';
+}
+
+// Summary AI cache — same 2-round system as bullet points
+const summaryAICache = { round1: null, round2: null, clickCount: 0, usedSet: new Set() };
+
+function renderSummaryChips(wrap, suggestions, usedSet){
+  wrap.innerHTML = '<div class="suggestion-list">' + suggestions.map((s,i) => {
+    const safe = s.replace(/'/g,"&apos;").replace(/"/g,"&quot;");
+    const used = usedSet.has(s);
+    const usedClass = used ? ' used-item' : '';
+    const click = used ? '' : `onclick="useSummaryChip('${safe}',this)"`;
+    return `<button class="suggestion-list-item${usedClass}" ${click}>
+      <span class="item-num">${i+1}</span>
+      <span class="item-text">${s}</span>
+    </button>`;
+  }).join('') + '</div>';
   wrap.classList.add('show');
 }
 
-function showSkillSuggestions(){
-  const cat = detectCategory();
-  const list = skillsLib[cat] || skillsLib.default;
-  const wrap = document.getElementById('skills-suggestions');
-  wrap.innerHTML = list.map(s =>
-    `<div class="chip" onclick="addSkillFromSuggestion('${s}')">${s}</div>`
-  ).join('');
-  wrap.classList.add('show');
+async function showSummarySuggestions(){
+  const jobTitle = getJobTitle();
+  const loadEl   = document.getElementById('summary-loading');
+  const errEl    = document.getElementById('summary-error');
+  const wrap     = document.getElementById('summary-suggestions');
+  const btn      = document.querySelector('[onclick="showSummarySuggestions()"]');
+
+  errEl.classList.remove('show');
+  summaryAICache.clickCount++;
+
+  // No job title — use pre-written fallback
+  if(!jobTitle){
+    const list = summaryLib[detectCategory()] || summaryLib.default;
+    renderSummaryChips(wrap, list, summaryAICache.usedSet);
+    return;
+  }
+
+  // Click 1 — fetch Round 1
+  if(summaryAICache.clickCount === 1){
+    loadEl.classList.add('show');
+    try{
+      const suggestions = await callAI('summary', jobTitle);
+      loadEl.classList.remove('show');
+      summaryAICache.round1 = suggestions;
+      if(btn) btn.textContent = '✨ Show different summaries';
+      renderSummaryChips(wrap, summaryAICache.round1, summaryAICache.usedSet);
+    } catch(e){
+      loadEl.classList.remove('show');
+      summaryAICache.clickCount = 0;
+      const list = summaryLib[detectCategory()] || summaryLib.default;
+      renderSummaryChips(wrap, list, summaryAICache.usedSet);
+      if(!wrap.innerHTML){ errEl.textContent='AI unavailable — showing standard suggestions.'; errEl.classList.add('show'); setTimeout(()=>errEl.classList.remove('show'),5000); }
+    }
+    return;
+  }
+
+  // Click 2 — fetch Round 2
+  if(summaryAICache.clickCount === 2){
+    loadEl.classList.add('show');
+    try{
+      const suggestions = await callAI('summary', jobTitle + ' experienced');
+      loadEl.classList.remove('show');
+      summaryAICache.round2 = suggestions;
+      summaryAICache.usedSet = new Set(); // Fresh state for round 2
+      if(btn) btn.textContent = '✨ Back to first summaries';
+      renderSummaryChips(wrap, summaryAICache.round2, summaryAICache.usedSet);
+    } catch(e){
+      loadEl.classList.remove('show');
+      summaryAICache.clickCount = 1;
+      if(summaryAICache.round1) renderSummaryChips(wrap, summaryAICache.round1, summaryAICache.usedSet);
+    }
+    return;
+  }
+
+  // Click 3+ — cycle back to round 1, fully fresh (all items clickable again)
+  summaryAICache.clickCount = 1;
+  summaryAICache.usedSet = new Set();
+  if(btn) btn.textContent = '✨ Show different summaries';
+  renderSummaryChips(wrap, summaryAICache.round1 || [], new Set());
 }
 
-function showExpSuggestions(idx){
-  const cat = detectCategory();
-  const list = experienceLib[cat] || experienceLib.default;
-  const wrap = document.getElementById(`exp-suggestions-${idx}`);
+function useSummaryChip(text, chipEl){
+  const ta = document.getElementById('summary');
+  if(ta){ ta.value = text; updatePreview(); updateProgress(); }
+  summaryAICache.usedSet.add(text);
+  if(chipEl){
+    chipEl.classList.add('used-item');
+    chipEl.onclick = null;
+  }
+}
+
+async function showSkillSuggestions(){
+  const jobTitle = getJobTitle();
+  const loadEl = document.getElementById('skills-loading');
+  const errEl  = document.getElementById('skills-error');
+  const wrap   = document.getElementById('skills-suggestions');
+
+  wrap.innerHTML = ''; wrap.classList.remove('show');
+  errEl.classList.remove('show');
+
+  if(!jobTitle){
+    const cat = detectCategory();
+    const list = skillsLib[cat] || skillsLib.default;
+    wrap.innerHTML = list.map(s =>
+      `<div class="chip" onclick="addSkillFromSuggestion('${s}')">${s}</div>`
+    ).join('');
+    wrap.classList.add('show');
+    return;
+  }
+
+  loadEl.classList.add('show');
+  try{
+    const suggestions = await callAI('skills', jobTitle);
+    loadEl.classList.remove('show');
+    wrap.innerHTML = suggestions.map(s =>
+      `<div class="chip" onclick="addSkillFromSuggestion('${s}')">${s}</div>`
+    ).join('');
+    wrap.classList.add('show');
+  } catch(e){
+    loadEl.classList.remove('show');
+    const cat = detectCategory();
+    const list = skillsLib[cat] || skillsLib.default;
+    wrap.innerHTML = list.map(s =>
+      `<div class="chip" onclick="addSkillFromSuggestion('${s}')">${s}</div>`
+    ).join('');
+    wrap.classList.add('show');
+    if(!wrap.innerHTML){
+      errEl.textContent = 'AI unavailable — showing standard suggestions.';
+      errEl.classList.add('show');
+      setTimeout(()=>errEl.classList.remove('show'), 5000);
+    }
+  }
+}
+
+// Stores AI suggestions per experience entry: { idx: { round1: [...], round2: [...], clickCount: 0, usedSet: Set } }
+const expAICache = {};
+
+async function showExpSuggestions(idx){
+  const expTitle = document.getElementById(`exp-title-${idx}`)?.value?.trim();
+  const jobTitle = expTitle || getJobTitle();
+  const loadEl   = document.getElementById(`exp-loading-${idx}`);
+  const errEl    = document.getElementById(`exp-error-${idx}`);
+  const wrap     = document.getElementById(`exp-suggestions-${idx}`);
+  const btn      = wrap ? wrap.previousElementSibling?.previousElementSibling : null;
   if(!wrap) return;
-  wrap.innerHTML = list.map(s =>
-    `<div class="chip" onclick="useExpSuggestion(${idx},'${s.replace(/'/g,"&apos;")}')">${s.substring(0,70)}...</div>`
-  ).join('');
+
+  if(errEl) errEl.classList.remove('show');
+
+  // Init cache for this entry
+  if(!expAICache[idx]){
+    expAICache[idx] = { round1: null, round2: null, clickCount: 0, usedSet: new Set() };
+  }
+  const cache = expAICache[idx];
+  cache.clickCount++;
+
+  // No job title — use pre-written fallback
+  if(!jobTitle){
+    const list = experienceLib[detectCategory()] || experienceLib.default;
+    renderExpChips(wrap, idx, list, cache.usedSet);
+    return;
+  }
+
+  // Click 1 → fetch Round 1 from AI
+  if(cache.clickCount === 1){
+    if(loadEl) loadEl.classList.add('show');
+    try{
+      const suggestions = await callAI('bullets', jobTitle);
+      if(loadEl) loadEl.classList.remove('show');
+      cache.round1 = suggestions;
+      // Update button label for next click
+      if(btn && btn.classList.contains('ai-btn')) btn.textContent = '✨ Show different suggestions';
+      renderExpChips(wrap, idx, cache.round1, cache.usedSet);
+    } catch(e){
+      if(loadEl) loadEl.classList.remove('show');
+      cache.clickCount = 0; // Reset so user can try again
+      const list = experienceLib[detectCategory()] || experienceLib.default;
+      renderExpChips(wrap, idx, list, cache.usedSet);
+      if(errEl){ errEl.textContent = 'AI unavailable — showing standard suggestions.'; errEl.classList.add('show'); setTimeout(()=>errEl.classList.remove('show'),5000); }
+    }
+    return;
+  }
+
+  // Click 2 → fetch Round 2 from AI (different suggestions)
+  if(cache.clickCount === 2){
+    if(loadEl) loadEl.classList.add('show');
+    try{
+      const suggestions = await callAI('bullets', jobTitle + ' alternative');
+      if(loadEl) loadEl.classList.remove('show');
+      // Make sure round 2 is actually different from round 1
+      cache.round2 = suggestions.filter(s => !cache.round1 || !cache.round1.includes(s));
+      if(cache.round2.length < 2) cache.round2 = suggestions; // fallback if all same
+      cache.usedSet = new Set(); // Fresh state for round 2
+      if(btn && btn.classList.contains('ai-btn')) btn.textContent = '✨ Back to first suggestions';
+      renderExpChips(wrap, idx, cache.round2, cache.usedSet);
+    } catch(e){
+      if(loadEl) loadEl.classList.remove('show');
+      cache.clickCount = 1; // Stay on round 1
+      if(cache.round1) renderExpChips(wrap, idx, cache.round1, cache.usedSet);
+      if(errEl){ errEl.textContent = 'AI unavailable — showing first suggestions again.'; errEl.classList.add('show'); setTimeout(()=>errEl.classList.remove('show'),5000); }
+    }
+    return;
+  }
+
+  // Click 3+ → cycle back to round 1, all items fresh and clickable
+  if(cache.clickCount >= 3){
+    cache.clickCount = 1;
+    cache.usedSet = new Set();
+    if(btn && btn.classList.contains('ai-btn')) btn.textContent = '✨ Show different suggestions';
+    renderExpChips(wrap, idx, cache.round1 || [], new Set());
+    return;
+  }
+}
+
+function renderExpChips(wrap, idx, suggestions, usedSet){
+  wrap.innerHTML = '<div class="suggestion-list">' + suggestions.map((s,i) => {
+    const safe = s.replace(/'/g,"&apos;").replace(/"/g,"&quot;");
+    const used = usedSet.has(s);
+    const usedClass = used ? ' used-item' : '';
+    const click = used ? '' : `onclick="useExpSuggestion(${idx},'${safe}',this)"`;
+    return `<button class="suggestion-list-item${usedClass}" ${click}>
+      <span class="item-num">${i+1}</span>
+      <span class="item-text">${s}</span>
+    </button>`;
+  }).join('') + '</div>';
   wrap.classList.add('show');
 }
 
@@ -601,10 +858,19 @@ function useSuggestion(fieldId, text){
   updatePreview();updateProgress();
 }
 
-function useExpSuggestion(idx, text){
+function useExpSuggestion(idx, text, chipEl){
   const ta = document.getElementById(`exp-desc-${idx}`);
-  if(ta){ ta.value = (ta.value ? ta.value + '\n' : '') + text; updatePreview(); }
-  document.getElementById(`exp-suggestions-${idx}`) && document.getElementById(`exp-suggestions-${idx}`).classList.remove('show');
+  if(ta){
+    ta.value = (ta.value ? ta.value + '\n' : '') + text;
+    updatePreview();
+    updateProgress();
+  }
+  if(expAICache[idx]) expAICache[idx].usedSet.add(text);
+  // Grey out the list item
+  if(chipEl){
+    chipEl.classList.add('used-item');
+    chipEl.onclick = null;
+  }
 }
 
 function addSkillFromSuggestion(skill){
@@ -677,9 +943,11 @@ function addExperience(){
       <textarea id="exp-desc-${idx}" placeholder="Describe your responsibilities and achievements..." oninput="updatePreview()" rows="4"></textarea>
     </div>
     <div class="ai-row">
-      <button class="ai-btn" onclick="showExpSuggestions(${idx})">✨ Suggest achievements</button>
-      <span class="ai-label">Pick and edit to personalize</span>
+      <button class="ai-btn" id="exp-ai-btn-${idx}" onclick="showExpSuggestions(${idx})">✨ Generate bullet points</button>
+      <span class="ai-label">AI writes 4 bullet points · max 2 rounds · click a bullet to add it</span>
     </div>
+    <div class="ai-loading" id="exp-loading-${idx}"><div class="ai-spinner"></div> AI is writing bullet points...</div>
+    <div class="ai-error" id="exp-error-${idx}"></div>
     <div class="suggestions" id="exp-suggestions-${idx}"></div>
   `;
   wrap.appendChild(div);
@@ -883,9 +1151,29 @@ function updatePreview(){
 
 function descToList(desc){
   if(!desc) return '';
-  const lines = desc.split('\n').filter(l => l.trim());
-  if(lines.length <= 1) return `<p class="entry-desc">${desc}</p>`;
-  return '<ul style="padding-left:14px;margin:3px 0">' + lines.map(l => `<li style="margin-bottom:2px;font-size:10px;color:#374151">${l.trim()}</li>`).join('') + '</ul>';
+  let cleaned = desc.trim();
+
+  // If it looks like a JSON array ["a","b",...] — parse it
+  if(cleaned.startsWith('[') && cleaned.endsWith(']')){
+    try{
+      const arr = JSON.parse(cleaned);
+      if(Array.isArray(arr)){
+        return '<ul style="padding-left:14px;margin:3px 0">' +
+          arr.map(l => `<li style="margin-bottom:3px;font-size:10px;color:#374151">${String(l).trim()}</li>`).join('') +
+          '</ul>';
+      }
+    } catch(e){}
+  }
+
+  // Normal newline-separated text
+  const lines = cleaned.split('\n')
+    .map(l => l.trim().replace(/^["\-\*•]+/, '').replace(/["]+$/, '').trim())
+    .filter(l => l.length > 0);
+
+  if(lines.length <= 1) return `<p class="entry-desc">${lines[0] || cleaned}</p>`;
+  return '<ul style="padding-left:14px;margin:3px 0">' +
+    lines.map(l => `<li style="margin-bottom:3px;font-size:10px;color:#374151">${l}</li>`).join('') +
+    '</ul>';
 }
 
 function renderClassic(d, name){
@@ -1067,6 +1355,9 @@ function downloadPDF(){
   const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="icon" type="image/png" href="/egg.png"/>
+<link rel="apple-touch-icon" href="/egg.png"/>
 <title>${name}_Resume</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -1074,7 +1365,8 @@ function downloadPDF(){
 :root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed}
 body{font-family:'Inter',sans-serif;background:#fff;color:#1a1a1a}
 @page{size:A4;margin:0}
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media print{
+  .dl-overlay,.dl-modal,.suggestion-list,.ai-loading,.ai-error{display:none!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 ${getTemplateCSS()}
 </style>
 </head><body>${content}
@@ -1084,6 +1376,41 @@ window.addEventListener('load', function(){
 });
 window.addEventListener('afterprint', function(){ window.close(); });
 <\/script>
+
+<!-- DOWNLOAD POPUP -->
+<div class="dl-overlay" id="dlOverlay" onclick="closeDlModal(event)">
+  <div class="dl-modal">
+    <button class="dl-close" onclick="closeDownloadModal()">✕</button>
+
+    <div id="dlFormWrap">
+      <span class="dl-egg">🥚</span>
+      <h2 class="dl-title">Email Me My CV</h2>
+      <p class="dl-sub">
+        By adding your email you will get<br/>
+        early access of our upcoming<br/>
+        <strong>"AI Features"</strong>
+      </p>
+
+      <div class="dl-error" id="dlError"></div>
+      <div class="dl-email-row">
+        <input type="email" id="dlEmailInput" class="dl-email-input" placeholder="your@email.com"/>
+        <button class="dl-email-btn" id="dlEmailBtn" onclick="submitEmailAndDownload()">Send & Download</button>
+      </div>
+      <p class="dl-benefit">✅ No spam, ever &nbsp;·&nbsp; Unsubscribe anytime</p>
+
+      <div class="dl-divider">OR</div>
+      <button class="dl-free-btn" onclick="downloadFree()">Download Without Email</button>
+    </div>
+
+    <div class="dl-success" id="dlSuccess">
+      <span class="check-circle">🎉</span>
+      <p class="s1">You are on the early access list!</p>
+      <p class="s2">Your CV is downloading now.<br/>We will notify you first when AI features go live.</p>
+    </div>
+
+  </div>
+</div>
+
 </body></html>`;
 
   // Try opening a new window first
@@ -1170,7 +1497,8 @@ function getTemplateCSS(){
 .resume-minimal .skill-pill{padding:2px 9px;border:1px solid #1a1a2e;border-radius:3px;font-size:9.5px;font-weight:500;color:#1a1a2e}
 .resume-minimal .resume-entry{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f3f4f6}
 .resume-minimal .summary-text{font-size:10.5px;color:#4b5563;line-height:1.7}
-  `;
+  
+.dl-overlay,.dl-modal,.suggestion-list,.ai-loading,.ai-error,.ai-btn,.ai-label,.photo-drop-zone,.photo-tip{display:none!important}`;
 }
 
 // ═══════════════════════════════════════
@@ -1269,10 +1597,151 @@ document.addEventListener('touchmove', function(e){
 document.addEventListener('mouseup', ()=>{ _photoDragging = false; });
 document.addEventListener('touchend', ()=>{ _photoDragging = false; });
 
+
+// ═══════════════════════════════════════
+// DOWNLOAD POPUP + BREVO EMAIL COLLECTION
+// ═══════════════════════════════════════
+
+// ── IMPORTANT: Replace with your Brevo values ──
+// Step 1: Sign up free at brevo.com
+// Step 2: Go to Contacts → Forms → Create subscription form
+// Step 3: Get your List ID from Contacts → Lists
+// Step 4: Get your API key from Account → SMTP & API → API Keys
+// Replace the values below:
+const BREVO_API_KEY  = 'YOUR_BREVO_API_KEY_HERE';   // e.g. 'xkeysib-abc123...'
+const BREVO_LIST_ID  = 0;                             // e.g. 3  (your list number)
+
+function showDownloadModal(){
+  document.getElementById('dlOverlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+  // Pre-fill email if user typed it before
+  const saved = sessionStorage.getItem('eggy_email');
+  if(saved) document.getElementById('dlEmailInput').value = saved;
+}
+
+function closeDownloadModal(){
+  document.getElementById('dlOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+function closeDlModal(e){
+  if(e.target === document.getElementById('dlOverlay')) closeDownloadModal();
+}
+
+function downloadFree(){
+  closeDownloadModal();
+  downloadPDF();
+}
+
+async function submitEmailAndDownload(){
+  const email = document.getElementById('dlEmailInput').value.trim();
+  const errEl = document.getElementById('dlError');
+  const btn   = document.getElementById('dlEmailBtn');
+  errEl.style.display = 'none';
+
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    errEl.textContent = 'Please enter a valid email address.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  sessionStorage.setItem('eggy_email', email);
+
+  // ── Step 1: Save email to Brevo contact list ──
+  try{
+    if(BREVO_API_KEY !== 'YOUR_BREVO_API_KEY_HERE' && BREVO_LIST_ID !== 0){
+      await fetch('https://api.brevo.com/v3/contacts', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','api-key':BREVO_API_KEY},
+        body: JSON.stringify({
+          email: email,
+          listIds: [BREVO_LIST_ID],
+          updateEnabled: true,
+          attributes: { SOURCE: 'EggyPDF Resume Builder' }
+        })
+      });
+    }
+  } catch(e){ console.log('Brevo contact save:', e.message); }
+
+  // ── Step 2: Send CV to user email via backend ──
+  try{
+    const d = getData();
+    const userName = [d.firstName, d.lastName].filter(Boolean).join(' ') || 'there';
+    const resumeHTML = document.getElementById('resumePreview').innerHTML;
+    const templateCSS = getTemplateCSS();
+
+    await fetch(BACKEND + '/api/send-cv-email', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        email: email,
+        name: userName,
+        resume_html: resumeHTML,
+        template_css: templateCSS
+      })
+    });
+  } catch(e){ console.log('Email send:', e.message); }
+
+  // ── Step 3: Show success and trigger local download ──
+  document.getElementById('dlFormWrap').style.display = 'none';
+  document.getElementById('dlSuccess').style.display = 'block';
+
+  setTimeout(()=>{
+    closeDownloadModal();
+    document.getElementById('dlFormWrap').style.display = 'block';
+    document.getElementById('dlSuccess').style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = 'Send & Download';
+    downloadPDF();
+  }, 1800);
+}
+
+// Close on Escape key
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') closeDownloadModal();
+});
+
 // ═══════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════
 updatePreview();
 </script>
+
+<!-- DOWNLOAD POPUP -->
+<div class="dl-overlay" id="dlOverlay" onclick="closeDlModal(event)">
+  <div class="dl-modal">
+    <button class="dl-close" onclick="closeDownloadModal()">✕</button>
+
+    <div id="dlFormWrap">
+      <span class="dl-egg">🥚</span>
+      <h2 class="dl-title">Email Me My CV</h2>
+      <p class="dl-sub">
+        By adding your email you will get<br/>
+        early access of our upcoming<br/>
+        <strong>"AI Features"</strong>
+      </p>
+
+      <div class="dl-error" id="dlError"></div>
+      <div class="dl-email-row">
+        <input type="email" id="dlEmailInput" class="dl-email-input" placeholder="your@email.com"/>
+        <button class="dl-email-btn" id="dlEmailBtn" onclick="submitEmailAndDownload()">Send & Download</button>
+      </div>
+      <p class="dl-benefit">✅ No spam, ever &nbsp;·&nbsp; Unsubscribe anytime</p>
+
+      <div class="dl-divider">OR</div>
+      <button class="dl-free-btn" onclick="downloadFree()">Download Without Email</button>
+    </div>
+
+    <div class="dl-success" id="dlSuccess">
+      <span class="check-circle">🎉</span>
+      <p class="s1">You are on the early access list!</p>
+      <p class="s2">Your CV is downloading now.<br/>We will notify you first when AI features go live.</p>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>

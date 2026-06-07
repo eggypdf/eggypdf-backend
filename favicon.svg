@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- White background circle for visibility on any tab colour -->
+  <circle cx="32" cy="32" r="32" fill="#fff8ed"/>
+
+  <!-- Egg bottom half -->
+  <path d="M9 34 Q9 56 32 56 Q55 56 55 34 L9 34 Z" fill="#fde68a" stroke="#d4a017" stroke-width="2"/>
+
+  <!-- Crack line -->
+  <polyline points="16,34 21,29 26,32 32,27 38,31 43,28 48,32"
+    fill="none" stroke="#b45309" stroke-width="1.8"
+    stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Egg top half -->
+  <path d="M9 34 Q9 10 32 10 Q55 10 55 34 Z" fill="#fef3c7" stroke="#d4a017" stroke-width="2"/>
+
+  <!-- PDF document coming out -->
+  <rect x="22" y="18" width="20" height="25" rx="2.5"
+    fill="#e8f0fe" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="23.5" y="27" font-family="Inter,Arial,sans-serif"
+    font-size="7" font-weight="700" fill="#1d4ed8">PDF</text>
+  <rect x="25" y="29" width="8" height="2" rx="1" fill="#3b82f6"/>
+  <rect x="25" y="33" width="12" height="2" rx="1" fill="#93c5fd"/>
+  <rect x="25" y="37" width="10" height="2" rx="1" fill="#93c5fd"/>
+</svg>
