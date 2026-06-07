@@ -10,3 +10,6 @@ gunicorn
 pdfplumber
 openpyxl
 python-pptx
+
+requests
+weasyprint

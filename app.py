@@ -1038,17 +1038,17 @@ def pdf_to_ppt():
 
 
 
-# ─── SEND CV TO EMAIL ───
+# ─── SEND CV TO EMAIL (as PDF attachment) ───
 @app.route('/api/send-cv-email', methods=['POST', 'OPTIONS'])
 def send_cv_email():
-    """Send the user's CV to their email via Brevo transactional email."""
-    import urllib.request, urllib.error, json as json_lib
+    """Convert resume HTML to PDF and send as attachment via Brevo."""
+    import urllib.request, urllib.error, json as json_lib, base64, tempfile
 
     BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
     if not BREVO_API_KEY:
         return jsonify({"error": "Email service not configured."}), 503
 
-    data = request.get_json(silent=True) or {}
+    data        = request.get_json(silent=True) or {}
     email       = (data.get('email') or '').strip()
     name        = (data.get('name') or 'there').strip()
     resume_html = (data.get('resume_html') or '').strip()
@@ -1056,32 +1056,85 @@ def send_cv_email():
     if not email or not resume_html:
         return jsonify({"error": "Email and resume content required."}), 400
 
-    # Build email HTML with nice wrapper
-    email_body = f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-      <div style="background:#fff8ed;border:2px solid #f5a623;border-radius:16px;padding:24px;text-align:center;margin-bottom:24px">
-        <div style="font-size:2rem;margin-bottom:8px">🥚</div>
-        <h1 style="font-size:1.3rem;color:#1a1a2e;margin-bottom:6px">Your CV from EggyPDF</h1>
-        <p style="font-size:14px;color:#6b7280">Hi {name}! Your resume is attached below. You are also on our early access list for upcoming AI features.</p>
-      </div>
-      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
-        {resume_html}
-      </div>
-      <p style="font-size:12px;color:#9ca3af;text-align:center;margin-top:20px">
-        Sent by <a href="https://eggypdf.com" style="color:#f5a623">EggyPDF</a> · Free PDF tools &amp; Resume Builder
-        <br/>You received this because you requested your CV via EggyPDF.
-      </p>
-    </div>
-    """
+    # ── Step 1: Convert HTML to PDF using weasyprint ──
+    pdf_base64 = None
+    try:
+        from weasyprint import HTML, CSS
+        from weasyprint.text.fonts import FontConfiguration
 
-    payload = json_lib.dumps({
-        "sender": {"name": "EggyPDF", "email": "noreply@eggypdf.com"},
+        font_config = FontConfiguration()
+
+        # Full HTML document for weasyprint
+        full_html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8"/>
+<style>
+@page {{size: A4; margin: 0;}}
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:Arial,Helvetica,sans-serif;background:#fff;color:#1a1a1a;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head><body>{resume_html}</body></html>"""
+
+        pdf_bytes = HTML(string=full_html, base_url=None).write_pdf(
+            font_config=font_config,
+            optimize_images=True
+        )
+        pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+
+    except Exception as e:
+        # weasyprint failed — still send email without attachment
+        pdf_base64 = None
+
+    # ── Step 2: Build beautiful email body ──
+    email_body = f"""
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:20px;color:#1a1a2e">
+  <div style="background:#fff8ed;border:2px solid #f5a623;border-radius:16px;padding:28px 24px;text-align:center;margin-bottom:24px">
+    <div style="font-size:2.5rem;margin-bottom:10px">🥚</div>
+    <h1 style="font-size:1.3rem;font-weight:700;color:#1a1a2e;margin-bottom:8px">Your CV is ready, {name}!</h1>
+    <p style="font-size:14px;color:#6b7280;line-height:1.6">
+      Your resume has been attached to this email as a <strong>PDF file</strong>.<br/>
+      You are also on our early access list for upcoming AI features.
+    </p>
+  </div>
+
+  <div style="background:#f9fafb;border-radius:12px;padding:20px;margin-bottom:20px">
+    <p style="font-size:13px;color:#374151;line-height:1.7;margin:0">
+      📎 <strong>Your CV is attached</strong> — open the PDF attachment to view and print your resume.<br/><br/>
+      💡 <strong>Tip:</strong> Save the PDF to your phone or computer so you always have it ready to share with employers.
+    </p>
+  </div>
+
+  <div style="text-align:center;margin-bottom:20px">
+    <a href="https://eggypdf.com/resume-builder.html"
+       style="display:inline-block;background:#f5a623;color:#fff;padding:12px 28px;border-radius:50px;text-decoration:none;font-weight:700;font-size:14px">
+      ✏️ Edit my CV on EggyPDF
+    </a>
+  </div>
+
+  <p style="font-size:11px;color:#9ca3af;text-align:center;line-height:1.6">
+    Sent by <a href="https://eggypdf.com" style="color:#f5a623;text-decoration:none">EggyPDF</a> — Free PDF tools &amp; Resume Builder<br/>
+    You received this because you downloaded your CV from EggyPDF.
+  </p>
+</div>"""
+
+    # ── Step 3: Build Brevo payload with PDF attachment ──
+    safe_name = name.replace(' ', '_') or 'Resume'
+    brevo_payload = {
+        "sender": {"name": "EggyPDF", "email": "eggypdf@gmail.com"},
         "to": [{"email": email, "name": name}],
-        "subject": f"Your CV from EggyPDF — {name}",
+        "subject": f"Your CV is ready — {name}",
         "htmlContent": email_body
-    }).encode("utf-8")
+    }
+
+    # Attach PDF if generation succeeded
+    if pdf_base64:
+        brevo_payload["attachment"] = [{
+            "name": f"{safe_name}_Resume.pdf",
+            "content": pdf_base64
+        }]
 
     try:
+        payload = json_lib.dumps(brevo_payload).encode("utf-8")
         req = urllib.request.Request(
             "https://api.brevo.com/v3/smtp/email",
             data=payload,
@@ -1091,15 +1144,19 @@ def send_cv_email():
             },
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             result = json_lib.loads(resp.read().decode("utf-8"))
-        return jsonify({"success": True, "messageId": result.get("messageId", "")})
+        return jsonify({
+            "success": True,
+            "pdf_attached": pdf_base64 is not None,
+            "messageId": result.get("messageId", "")
+        })
 
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
-        return jsonify({"error": f"Email send failed: {e.code} — {body[:200]}"}), 500
+        return jsonify({"error": f"Email failed: {e.code} — {body[:300]}"}), 500
     except Exception as e:
-        return jsonify({"error": f"Email send failed: {str(e)}"}), 500
+        return jsonify({"error": f"Email failed: {str(e)}"}), 500
 
 # ─── AI: DIAGNOSTIC — LIST AVAILABLE MODELS ───
 @app.route('/api/ai-models', methods=['GET', 'OPTIONS'])
