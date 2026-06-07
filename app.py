@@ -1037,6 +1037,70 @@ def pdf_to_ppt():
 
 
 
+
+# ─── SEND CV TO EMAIL ───
+@app.route('/api/send-cv-email', methods=['POST', 'OPTIONS'])
+def send_cv_email():
+    """Send the user's CV to their email via Brevo transactional email."""
+    import urllib.request, urllib.error, json as json_lib
+
+    BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
+    if not BREVO_API_KEY:
+        return jsonify({"error": "Email service not configured."}), 503
+
+    data = request.get_json(silent=True) or {}
+    email       = (data.get('email') or '').strip()
+    name        = (data.get('name') or 'there').strip()
+    resume_html = (data.get('resume_html') or '').strip()
+
+    if not email or not resume_html:
+        return jsonify({"error": "Email and resume content required."}), 400
+
+    # Build email HTML with nice wrapper
+    email_body = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+      <div style="background:#fff8ed;border:2px solid #f5a623;border-radius:16px;padding:24px;text-align:center;margin-bottom:24px">
+        <div style="font-size:2rem;margin-bottom:8px">🥚</div>
+        <h1 style="font-size:1.3rem;color:#1a1a2e;margin-bottom:6px">Your CV from EggyPDF</h1>
+        <p style="font-size:14px;color:#6b7280">Hi {name}! Your resume is attached below. You are also on our early access list for upcoming AI features.</p>
+      </div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
+        {resume_html}
+      </div>
+      <p style="font-size:12px;color:#9ca3af;text-align:center;margin-top:20px">
+        Sent by <a href="https://eggypdf.com" style="color:#f5a623">EggyPDF</a> · Free PDF tools &amp; Resume Builder
+        <br/>You received this because you requested your CV via EggyPDF.
+      </p>
+    </div>
+    """
+
+    payload = json_lib.dumps({
+        "sender": {"name": "EggyPDF", "email": "noreply@eggypdf.com"},
+        "to": [{"email": email, "name": name}],
+        "subject": f"Your CV from EggyPDF — {name}",
+        "htmlContent": email_body
+    }).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "api-key": BREVO_API_KEY
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json_lib.loads(resp.read().decode("utf-8"))
+        return jsonify({"success": True, "messageId": result.get("messageId", "")})
+
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="ignore")
+        return jsonify({"error": f"Email send failed: {e.code} — {body[:200]}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Email send failed: {str(e)}"}), 500
+
 # ─── AI: DIAGNOSTIC — LIST AVAILABLE MODELS ───
 @app.route('/api/ai-models', methods=['GET', 'OPTIONS'])
 def list_ai_models():
@@ -1079,20 +1143,30 @@ def ai_suggestions():
     # Build prompt
     if suggest_type == 'bullets':
         prompt = (
-            f"Write exactly 5 professional resume bullet points for a {job_title}. "
-            "Each must start with a strong action verb and be under 20 words. "
-            "Return ONLY a valid JSON array of 5 strings. No explanation, no markdown, no extra text. "
-            'Example: ["Developed scalable apps", "Led a team of 5", "Reduced costs by 30%", "Managed projects", "Delivered features"]'
+            f"Write exactly 4 professional resume bullet points for a {job_title}. "
+            "Rules: "
+            "1. Every bullet must start with a strong action verb. "
+            "2. Every bullet must be EXACTLY the same number of words — between 12 and 16 words each. Count carefully. "
+            "3. Each bullet must describe a specific achievement or responsibility. "
+            "4. All 4 bullets must have identical word count. "
+            "Return ONLY a valid JSON array of 4 strings. No explanation, no markdown, no extra text. "
+            'Example (all 14 words each): ["Developed scalable web applications serving over 50,000 active users across multiple regions", "Reduced system deployment time by 40 percent through automated CI/CD pipeline implementation", "Led cross-functional team of 8 engineers delivering 3 major product releases on schedule", "Implemented comprehensive testing strategy that decreased production bug rate by 60 percent"]'
         )
     elif suggest_type == 'summary':
         prompt = (
-            f"Write exactly 3 different professional resume summary paragraphs for a {job_title}. "
-            "Each 2-3 sentences, ATS-friendly, confident tone. "
+            f"Write exactly 4 different professional resume summary options for a {job_title}. "
+            "Rules for each summary: "
+            "1. Exactly 2-3 sentences only. "
+            "2. Between 50-80 words total — concise and scannable. "
+            "3. Start with job title and years of experience or key strength. "
+            "4. Include one specific achievement or skill. "
+            "5. ATS-friendly — no buzzwords, plain professional language. "
+            "6. Must fit in 3-5 lines on a resume page. "
             "Return ONLY a valid JSON array of 3 strings. No explanation, no markdown, no extra text."
         )
     elif suggest_type == 'skills':
         prompt = (
-            f"List the 8 most important skills for a {job_title}. "
+            f"List the 8 most in-demand skills for a {job_title} in 2024. "
             "Return ONLY a valid JSON array of 8 short skill name strings. "
             'No explanation, no markdown. Example: ["Python", "SQL", "Excel"]'
         )
