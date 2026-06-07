@@ -1036,6 +1036,32 @@ def pdf_to_ppt():
     )
 
 
+
+# ─── AI: DIAGNOSTIC — LIST AVAILABLE MODELS ───
+@app.route('/api/ai-models', methods=['GET', 'OPTIONS'])
+def list_ai_models():
+    """Lists all Gemini models available for the configured API key."""
+    import urllib.request
+    import urllib.error
+    import json as json_lib
+
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "GEMINI_API_KEY not set on Render"}), 503
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+        req = urllib.request.Request(url, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json_lib.loads(resp.read().decode("utf-8"))
+        models = [m["name"] for m in data.get("models", [])]
+        return jsonify({"available_models": models, "count": len(models)})
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="ignore")
+        return jsonify({"error": f"HTTP {e.code}", "detail": body[:300]}), e.code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ─── AI: RESUME SUGGESTIONS ───
 @app.route('/api/ai-suggestions', methods=['POST', 'OPTIONS'])
 def ai_suggestions():
@@ -1083,17 +1109,18 @@ def ai_suggestions():
             "generationConfig": {"temperature": 0.7, "maxOutputTokens": 600}
         }
 
-        # Try every combination of API version + model name
+        # Try latest Gemini free tier models (2025-2026)
         combos = [
+            ("v1beta", "gemini-2.0-flash-lite"),
+            ("v1beta", "gemini-2.0-flash"),
             ("v1beta", "gemini-1.5-flash"),
+            ("v1beta", "gemini-1.5-flash-8b"),
+            ("v1beta", "gemini-1.5-flash-002"),
             ("v1beta", "gemini-1.5-flash-001"),
             ("v1beta", "gemini-1.5-pro"),
-            ("v1beta", "gemini-1.5-pro-latest"),
+            ("v1",     "gemini-2.0-flash-lite"),
+            ("v1",     "gemini-2.0-flash"),
             ("v1",     "gemini-1.5-flash"),
-            ("v1",     "gemini-1.5-pro"),
-            ("v1beta", "gemini-1.0-pro"),
-            ("v1",     "gemini-1.0-pro"),
-            ("v1beta", "gemini-pro"),
         ]
 
         result = None
