@@ -1109,18 +1109,14 @@ def ai_suggestions():
             "generationConfig": {"temperature": 0.7, "maxOutputTokens": 600}
         }
 
-        # Try latest Gemini free tier models (2025-2026)
+        # Using confirmed available models from API key
         combos = [
-            ("v1beta", "gemini-2.0-flash-lite"),
+            ("v1beta", "gemini-2.5-flash"),
             ("v1beta", "gemini-2.0-flash"),
+            ("v1beta", "gemini-2.0-flash-lite-001"),
+            ("v1beta", "gemini-2.0-flash-lite"),
             ("v1beta", "gemini-1.5-flash"),
-            ("v1beta", "gemini-1.5-flash-8b"),
-            ("v1beta", "gemini-1.5-flash-002"),
-            ("v1beta", "gemini-1.5-flash-001"),
-            ("v1beta", "gemini-1.5-pro"),
-            ("v1",     "gemini-2.0-flash-lite"),
-            ("v1",     "gemini-2.0-flash"),
-            ("v1",     "gemini-1.5-flash"),
+            ("v1beta", "gemini-1.5-flash-latest"),
         ]
 
         result = None
