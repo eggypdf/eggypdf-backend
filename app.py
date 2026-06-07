@@ -1152,13 +1152,43 @@ def ai_suggestions():
             return jsonify({"error": f"All Gemini models failed: {'; '.join(errors)}"}), 500
 
         text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+        # Clean markdown fences Gemini sometimes adds
         text = text.replace("```json", "").replace("```", "").strip()
 
-        suggestions = json_lib.loads(text)
-        if not isinstance(suggestions, list):
-            raise ValueError("Gemini did not return a list")
-        suggestions = [str(s).strip() for s in suggestions if s]
+        # Strategy 1: direct JSON parse
+        suggestions = None
+        try:
+            suggestions = json_lib.loads(text)
+        except Exception:
+            pass
 
+        # Strategy 2: extract JSON array using regex
+        if not suggestions:
+            import re
+            m = re.search(r'\[.*?\]', text, re.DOTALL)
+            if m:
+                try:
+                    suggestions = json_lib.loads(m.group(0))
+                except Exception:
+                    pass
+
+        # Strategy 3: split lines and clean
+        if not suggestions:
+            import re
+            lines = []
+            for line in text.splitlines():
+                line = line.strip()
+                line = re.sub(r'^[\d\.\-\*\"\s]+', '', line)
+                line = line.strip('"').strip("'").strip(',').strip()
+                if len(line) > 8:
+                    lines.append(line)
+            suggestions = lines
+
+        if not suggestions:
+            raise ValueError("Could not parse AI response")
+
+        suggestions = [str(s).strip() for s in suggestions if s][:8]
         return jsonify({"suggestions": suggestions})
 
     except Exception as e:
