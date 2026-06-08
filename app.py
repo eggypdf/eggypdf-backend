@@ -1038,106 +1038,121 @@ def pdf_to_ppt():
 
 
 
-# ─── SEND CV TO EMAIL (HTML attachment, print-to-PDF ready) ───
+# ─── SEND CV TO EMAIL (real PDF attachment via xhtml2pdf) ───
 @app.route('/api/send-cv-email', methods=['POST', 'OPTIONS'])
 def send_cv_email():
-    """Send CV as a self-contained HTML file attachment via Brevo.
-    The user opens it in their browser and prints to PDF in one click."""
-    import urllib.request, urllib.error, json as json_lib, base64
+    import urllib.request, urllib.error, json as json_lib, base64, io
 
     BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
     if not BREVO_API_KEY:
         return jsonify({"error": "Email service not configured."}), 503
 
-    data        = request.get_json(silent=True) or {}
-    email       = (data.get('email') or '').strip()
-    name        = (data.get('name') or 'there').strip()
-    resume_html = (data.get('resume_html') or '').strip()
+    data         = request.get_json(silent=True) or {}
+    email        = (data.get('email') or '').strip()
+    name         = (data.get('name') or 'there').strip()
+    resume_html  = (data.get('resume_html') or '').strip()
     template_css = (data.get('template_css') or '').strip()
 
     if not email or not resume_html:
         return jsonify({"error": "Email and resume content required."}), 400
 
-    safe_name = (name.replace(' ', '_') or 'Resume')
+    safe_name = name.replace(' ', '_') or 'Resume'
+    pdf_b64 = None
 
-    # ── Build a complete self-contained HTML file ──
-    # This opens perfectly in any browser and prints to A4 PDF in one click
-    html_file = f"""<!DOCTYPE html>
-<html lang="en">
+    # ── Generate PDF using xhtml2pdf (pure Python, no system deps) ──
+    try:
+        from xhtml2pdf import pisa
+        import io
+
+        full_html = f"""<!DOCTYPE html>
+<html>
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>{name} - Resume</title>
 <style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;display:flex;flex-direction:column;align-items:center;padding:20px;min-height:100vh}}
-.print-bar{{background:#1a1a2e;color:#fff;width:210mm;border-radius:10px 10px 0 0;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:0}}
-.print-bar span{{font-size:14px;font-weight:600}}
-.print-btn{{background:#f5a623;color:#fff;border:none;border-radius:8px;padding:9px 22px;font-size:14px;font-weight:700;cursor:pointer}}
-.resume-page{{width:210mm;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,0.15);margin-bottom:20px}}
-@page{{size:A4;margin:0}}
-@media print{{
-  body{{background:#fff;padding:0}}
-  .print-bar{{display:none}}
-  .resume-page{{box-shadow:none;width:100%}}
-}}
+@page {{ size: A4; margin: 1cm; }}
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10px; color: #1a1a1a; }}
 {template_css}
 </style>
 </head>
-<body>
-<div class="print-bar">
-  <span>🥚 EggyPDF — {name}'s Resume</span>
-  <button class="print-btn" onclick="window.print()">⬇️ Save as PDF</button>
-</div>
-<div class="resume-page">
-  {resume_html}
-</div>
+<body>{resume_html}</body>
+</html>"""
+
+        pdf_buffer = io.BytesIO()
+        result = pisa.CreatePDF(
+            src=full_html,
+            dest=pdf_buffer,
+            encoding='utf-8'
+        )
+
+        if not result.err:
+            pdf_b64 = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+
+    except Exception as e:
+        pdf_b64 = None
+        print(f"PDF generation error: {e}")
+
+    # ── Build beautiful email body ──
+    if pdf_b64:
+        attach_note = "📎 Your CV is attached as a <strong>PDF file</strong> — open it, save it, share it with employers."
+    else:
+        attach_note = "💡 Open this email on desktop → <strong>File → Print → Save as PDF</strong> to get your CV as PDF."
+
+    email_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif">
+
+  <div style="background:#1a1a2e;padding:22px 24px;text-align:center">
+    <div style="font-size:1.3rem;font-weight:700;color:#fff">Eggy<span style="color:#f5a623">PDF</span></div>
+    <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:6px 0 0">Your CV is ready, {name}!</p>
+  </div>
+
+  <div style="max-width:600px;margin:0 auto;padding:24px 16px">
+
+    <div style="background:#fff8ed;border:2px solid #f5a623;border-radius:16px;padding:20px 24px;margin-bottom:20px;text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px">🎉</div>
+      <p style="font-size:14px;color:#92400e;line-height:1.7;margin:0">{attach_note}</p>
+    </div>
+
+    <div style="background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:20px;border:1px solid #e5e7eb">
+      <p style="font-size:13px;color:#374151;line-height:1.8;margin:0">
+        ✅ You are on our <strong>early access list</strong> for upcoming AI features.<br/>
+        We will notify you first when new tools go live — completely free.
+      </p>
+    </div>
+
+    <div style="text-align:center;margin-bottom:24px">
+      <a href="https://eggypdf.com/resume-builder.html"
+         style="display:inline-block;background:#f5a623;color:#fff;padding:13px 32px;border-radius:50px;text-decoration:none;font-weight:700;font-size:14px;box-shadow:0 4px 12px rgba(245,166,35,0.35)">
+        ✏️ Edit my CV on EggyPDF
+      </a>
+    </div>
+
+    <p style="font-size:11px;color:#9ca3af;text-align:center;line-height:1.6">
+      Sent by <a href="https://eggypdf.com" style="color:#f5a623;text-decoration:none">EggyPDF</a>
+      &nbsp;·&nbsp; Free PDF tools &amp; Resume Builder<br/>
+      You received this because you downloaded your CV from EggyPDF.
+    </p>
+  </div>
+
 </body>
 </html>"""
 
-    # Encode as base64 for Brevo attachment
-    html_b64 = base64.b64encode(html_file.encode('utf-8')).decode('utf-8')
-
-    # ── Beautiful email body ──
-    email_body = f"""
-<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:20px;color:#1a1a2e">
-  <div style="background:#fff8ed;border:2px solid #f5a623;border-radius:16px;padding:28px 24px;text-align:center;margin-bottom:24px">
-    <div style="font-size:2.5rem;margin-bottom:10px">🥚</div>
-    <h1 style="font-size:1.3rem;font-weight:700;color:#1a1a2e;margin-bottom:8px">Your CV is ready, {name}!</h1>
-    <p style="font-size:14px;color:#6b7280;line-height:1.6">
-      Your resume is attached to this email.<br/>
-      You are also on our early access list for upcoming AI features.
-    </p>
-  </div>
-  <div style="background:#f9fafb;border-radius:12px;padding:20px;margin-bottom:20px">
-    <p style="font-size:13px;color:#374151;line-height:1.8;margin:0">
-      📎 <strong>Open the attached file</strong> in your browser<br/>
-      🖨️ Click the <strong>"Save as PDF"</strong> button inside the file<br/>
-      💾 Save the PDF and share it with employers
-    </p>
-  </div>
-  <div style="text-align:center;margin-bottom:20px">
-    <a href="https://eggypdf.com/resume-builder.html"
-       style="display:inline-block;background:#f5a623;color:#fff;padding:12px 28px;border-radius:50px;text-decoration:none;font-weight:700;font-size:14px">
-      ✏️ Edit my CV on EggyPDF
-    </a>
-  </div>
-  <p style="font-size:11px;color:#9ca3af;text-align:center;line-height:1.6">
-    Sent by <a href="https://eggypdf.com" style="color:#f5a623;text-decoration:none">EggyPDF</a> — Free PDF &amp; Resume tools<br/>
-    You received this because you downloaded your CV from EggyPDF.
-  </p>
-</div>"""
-
+    # ── Build Brevo payload ──
     brevo_payload = {
         "sender": {"name": "EggyPDF", "email": "eggypdf@gmail.com"},
         "to": [{"email": email, "name": name}],
         "subject": f"Your CV is ready — {name}",
-        "htmlContent": email_body,
-        "attachment": [{
-            "name": f"{safe_name}_Resume.html",
-            "content": html_b64
-        }]
+        "htmlContent": email_body
     }
+
+    # Attach real PDF if generated successfully
+    if pdf_b64:
+        brevo_payload["attachment"] = [{
+            "name": f"{safe_name}_Resume.pdf",
+            "content": pdf_b64
+        }]
 
     try:
         payload = json_lib.dumps(brevo_payload).encode("utf-8")
@@ -1149,13 +1164,18 @@ body{{font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;display:flex;fle
         )
         with urllib.request.urlopen(req, timeout=20) as resp:
             result = json_lib.loads(resp.read().decode("utf-8"))
-        return jsonify({"success": True, "messageId": result.get("messageId", "")})
+        return jsonify({
+            "success": True,
+            "pdf_attached": pdf_b64 is not None,
+            "messageId": result.get("messageId", "")
+        })
 
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
         return jsonify({"error": f"Email failed: {e.code} — {body[:300]}"}), 500
     except Exception as e:
         return jsonify({"error": f"Email failed: {str(e)}"}), 500
+
 
 # ─── AI: DIAGNOSTIC — LIST AVAILABLE MODELS ───
 @app.route('/api/ai-models', methods=['GET', 'OPTIONS'])
