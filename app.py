@@ -1209,9 +1209,14 @@ def send_cv_email():
   </div>
 </body></html>"""
 
+    # IMPORTANT: The sender email MUST be verified in Brevo → Senders & Domains
+    # Go to app.brevo.com → Senders & Domains → Add & verify hello@eggypdf.com
+    SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', 'hello@eggypdf.com').strip()
+
     brevo_payload = {{
-        "sender": {{"name": "EggyPDF", "email": "eggypdf@gmail.com"}},
+        "sender": {{"name": "EggyPDF", "email": SENDER_EMAIL}},
         "to": [{{"email": email, "name": name}}],
+        "replyTo": {{"email": SENDER_EMAIL, "name": "EggyPDF"}},
         "subject": f"Your CV is ready — {{name}}",
         "htmlContent": email_body
     }}
@@ -1231,12 +1236,17 @@ def send_cv_email():
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=20) as resp:
-            result = json_lib.loads(resp.read().decode("utf-8"))
-        return jsonify({{"success": True, "pdf_attached": pdf_b64 is not None, "messageId": result.get("messageId", "")}})
+            raw = resp.read().decode("utf-8")
+            result = json_lib.loads(raw)
+            msg_id = result.get("messageId", "")
+            print(f"Email sent OK — messageId: {{msg_id}}, to: {{email}}, pdf: {{pdf_b64 is not None}}")
+            return jsonify({{"success": True, "pdf_attached": pdf_b64 is not None, "messageId": msg_id}})
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
-        return jsonify({{"error": f"Email failed: {{e.code}} — {{body[:300]}}"}}), 500
+        print(f"Brevo HTTP error {{e.code}}: {{body}}")
+        return jsonify({{"error": f"Email failed: {{e.code}} — {{body[:400]}}"}}), 500
     except Exception as e:
+        print(f"Email exception: {{str(e)}}")
         return jsonify({{"error": f"Email failed: {{str(e)}}"}}), 500
 
 
