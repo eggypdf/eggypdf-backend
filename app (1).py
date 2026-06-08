@@ -1210,44 +1210,44 @@ def send_cv_email():
 </body></html>"""
 
     # IMPORTANT: The sender email MUST be verified in Brevo → Senders & Domains
-    # Go to app.brevo.com → Senders & Domains → Add & verify eggypdf@gmail.com
-    SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', 'eggypdf@gmail.com').strip()
+    # Go to app.brevo.com → Senders & Domains → Add & verify hello@eggypdf.com
+    SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', 'hello@eggypdf.com').strip()
 
-    brevo_payload = {{
-        "sender": {{"name": "EggyPDF", "email": SENDER_EMAIL}},
-        "to": [{{"email": email, "name": name}}],
-        "replyTo": {{"email": SENDER_EMAIL, "name": "EggyPDF"}},
-        "subject": f"Your CV is ready — {{name}}",
+    brevo_payload = {
+        "sender": {"name": "EggyPDF", "email": SENDER_EMAIL},
+        "to": [{"email": email, "name": name}],
+        "replyTo": {"email": SENDER_EMAIL, "name": "EggyPDF"},
+        "subject": f"Your CV is ready — {name}",
         "htmlContent": email_body
-    }}
+    }
 
     if pdf_b64:
-        brevo_payload["attachment"] = [{{
-            "name": f"{{safe_name}}_Resume.pdf",
+        brevo_payload["attachment"] = [{
+            "name": f"{safe_name}_Resume.pdf",
             "content": pdf_b64
-        }}]
+        }]
 
     try:
         payload = json_lib.dumps(brevo_payload).encode("utf-8")
         req = urllib.request.Request(
             "https://api.brevo.com/v3/smtp/email",
             data=payload,
-            headers={{"Content-Type": "application/json", "api-key": BREVO_API_KEY}},
+            headers={"Content-Type": "application/json", "api-key": BREVO_API_KEY},
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=20) as resp:
             raw = resp.read().decode("utf-8")
             result = json_lib.loads(raw)
             msg_id = result.get("messageId", "")
-            print(f"Email sent OK — messageId: {{msg_id}}, to: {{email}}, pdf: {{pdf_b64 is not None}}")
-            return jsonify({{"success": True, "pdf_attached": pdf_b64 is not None, "messageId": msg_id}})
+            print(f"Email sent OK — messageId: {msg_id}, to: {email}, pdf: {pdf_b64 is not None}")
+            return jsonify({"success": True, "pdf_attached": pdf_b64 is not None, "messageId": msg_id})
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
-        print(f"Brevo HTTP error {{e.code}}: {{body}}")
-        return jsonify({{"error": f"Email failed: {{e.code}} — {{body[:400]}}"}}), 500
+        print(f"Brevo HTTP error {e.code}: {body}")
+        return jsonify({"error": f"Email failed: {e.code} — {body[:400]}"}), 500
     except Exception as e:
-        print(f"Email exception: {{str(e)}}")
-        return jsonify({{"error": f"Email failed: {{str(e)}}"}}), 500
+        print(f"Email exception: {str(e)}")
+        return jsonify({"error": f"Email failed: {str(e)}"}), 500
 
 
 # ─── AI: DIAGNOSTIC — LIST AVAILABLE MODELS ───
