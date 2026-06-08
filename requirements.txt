@@ -12,4 +12,3 @@ openpyxl
 python-pptx
 
 requests
-xhtml2pdf

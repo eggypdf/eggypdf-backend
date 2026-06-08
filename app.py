@@ -1038,10 +1038,10 @@ def pdf_to_ppt():
 
 
 
-# ─── SEND CV TO EMAIL (real PDF attachment via xhtml2pdf) ───
+# ─── SEND CV TO EMAIL (PDF via reportlab — zero extra deps) ───
 @app.route('/api/send-cv-email', methods=['POST', 'OPTIONS'])
 def send_cv_email():
-    import urllib.request, urllib.error, json as json_lib, base64, io
+    import urllib.request, urllib.error, json as json_lib, base64, io, re as _re
 
     BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
     if not BREVO_API_KEY:
@@ -1056,125 +1056,188 @@ def send_cv_email():
     if not email or not resume_html:
         return jsonify({"error": "Email and resume content required."}), 400
 
-    safe_name = name.replace(' ', '_') or 'Resume'
+    safe_name = (name.replace(' ', '_') or 'Resume')
     pdf_b64 = None
 
-    # ── Generate PDF using xhtml2pdf (pure Python, no system deps) ──
+    # ── Generate PDF using reportlab (already installed, zero extra deps) ──
     try:
-        from xhtml2pdf import pisa
-        import io
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER
 
-        full_html = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8"/>
-<style>
-@page {{ size: A4; margin: 1cm; }}
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{ font-family: Helvetica, Arial, sans-serif; font-size: 10px; color: #1a1a1a; }}
-{template_css}
-</style>
-</head>
-<body>{resume_html}</body>
-</html>"""
+        # Strip all HTML tags to get clean text
+        def strip_tags(html):
+            clean = _re.sub(r'<[^>]+>', ' ', html)
+            clean = clean.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&nbsp;', ' ').replace('&#39;', "'").replace('&quot;', '"').replace('&apos;', "'")
+            return ' '.join(clean.split())
 
-        pdf_buffer = io.BytesIO()
-        result = pisa.CreatePDF(
-            src=full_html,
-            dest=pdf_buffer,
-            encoding='utf-8'
+        # Extract sections from resume HTML
+        def extract_text(html, tag, cls=''):
+            pattern = f'<{tag}[^>]*class="[^"]*{cls}[^"]*"[^>]*>(.*?)</{tag}>' if cls else f'<{tag}[^>]*>(.*?)</{tag}>'
+            matches = _re.findall(pattern, html, _re.DOTALL | _re.IGNORECASE)
+            return [strip_tags(m) for m in matches if strip_tags(m)]
+
+        # Parse key resume fields
+        name_text   = strip_tags(_re.search(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html, _re.DOTALL).group(1)) if _re.search(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html, _re.DOTALL) else name
+        job_text    = strip_tags(_re.search(r'class="[^"]*resume-job[^"]*"[^>]*>(.*?)</', resume_html, _re.DOTALL).group(1)) if _re.search(r'class="[^"]*resume-job[^"]*"[^>]*>(.*?)</', resume_html, _re.DOTALL) else ''
+        sections    = _re.findall(r'class="[^"]*ats-heading[^"]*"[^>]*>(.*?)</div>(.*?)(?=class="[^"]*ats-heading|</div>\s*</div>)', resume_html, _re.DOTALL)
+
+        buf    = io.BytesIO()
+        doc    = SimpleDocTemplate(buf, pagesize=A4,
+                                   leftMargin=2*cm, rightMargin=2*cm,
+                                   topMargin=2*cm, bottomMargin=2*cm)
+        styles = getSampleStyleSheet()
+
+        # Custom styles
+        title_style   = ParagraphStyle('Title',   fontName='Helvetica-Bold', fontSize=22, textColor=colors.HexColor('#1a1a2e'), spaceAfter=4)
+        job_style     = ParagraphStyle('Job',     fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor('#d4881a'), spaceAfter=12, leading=14)
+        heading_style = ParagraphStyle('Heading', fontName='Helvetica-Bold', fontSize=9,  textColor=colors.HexColor('#1a1a2e'), spaceBefore=14, spaceAfter=4, textTransform='uppercase')
+        body_style    = ParagraphStyle('Body',    fontName='Helvetica',      fontSize=9,  textColor=colors.HexColor('#374151'), leading=14, spaceAfter=4)
+        bullet_style  = ParagraphStyle('Bullet',  fontName='Helvetica',      fontSize=9,  textColor=colors.HexColor('#374151'), leading=14, leftIndent=12, spaceAfter=3)
+        label_style   = ParagraphStyle('Label',   fontName='Helvetica-Bold', fontSize=9,  textColor=colors.HexColor('#1a1a2e'), leading=14)
+
+        story = []
+
+        # Name + Job title
+        story.append(Paragraph(name_text, title_style))
+        if job_text:
+            story.append(Paragraph(job_text, job_style))
+        story.append(HRFlowable(width='100%', thickness=2, color=colors.HexColor('#1a1a2e'), spaceAfter=10))
+
+        # Parse all resume content from HTML
+        full_text = strip_tags(resume_html)
+
+        # Extract contact info
+        contact_matches = _re.findall(r'class="[^"]*ats-contact-row[^"]*"[^>]*>(.*?)</div>', resume_html, _re.DOTALL)
+        if contact_matches:
+            story.append(Paragraph('CONTACT', heading_style))
+            story.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#e5e7eb'), spaceAfter=6))
+            for c in contact_matches:
+                label_m = _re.search(r'ats-contact-label[^>]*>(.*?)</span>', c, _re.DOTALL)
+                val_m   = _re.search(r'ats-contact-val[^>]*>(.*?)</span>', c, _re.DOTALL)
+                if label_m and val_m:
+                    txt = f"<b>{strip_tags(label_m.group(1))}:</b>  {strip_tags(val_m.group(1))}"
+                    story.append(Paragraph(txt, body_style))
+
+        # Extract all sections (summary, experience, education, skills, languages)
+        section_blocks = _re.findall(
+            r'<div class="[^"]*ats-section[^"]*">(.*?)</div>\s*(?=<div class="[^"]*ats-section|$)',
+            resume_html, _re.DOTALL
         )
 
-        if not result.err:
-            pdf_b64 = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+        for block in section_blocks:
+            heading_m = _re.search(r'ats-heading[^>]*>(.*?)</div>', block, _re.DOTALL)
+            if not heading_m:
+                continue
+            heading_txt = strip_tags(heading_m.group(1)).upper()
+            if heading_txt == 'CONTACT':
+                continue  # already done above
+
+            story.append(Spacer(1, 4))
+            story.append(Paragraph(heading_txt, heading_style))
+            story.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#e5e7eb'), spaceAfter=6))
+
+            # Summary paragraph
+            summary_m = _re.search(r'ats-summary[^>]*>(.*?)</p>', block, _re.DOTALL)
+            if summary_m:
+                story.append(Paragraph(strip_tags(summary_m.group(1)), body_style))
+
+            # Skills line
+            skills_m = _re.search(r'ats-skills[^>]*>(.*?)</p>', block, _re.DOTALL)
+            if skills_m:
+                story.append(Paragraph(strip_tags(skills_m.group(1)), body_style))
+
+            # Experience / Education entries
+            entries = _re.findall(r'<div class="[^"]*ats-entry[^"]*">(.*?)</div>\s*(?=<div class="[^"]*ats-entry|<div class="[^"]*ats-heading|$)', block, _re.DOTALL)
+            for entry in entries:
+                title_m   = _re.search(r'ats-entry-title[^>]*>(.*?)</span>', entry, _re.DOTALL)
+                date_m    = _re.search(r'ats-entry-date[^>]*>(.*?)</span>', entry, _re.DOTALL)
+                sub_m     = _re.search(r'ats-entry-sub[^>]*>(.*?)</div>', entry, _re.DOTALL)
+                bullets   = _re.findall(r'<li[^>]*>(.*?)</li>', entry, _re.DOTALL)
+
+                if title_m:
+                    title_txt = strip_tags(title_m.group(1))
+                    date_txt  = strip_tags(date_m.group(1)) if date_m else ''
+                    row = f"<b>{title_txt}</b>" + (f"   <font color='#6b7280' size='8'>{date_txt}</font>" if date_txt else '')
+                    story.append(Paragraph(row, body_style))
+                if sub_m:
+                    story.append(Paragraph(f"<font color='#d4881a'>{strip_tags(sub_m.group(1))}</font>", body_style))
+                for b in bullets:
+                    story.append(Paragraph(f"• {strip_tags(b)}", bullet_style))
+                story.append(Spacer(1, 4))
+
+        doc.build(story)
+        pdf_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
 
     except Exception as e:
         pdf_b64 = None
         print(f"PDF generation error: {e}")
 
-    # ── Build beautiful email body ──
-    if pdf_b64:
-        attach_note = "📎 Your CV is attached as a <strong>PDF file</strong> — open it, save it, share it with employers."
-    else:
-        attach_note = "💡 Open this email on desktop → <strong>File → Print → Save as PDF</strong> to get your CV as PDF."
-
+    # ── Beautiful email body ──
     email_body = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"/></head>
+<html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif">
-
   <div style="background:#1a1a2e;padding:22px 24px;text-align:center">
     <div style="font-size:1.3rem;font-weight:700;color:#fff">Eggy<span style="color:#f5a623">PDF</span></div>
     <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:6px 0 0">Your CV is ready, {name}!</p>
   </div>
-
   <div style="max-width:600px;margin:0 auto;padding:24px 16px">
-
     <div style="background:#fff8ed;border:2px solid #f5a623;border-radius:16px;padding:20px 24px;margin-bottom:20px;text-align:center">
       <div style="font-size:2rem;margin-bottom:8px">🎉</div>
-      <p style="font-size:14px;color:#92400e;line-height:1.7;margin:0">{attach_note}</p>
+      <p style="font-size:14px;color:#92400e;line-height:1.7;margin:0">
+        {"📎 Your <strong>CV is attached as a PDF</strong> — open it, save it, share it with employers." if pdf_b64 else "💡 Open on desktop → File → Print → Save as PDF to get your CV."}
+      </p>
     </div>
-
     <div style="background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:20px;border:1px solid #e5e7eb">
       <p style="font-size:13px;color:#374151;line-height:1.8;margin:0">
         ✅ You are on our <strong>early access list</strong> for upcoming AI features.<br/>
         We will notify you first when new tools go live — completely free.
       </p>
     </div>
-
     <div style="text-align:center;margin-bottom:24px">
       <a href="https://eggypdf.com/resume-builder.html"
-         style="display:inline-block;background:#f5a623;color:#fff;padding:13px 32px;border-radius:50px;text-decoration:none;font-weight:700;font-size:14px;box-shadow:0 4px 12px rgba(245,166,35,0.35)">
+         style="display:inline-block;background:#f5a623;color:#fff;padding:13px 32px;border-radius:50px;text-decoration:none;font-weight:700;font-size:14px">
         ✏️ Edit my CV on EggyPDF
       </a>
     </div>
-
     <p style="font-size:11px;color:#9ca3af;text-align:center;line-height:1.6">
-      Sent by <a href="https://eggypdf.com" style="color:#f5a623;text-decoration:none">EggyPDF</a>
-      &nbsp;·&nbsp; Free PDF tools &amp; Resume Builder<br/>
-      You received this because you downloaded your CV from EggyPDF.
+      Sent by <a href="https://eggypdf.com" style="color:#f5a623;text-decoration:none">EggyPDF</a> &nbsp;·&nbsp; Free PDF tools &amp; Resume Builder
     </p>
   </div>
+</body></html>"""
 
-</body>
-</html>"""
-
-    # ── Build Brevo payload ──
-    brevo_payload = {
-        "sender": {"name": "EggyPDF", "email": "eggypdf@gmail.com"},
-        "to": [{"email": email, "name": name}],
-        "subject": f"Your CV is ready — {name}",
+    brevo_payload = {{
+        "sender": {{"name": "EggyPDF", "email": "eggypdf@gmail.com"}},
+        "to": [{{"email": email, "name": name}}],
+        "subject": f"Your CV is ready — {{name}}",
         "htmlContent": email_body
-    }
+    }}
 
-    # Attach real PDF if generated successfully
     if pdf_b64:
-        brevo_payload["attachment"] = [{
-            "name": f"{safe_name}_Resume.pdf",
+        brevo_payload["attachment"] = [{{
+            "name": f"{{safe_name}}_Resume.pdf",
             "content": pdf_b64
-        }]
+        }}]
 
     try:
         payload = json_lib.dumps(brevo_payload).encode("utf-8")
         req = urllib.request.Request(
             "https://api.brevo.com/v3/smtp/email",
             data=payload,
-            headers={"Content-Type": "application/json", "api-key": BREVO_API_KEY},
+            headers={{"Content-Type": "application/json", "api-key": BREVO_API_KEY}},
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=20) as resp:
             result = json_lib.loads(resp.read().decode("utf-8"))
-        return jsonify({
-            "success": True,
-            "pdf_attached": pdf_b64 is not None,
-            "messageId": result.get("messageId", "")
-        })
-
+        return jsonify({{"success": True, "pdf_attached": pdf_b64 is not None, "messageId": result.get("messageId", "")}})
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
-        return jsonify({"error": f"Email failed: {e.code} — {body[:300]}"}), 500
+        return jsonify({{"error": f"Email failed: {{e.code}} — {{body[:300]}}"}}), 500
     except Exception as e:
-        return jsonify({"error": f"Email failed: {str(e)}"}), 500
+        return jsonify({{"error": f"Email failed: {{str(e)}}"}}), 500
 
 
 # ─── AI: DIAGNOSTIC — LIST AVAILABLE MODELS ───
