@@ -1059,6 +1059,11 @@ def send_cv_email():
     safe_name = (name.replace(' ', '_') or 'Resume')
     pdf_b64 = None
 
+    # Strip base64 images from HTML before PDF generation (they cause reportlab crashes)
+    import re as _re2
+    resume_html_clean = _re2.sub(r'src="data:image/[^"]{1,2000000}"', 'src=""', resume_html)
+    resume_html_clean = _re2.sub(r"src='data:image/[^']{1,2000000}'", "src=''", resume_html_clean)
+
     # ── Generate PDF using reportlab ──
     try:
         from reportlab.lib.pagesizes import A4
@@ -1073,6 +1078,7 @@ def send_cv_email():
                 t = t.replace(ent, rep)
             return ' '.join(t.split()).strip()
 
+        resume_html = resume_html_clean  # use cleaned version
         def find(pattern, html, grp=1):
             m = _re.search(pattern, html, _re.DOTALL | _re.IGNORECASE)
             return striptags(m.group(grp)) if m else ''
