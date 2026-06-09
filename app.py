@@ -1076,7 +1076,12 @@ def send_cv_email():
             t = _re.sub(r'<[^>]+>', ' ', h)
             for ent, rep in [('&amp;','&'),('&lt;','<'),('&gt;','>'),('&nbsp;',' '),('&#39;',"'"),('&quot;','"'),('&apos;',"'")]:
                 t = t.replace(ent, rep)
-            return ' '.join(t.split()).strip()
+            t = ' '.join(t.split()).strip()
+            return t
+
+        def xmlsafe(t):
+            """Escape text for reportlab Paragraph — prevents unclosed tag errors"""
+            return t.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
 
         resume_html = resume_html_clean  # use cleaned version
         def find(pattern, html, grp=1):
@@ -1113,8 +1118,8 @@ def send_cv_email():
         j = find(r'class="[^"]*resume-job-title[^"]*"[^>]*>(.*?)</', resume_html)
         if not j: j = find(r'class="[^"]*resume-title[^"]*"[^>]*>(.*?)</', resume_html)
 
-        story.append(Paragraph(n, T))
-        if j: story.append(Paragraph(j, JB))
+        story.append(Paragraph(xmlsafe(n), T))
+        if j: story.append(Paragraph(xmlsafe(j), JB))
         story.append(HRFlowable(width='100%', thickness=2, color=DARK, spaceAfter=8))
 
         # ── CONTACT BLOCK ──
@@ -1130,13 +1135,13 @@ def send_cv_email():
                 lbl = find(r'class="[^"]*contact-lbl[^"]*"[^>]*>(.*?)</span>', row)
                 val = find(r'class="[^"]*contact-val[^"]*"[^>]*>(.*?)</span>', row)
                 if lbl and val:
-                    story.append(Paragraph(f'<b>{lbl}:</b>  {val}', B))
+                    story.append(Paragraph(f'<b>{xmlsafe(lbl)}:</b>  {xmlsafe(val)}', B))
         elif contact_items:
             story.append(Paragraph('CONTACT', H))
             story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
             for item in contact_items[:4]:
                 t = striptags(item)
-                if t: story.append(Paragraph(t, B))
+                if t: story.append(Paragraph(xmlsafe(t), B))
 
         # ── SECTION HEADINGS + CONTENT ──
         # Find all section headings
@@ -1148,18 +1153,18 @@ def send_cv_email():
             heading_txt = striptags(heading).upper()
             block = parts[i+1] if i+1 < len(parts) else ''
 
-            story.append(Paragraph(heading_txt, H))
+            story.append(Paragraph(xmlsafe(heading_txt), H))
             story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
 
             if heading_txt in ('PROFESSIONAL SUMMARY', 'PROFILE', 'SUMMARY', 'ABOUT'):
                 txt = find(r'class="[^"]*summary-text[^"]*"[^>]*>(.*?)</p>', block)
                 if not txt: txt = striptags(block[:500])
-                if txt: story.append(Paragraph(txt, B))
+                if txt: story.append(Paragraph(xmlsafe(txt), B))
 
             elif heading_txt in ('SKILLS', 'LANGUAGES'):
                 pills = findall(r'<span class="[^"]*skill-pill[^"]*">(.*?)</span>', block)
                 if pills:
-                    story.append(Paragraph('  ·  '.join([striptags(p) for p in pills]), B))
+                    story.append(Paragraph(xmlsafe('  ·  '.join([striptags(p) for p in pills])), B))
 
             elif heading_txt in ('WORK EXPERIENCE', 'EXPERIENCE'):
                 entries = findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>', block)
@@ -1169,15 +1174,15 @@ def send_cv_email():
                     bullets_li = findall(r'<li[^>]*>(.*?)</li>', entry)
                     edesc = find(r'class="[^"]*entry-desc[^"]*"[^>]*>(.*?)</p>', entry)
 
-                    if et: story.append(Paragraph(f'<b>{et}</b>', B))
+                    if et: story.append(Paragraph(f'<b>{xmlsafe(et)}</b>', B))
                     if len(esub) >= 2:
-                        story.append(Paragraph(f'<font color="#d4881a">{striptags(esub[0])}</font>   <font color="#6b7280" size="8">{striptags(esub[1])}</font>', B))
+                        story.append(Paragraph(f'<font color="#d4881a">{xmlsafe(striptags(esub[0]))}</font>   <font color="#6b7280" size="8">{xmlsafe(striptags(esub[1]))}</font>', B))
                     elif len(esub) == 1:
-                        story.append(Paragraph(f'<font color="#d4881a">{striptags(esub[0])}</font>', B))
+                        story.append(Paragraph(f'<font color="#d4881a">{xmlsafe(striptags(esub[0]))}</font>', B))
                     for bl in bullets_li:
-                        story.append(Paragraph(f'• {striptags(bl)}', BU))
+                        story.append(Paragraph(f'• {xmlsafe(striptags(bl))}', BU))
                     if edesc and not bullets_li:
-                        story.append(Paragraph(striptags(edesc), BU))
+                        story.append(Paragraph(xmlsafe(striptags(edesc)), BU))
                     story.append(Spacer(1, 4))
 
             elif heading_txt in ('EDUCATION'):
@@ -1185,15 +1190,15 @@ def send_cv_email():
                 for entry in entries:
                     et  = find(r'class="[^"]*entry-title[^"]*"[^>]*>(.*?)</div>', entry)
                     esub = findall(r'<span>(.*?)</span>', find(r'class="[^"]*entry-sub[^"]*"[^>]*>(.*?)</div>', entry, 0))
-                    if et: story.append(Paragraph(f'<b>{et}</b>', B))
+                    if et: story.append(Paragraph(f'<b>{xmlsafe(et)}</b>', B))
                     if len(esub) >= 2:
-                        story.append(Paragraph(f'<font color="#d4881a">{striptags(esub[0])}</font>   <font color="#6b7280" size="8">{striptags(esub[1])}</font>', B))
+                        story.append(Paragraph(f'<font color="#d4881a">{xmlsafe(striptags(esub[0]))}</font>   <font color="#6b7280" size="8">{xmlsafe(striptags(esub[1]))}</font>', B))
                     story.append(Spacer(1, 3))
 
             else:
                 # Generic section fallback
                 txt = striptags(block[:400])
-                if txt: story.append(Paragraph(txt, B))
+                if txt: story.append(Paragraph(xmlsafe(txt), B))
 
         doc.build(story)
         pdf_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
