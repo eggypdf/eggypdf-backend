@@ -1200,8 +1200,15 @@ def send_cv_email():
         print(f"PDF generated successfully: {len(buf.getvalue())} bytes")
 
     except Exception as e:
+        import traceback
         pdf_b64 = None
         print(f"PDF generation error: {e}")
+        print(traceback.format_exc())
+
+    # Log PDF status clearly
+    print(f"PDF status: {'GENERATED OK' if pdf_b64 else 'FAILED - no attachment'}")
+    if pdf_b64:
+        print(f"PDF size: {len(base64.b64decode(pdf_b64))} bytes")
 
     # ── Beautiful email body ──
     email_body = f"""<!DOCTYPE html>
