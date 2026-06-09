@@ -1067,147 +1067,152 @@ def send_cv_email():
     # ── Generate PDF using reportlab ──
     try:
         from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.units import cm
         from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
 
+        # ── Helpers ──
         def striptags(h):
-            t = _re.sub(r'<[^>]+>', ' ', h)
-            for ent, rep in [('&amp;','&'),('&lt;','<'),('&gt;','>'),('&nbsp;',' '),('&#39;',"'"),('&quot;','"'),('&apos;',"'")]:
+            t = _re.sub(r'<[^>]+>', ' ', str(h))
+            for ent, rep in [('&amp;','&'),('&lt;','<'),('&gt;','>'),('&nbsp;',' '),('&#39;',"'"),('&quot;','"'),('&apos;',"'"),('–','-'),('—','-')]:
                 t = t.replace(ent, rep)
-            t = ' '.join(t.split()).strip()
-            return t
+            return ' '.join(t.split()).strip()
 
-        def xmlsafe(t):
-            """Escape text for reportlab Paragraph — prevents unclosed tag errors"""
-            return t.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+        def xs(t):
+            """xmlsafe — escape for reportlab Paragraph"""
+            return str(t).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
 
-        resume_html = resume_html_clean  # use cleaned version
-        def find(pattern, html, grp=1):
-            m = _re.search(pattern, html, _re.DOTALL | _re.IGNORECASE)
-            return striptags(m.group(grp)) if m else ''
+        def findone(pat, html):
+            m = _re.search(pat, html, _re.DOTALL | _re.IGNORECASE)
+            return striptags(m.group(1)) if m else ''
 
-        def findall(pattern, html):
-            return _re.findall(pattern, html, _re.DOTALL | _re.IGNORECASE)
+        def findall(pat, html):
+            return _re.findall(pat, html, _re.DOTALL | _re.IGNORECASE)
 
-        buf = io.BytesIO()
-        doc = SimpleDocTemplate(buf, pagesize=A4,
-                                leftMargin=1.8*cm, rightMargin=1.8*cm,
-                                topMargin=1.8*cm, bottomMargin=1.8*cm)
-
+        # ── Styles ──
         DARK   = colors.HexColor('#1a1a2e')
         ORANGE = colors.HexColor('#d4881a')
         GREY   = colors.HexColor('#6b7280')
         LGREY  = colors.HexColor('#e5e7eb')
         BODY   = colors.HexColor('#374151')
 
-        T  = ParagraphStyle('T',  fontName='Helvetica-Bold', fontSize=22, textColor=DARK,   spaceAfter=3)
-        JB = ParagraphStyle('JB', fontName='Helvetica-Bold', fontSize=11, textColor=ORANGE, spaceAfter=10, leading=14)
-        H  = ParagraphStyle('H',  fontName='Helvetica-Bold', fontSize=9,  textColor=DARK,   spaceBefore=12, spaceAfter=4)
-        B  = ParagraphStyle('B',  fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, spaceAfter=3)
-        BU = ParagraphStyle('BU', fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, leftIndent=10, spaceAfter=2)
-        SM = ParagraphStyle('SM', fontName='Helvetica',      fontSize=9,  textColor=GREY,   leading=13, spaceAfter=2)
-        OR = ParagraphStyle('OR', fontName='Helvetica-Bold', fontSize=9,  textColor=ORANGE, leading=13, spaceAfter=4)
+        sName    = ParagraphStyle('Name',    fontName='Helvetica-Bold', fontSize=20, textColor=DARK,   spaceAfter=6, leading=24)
+        sJob     = ParagraphStyle('Job',     fontName='Helvetica-Bold', fontSize=11, textColor=ORANGE, spaceAfter=12, leading=16)
+        sHead    = ParagraphStyle('Head',    fontName='Helvetica-Bold', fontSize=9,  textColor=DARK,   spaceBefore=14, spaceAfter=5, leading=12)
+        sBody    = ParagraphStyle('Body',    fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, spaceAfter=4)
+        sBullet  = ParagraphStyle('Bullet',  fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, leftIndent=12, spaceAfter=3)
+        sSub     = ParagraphStyle('Sub',     fontName='Helvetica-Bold',  fontSize=9,  textColor=ORANGE, leading=13, spaceAfter=4)
+        sDate    = ParagraphStyle('Date',    fontName='Helvetica',      fontSize=8,  textColor=GREY,   leading=12, spaceAfter=2)
 
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4,
+                                leftMargin=1.8*cm, rightMargin=1.8*cm,
+                                topMargin=1.8*cm, bottomMargin=1.8*cm)
         story = []
 
-        # ── NAME & JOB TITLE ──
-        n = find(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html)
-        if not n: n = name
-        j = find(r'class="[^"]*resume-job-title[^"]*"[^>]*>(.*?)</', resume_html)
-        if not j: j = find(r'class="[^"]*resume-title[^"]*"[^>]*>(.*?)</', resume_html)
+        # ── 1. NAME ──
+        cv_name = findone(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html_clean) or name
+        story.append(Paragraph(xs(cv_name), sName))
 
-        story.append(Paragraph(xmlsafe(n), T))
-        if j: story.append(Paragraph(xmlsafe(j), JB))
-        story.append(HRFlowable(width='100%', thickness=2, color=DARK, spaceAfter=8))
+        # ── 2. JOB TITLE ──
+        cv_job = findone(r'class="[^"]*resume-job-title[^"]*"[^>]*>(.*?)</', resume_html_clean)
+        if not cv_job:
+            cv_job = findone(r'class="[^"]*resume-title[^"]*"[^>]*>(.*?)</', resume_html_clean)
+        if cv_job:
+            story.append(Paragraph(xs(cv_job), sJob))
 
-        # ── CONTACT BLOCK ──
-        # Works for both minimal/classic (contact-row) and modern (contact-item)
-        contact_rows = findall(r'<div class="[^"]*contact-row[^"]*">(.*?)</div>', resume_html)
-        contact_items = findall(r'<div class="[^"]*contact-item[^"]*">(.*?)</div>', resume_html)
-        contact_spans = findall(r'<span[^>]*>(.*?)</span>', find(r'class="[^"]*resume-contact[^"]*"[^>]*>(.*?)</div>', resume_html, 0))
+        story.append(HRFlowable(width='100%', thickness=2, color=DARK, spaceAfter=10))
 
+        # ── 3. CONTACT (from contact-row divs — skip if not found) ──
+        contact_rows = findall(r'<div class="[^"]*contact-row[^"]*">(.*?)</div>', resume_html_clean)
         if contact_rows:
-            story.append(Paragraph('CONTACT', H))
+            story.append(Paragraph('CONTACT', sHead))
             story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
             for row in contact_rows:
-                lbl = find(r'class="[^"]*contact-lbl[^"]*"[^>]*>(.*?)</span>', row)
-                val = find(r'class="[^"]*contact-val[^"]*"[^>]*>(.*?)</span>', row)
+                lbl = findone(r'class="[^"]*contact-lbl[^"]*"[^>]*>(.*?)</span>', row)
+                val = findone(r'class="[^"]*contact-val[^"]*"[^>]*>(.*?)</span>', row)
                 if lbl and val:
-                    story.append(Paragraph(f'<b>{xmlsafe(lbl)}:</b>  {xmlsafe(val)}', B))
-        elif contact_items:
-            story.append(Paragraph('CONTACT', H))
-            story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
-            for item in contact_items[:4]:
-                t = striptags(item)
-                if t: story.append(Paragraph(xmlsafe(t), B))
+                    story.append(Paragraph(f'<b>{xs(lbl)}:</b>  {xs(val)}', sBody))
 
-        # ── SECTION HEADINGS + CONTENT ──
-        # Find all section headings
-        headings = findall(r'<div class="[^"]*section-heading[^"]*">(.*?)</div>', resume_html)
-        # Split HTML by section headings to get content blocks
-        parts = _re.split(r'<div class="[^"]*section-heading[^"]*">.*?</div>', resume_html, flags=_re.DOTALL|_re.IGNORECASE)
+        # ── 4. ALL SECTIONS (skip Contact — already added above) ──
+        headings = findall(r'<div class="[^"]*section-heading[^"]*">(.*?)</div>', resume_html_clean)
+        parts    = _re.split(r'<div class="[^"]*section-heading[^"]*">.*?</div>', resume_html_clean, flags=_re.DOTALL|_re.IGNORECASE)
 
         for i, heading in enumerate(headings):
-            heading_txt = striptags(heading).upper()
+            htxt  = striptags(heading).strip()
+            HTXT  = htxt.upper()
             block = parts[i+1] if i+1 < len(parts) else ''
 
-            story.append(Paragraph(xmlsafe(heading_txt), H))
+            # Skip Contact — already handled above
+            if 'CONTACT' in HTXT:
+                continue
+
+            story.append(Paragraph(xs(htxt.upper()), sHead))
             story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
 
-            if heading_txt in ('PROFESSIONAL SUMMARY', 'PROFILE', 'SUMMARY', 'ABOUT'):
-                txt = find(r'class="[^"]*summary-text[^"]*"[^>]*>(.*?)</p>', block)
-                if not txt: txt = striptags(block[:500])
-                if txt: story.append(Paragraph(xmlsafe(txt), B))
+            # ── Summary / Profile ──
+            if any(k in HTXT for k in ('SUMMARY', 'PROFILE', 'ABOUT')):
+                txt = findone(r'class="[^"]*summary-text[^"]*"[^>]*>(.*?)</p>', block)
+                if not txt: txt = striptags(block[:600])
+                if txt: story.append(Paragraph(xs(txt), sBody))
 
-            elif heading_txt in ('SKILLS', 'LANGUAGES'):
+            # ── Skills / Languages ──
+            elif any(k in HTXT for k in ('SKILL', 'LANGUAGE')):
                 pills = findall(r'<span class="[^"]*skill-pill[^"]*">(.*?)</span>', block)
                 if pills:
-                    story.append(Paragraph(xmlsafe('  ·  '.join([striptags(p) for p in pills])), B))
+                    story.append(Paragraph(xs(' · '.join([striptags(p) for p in pills])), sBody))
 
-            elif heading_txt in ('WORK EXPERIENCE', 'EXPERIENCE'):
-                entries = findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>', block)
+            # ── Experience / Work ──
+            elif any(k in HTXT for k in ('EXPERIENCE', 'WORK')):
+                entries = _re.findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)(?=<div class="[^"]*resume-entry|<div class="[^"]*section-heading|</div>\s*</div>\s*</div>)', block, _re.DOTALL)
                 for entry in entries:
-                    et = find(r'class="[^"]*entry-title[^"]*"[^>]*>(.*?)</div>', entry)
-                    esub = findall(r'<span>(.*?)</span>', find(r'class="[^"]*entry-sub[^"]*"[^>]*>(.*?)</div>', entry, 0))
-                    bullets_li = findall(r'<li[^>]*>(.*?)</li>', entry)
-                    edesc = find(r'class="[^"]*entry-desc[^"]*"[^>]*>(.*?)</p>', entry)
+                    et    = findone(r'class="entry-title"[^>]*>(.*?)</div>', entry)
+                    spans = findall(r'<span>(.*?)</span>', entry)
+                    buls  = findall(r'<li[^>]*>(.*?)</li>', entry)
+                    desc  = findone(r'class="[^"]*entry-desc[^"]*"[^>]*>(.*?)</p>', entry)
 
-                    if et: story.append(Paragraph(f'<b>{xmlsafe(et)}</b>', B))
-                    if len(esub) >= 2:
-                        story.append(Paragraph(f'<font color="#d4881a">{xmlsafe(striptags(esub[0]))}</font>   <font color="#6b7280" size="8">{xmlsafe(striptags(esub[1]))}</font>', B))
-                    elif len(esub) == 1:
-                        story.append(Paragraph(f'<font color="#d4881a">{xmlsafe(striptags(esub[0]))}</font>', B))
-                    for bl in bullets_li:
-                        story.append(Paragraph(f'• {xmlsafe(striptags(bl))}', BU))
-                    if edesc and not bullets_li:
-                        story.append(Paragraph(xmlsafe(striptags(edesc)), BU))
+                    if et:
+                        story.append(Paragraph(f'<b>{xs(et)}</b>', sBody))
+                    if len(spans) >= 2:
+                        story.append(Paragraph(xs(striptags(spans[0])), sSub))
+                        story.append(Paragraph(xs(striptags(spans[1])), sDate))
+                    elif len(spans) == 1:
+                        story.append(Paragraph(xs(striptags(spans[0])), sSub))
+                    for bl in buls:
+                        story.append(Paragraph(f'• {xs(striptags(bl))}', sBullet))
+                    if desc and not buls:
+                        story.append(Paragraph(xs(desc), sBullet))
                     story.append(Spacer(1, 4))
 
-            elif heading_txt in ('EDUCATION'):
-                entries = findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>', block)
+            # ── Education ──
+            elif 'EDUCATION' in HTXT:
+                entries = _re.findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)(?=<div class="[^"]*resume-entry|<div class="[^"]*section-heading|</div>\s*</div>\s*</div>)', block, _re.DOTALL)
                 for entry in entries:
-                    et  = find(r'class="[^"]*entry-title[^"]*"[^>]*>(.*?)</div>', entry)
-                    esub = findall(r'<span>(.*?)</span>', find(r'class="[^"]*entry-sub[^"]*"[^>]*>(.*?)</div>', entry, 0))
-                    if et: story.append(Paragraph(f'<b>{xmlsafe(et)}</b>', B))
-                    if len(esub) >= 2:
-                        story.append(Paragraph(f'<font color="#d4881a">{xmlsafe(striptags(esub[0]))}</font>   <font color="#6b7280" size="8">{xmlsafe(striptags(esub[1]))}</font>', B))
-                    story.append(Spacer(1, 3))
+                    et    = findone(r'class="entry-title"[^>]*>(.*?)</div>', entry)
+                    spans = findall(r'<span>(.*?)</span>', entry)
+                    if et:
+                        story.append(Paragraph(f'<b>{xs(et)}</b>', sBody))
+                    if len(spans) >= 2:
+                        story.append(Paragraph(xs(striptags(spans[0])), sSub))
+                        story.append(Paragraph(xs(striptags(spans[1])), sDate))
+                    elif len(spans) == 1:
+                        story.append(Paragraph(xs(striptags(spans[0])), sSub))
+                    story.append(Spacer(1, 4))
 
+            # ── Generic fallback ──
             else:
-                # Generic section fallback
                 txt = striptags(block[:400])
-                if txt: story.append(Paragraph(xmlsafe(txt), B))
+                if txt: story.append(Paragraph(xs(txt), sBody))
 
         doc.build(story)
         pdf_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-        print(f"PDF generated successfully: {len(buf.getvalue())} bytes")
+        print(f"PDF generated OK: {len(buf.getvalue())} bytes")
 
     except Exception as e:
         import traceback
         pdf_b64 = None
-        print(f"PDF generation error: {e}")
+        print(f"PDF error: {e}")
         print(traceback.format_exc())
 
     # Log PDF status clearly
