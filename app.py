@@ -1059,118 +1059,139 @@ def send_cv_email():
     safe_name = (name.replace(' ', '_') or 'Resume')
     pdf_b64 = None
 
-    # ── Generate PDF using reportlab (already installed, zero extra deps) ──
+    # ── Generate PDF using reportlab ──
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import cm
         from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-        from reportlab.lib.enums import TA_LEFT, TA_CENTER
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
 
-        # Strip all HTML tags to get clean text
-        def strip_tags(html):
-            clean = _re.sub(r'<[^>]+>', ' ', html)
-            clean = clean.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&nbsp;', ' ').replace('&#39;', "'").replace('&quot;', '"').replace('&apos;', "'")
-            return ' '.join(clean.split())
+        def striptags(h):
+            t = _re.sub(r'<[^>]+>', ' ', h)
+            for ent, rep in [('&amp;','&'),('&lt;','<'),('&gt;','>'),('&nbsp;',' '),('&#39;',"'"),('&quot;','"'),('&apos;',"'")]:
+                t = t.replace(ent, rep)
+            return ' '.join(t.split()).strip()
 
-        # Extract sections from resume HTML
-        def extract_text(html, tag, cls=''):
-            pattern = f'<{tag}[^>]*class="[^"]*{cls}[^"]*"[^>]*>(.*?)</{tag}>' if cls else f'<{tag}[^>]*>(.*?)</{tag}>'
-            matches = _re.findall(pattern, html, _re.DOTALL | _re.IGNORECASE)
-            return [strip_tags(m) for m in matches if strip_tags(m)]
+        def find(pattern, html, grp=1):
+            m = _re.search(pattern, html, _re.DOTALL | _re.IGNORECASE)
+            return striptags(m.group(grp)) if m else ''
 
-        # Parse key resume fields
-        name_text   = strip_tags(_re.search(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html, _re.DOTALL).group(1)) if _re.search(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html, _re.DOTALL) else name
-        job_text    = strip_tags(_re.search(r'class="[^"]*resume-job[^"]*"[^>]*>(.*?)</', resume_html, _re.DOTALL).group(1)) if _re.search(r'class="[^"]*resume-job[^"]*"[^>]*>(.*?)</', resume_html, _re.DOTALL) else ''
-        sections    = _re.findall(r'class="[^"]*ats-heading[^"]*"[^>]*>(.*?)</div>(.*?)(?=class="[^"]*ats-heading|</div>\s*</div>)', resume_html, _re.DOTALL)
+        def findall(pattern, html):
+            return _re.findall(pattern, html, _re.DOTALL | _re.IGNORECASE)
 
-        buf    = io.BytesIO()
-        doc    = SimpleDocTemplate(buf, pagesize=A4,
-                                   leftMargin=2*cm, rightMargin=2*cm,
-                                   topMargin=2*cm, bottomMargin=2*cm)
-        styles = getSampleStyleSheet()
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4,
+                                leftMargin=1.8*cm, rightMargin=1.8*cm,
+                                topMargin=1.8*cm, bottomMargin=1.8*cm)
 
-        # Custom styles
-        title_style   = ParagraphStyle('Title',   fontName='Helvetica-Bold', fontSize=22, textColor=colors.HexColor('#1a1a2e'), spaceAfter=4)
-        job_style     = ParagraphStyle('Job',     fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor('#d4881a'), spaceAfter=12, leading=14)
-        heading_style = ParagraphStyle('Heading', fontName='Helvetica-Bold', fontSize=9,  textColor=colors.HexColor('#1a1a2e'), spaceBefore=14, spaceAfter=4, textTransform='uppercase')
-        body_style    = ParagraphStyle('Body',    fontName='Helvetica',      fontSize=9,  textColor=colors.HexColor('#374151'), leading=14, spaceAfter=4)
-        bullet_style  = ParagraphStyle('Bullet',  fontName='Helvetica',      fontSize=9,  textColor=colors.HexColor('#374151'), leading=14, leftIndent=12, spaceAfter=3)
-        label_style   = ParagraphStyle('Label',   fontName='Helvetica-Bold', fontSize=9,  textColor=colors.HexColor('#1a1a2e'), leading=14)
+        DARK   = colors.HexColor('#1a1a2e')
+        ORANGE = colors.HexColor('#d4881a')
+        GREY   = colors.HexColor('#6b7280')
+        LGREY  = colors.HexColor('#e5e7eb')
+        BODY   = colors.HexColor('#374151')
+
+        T  = ParagraphStyle('T',  fontName='Helvetica-Bold', fontSize=22, textColor=DARK,   spaceAfter=3)
+        JB = ParagraphStyle('JB', fontName='Helvetica-Bold', fontSize=11, textColor=ORANGE, spaceAfter=10, leading=14)
+        H  = ParagraphStyle('H',  fontName='Helvetica-Bold', fontSize=9,  textColor=DARK,   spaceBefore=12, spaceAfter=4)
+        B  = ParagraphStyle('B',  fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, spaceAfter=3)
+        BU = ParagraphStyle('BU', fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, leftIndent=10, spaceAfter=2)
+        SM = ParagraphStyle('SM', fontName='Helvetica',      fontSize=9,  textColor=GREY,   leading=13, spaceAfter=2)
+        OR = ParagraphStyle('OR', fontName='Helvetica-Bold', fontSize=9,  textColor=ORANGE, leading=13, spaceAfter=4)
 
         story = []
 
-        # Name + Job title
-        story.append(Paragraph(name_text, title_style))
-        if job_text:
-            story.append(Paragraph(job_text, job_style))
-        story.append(HRFlowable(width='100%', thickness=2, color=colors.HexColor('#1a1a2e'), spaceAfter=10))
+        # ── NAME & JOB TITLE ──
+        n = find(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html)
+        if not n: n = name
+        j = find(r'class="[^"]*resume-job-title[^"]*"[^>]*>(.*?)</', resume_html)
+        if not j: j = find(r'class="[^"]*resume-title[^"]*"[^>]*>(.*?)</', resume_html)
 
-        # Parse all resume content from HTML
-        full_text = strip_tags(resume_html)
+        story.append(Paragraph(n, T))
+        if j: story.append(Paragraph(j, JB))
+        story.append(HRFlowable(width='100%', thickness=2, color=DARK, spaceAfter=8))
 
-        # Extract contact info
-        contact_matches = _re.findall(r'class="[^"]*ats-contact-row[^"]*"[^>]*>(.*?)</div>', resume_html, _re.DOTALL)
-        if contact_matches:
-            story.append(Paragraph('CONTACT', heading_style))
-            story.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#e5e7eb'), spaceAfter=6))
-            for c in contact_matches:
-                label_m = _re.search(r'ats-contact-label[^>]*>(.*?)</span>', c, _re.DOTALL)
-                val_m   = _re.search(r'ats-contact-val[^>]*>(.*?)</span>', c, _re.DOTALL)
-                if label_m and val_m:
-                    txt = f"<b>{strip_tags(label_m.group(1))}:</b>  {strip_tags(val_m.group(1))}"
-                    story.append(Paragraph(txt, body_style))
+        # ── CONTACT BLOCK ──
+        # Works for both minimal/classic (contact-row) and modern (contact-item)
+        contact_rows = findall(r'<div class="[^"]*contact-row[^"]*">(.*?)</div>', resume_html)
+        contact_items = findall(r'<div class="[^"]*contact-item[^"]*">(.*?)</div>', resume_html)
+        contact_spans = findall(r'<span[^>]*>(.*?)</span>', find(r'class="[^"]*resume-contact[^"]*"[^>]*>(.*?)</div>', resume_html, 0))
 
-        # Extract all sections (summary, experience, education, skills, languages)
-        section_blocks = _re.findall(
-            r'<div class="[^"]*ats-section[^"]*">(.*?)</div>\s*(?=<div class="[^"]*ats-section|$)',
-            resume_html, _re.DOTALL
-        )
+        if contact_rows:
+            story.append(Paragraph('CONTACT', H))
+            story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
+            for row in contact_rows:
+                lbl = find(r'class="[^"]*contact-lbl[^"]*"[^>]*>(.*?)</span>', row)
+                val = find(r'class="[^"]*contact-val[^"]*"[^>]*>(.*?)</span>', row)
+                if lbl and val:
+                    story.append(Paragraph(f'<b>{lbl}:</b>  {val}', B))
+        elif contact_items:
+            story.append(Paragraph('CONTACT', H))
+            story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
+            for item in contact_items[:4]:
+                t = striptags(item)
+                if t: story.append(Paragraph(t, B))
 
-        for block in section_blocks:
-            heading_m = _re.search(r'ats-heading[^>]*>(.*?)</div>', block, _re.DOTALL)
-            if not heading_m:
-                continue
-            heading_txt = strip_tags(heading_m.group(1)).upper()
-            if heading_txt == 'CONTACT':
-                continue  # already done above
+        # ── SECTION HEADINGS + CONTENT ──
+        # Find all section headings
+        headings = findall(r'<div class="[^"]*section-heading[^"]*">(.*?)</div>', resume_html)
+        # Split HTML by section headings to get content blocks
+        parts = _re.split(r'<div class="[^"]*section-heading[^"]*">.*?</div>', resume_html, flags=_re.DOTALL|_re.IGNORECASE)
 
-            story.append(Spacer(1, 4))
-            story.append(Paragraph(heading_txt, heading_style))
-            story.append(HRFlowable(width='100%', thickness=0.5, color=colors.HexColor('#e5e7eb'), spaceAfter=6))
+        for i, heading in enumerate(headings):
+            heading_txt = striptags(heading).upper()
+            block = parts[i+1] if i+1 < len(parts) else ''
 
-            # Summary paragraph
-            summary_m = _re.search(r'ats-summary[^>]*>(.*?)</p>', block, _re.DOTALL)
-            if summary_m:
-                story.append(Paragraph(strip_tags(summary_m.group(1)), body_style))
+            story.append(Paragraph(heading_txt, H))
+            story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
 
-            # Skills line
-            skills_m = _re.search(r'ats-skills[^>]*>(.*?)</p>', block, _re.DOTALL)
-            if skills_m:
-                story.append(Paragraph(strip_tags(skills_m.group(1)), body_style))
+            if heading_txt in ('PROFESSIONAL SUMMARY', 'PROFILE', 'SUMMARY', 'ABOUT'):
+                txt = find(r'class="[^"]*summary-text[^"]*"[^>]*>(.*?)</p>', block)
+                if not txt: txt = striptags(block[:500])
+                if txt: story.append(Paragraph(txt, B))
 
-            # Experience / Education entries
-            entries = _re.findall(r'<div class="[^"]*ats-entry[^"]*">(.*?)</div>\s*(?=<div class="[^"]*ats-entry|<div class="[^"]*ats-heading|$)', block, _re.DOTALL)
-            for entry in entries:
-                title_m   = _re.search(r'ats-entry-title[^>]*>(.*?)</span>', entry, _re.DOTALL)
-                date_m    = _re.search(r'ats-entry-date[^>]*>(.*?)</span>', entry, _re.DOTALL)
-                sub_m     = _re.search(r'ats-entry-sub[^>]*>(.*?)</div>', entry, _re.DOTALL)
-                bullets   = _re.findall(r'<li[^>]*>(.*?)</li>', entry, _re.DOTALL)
+            elif heading_txt in ('SKILLS', 'LANGUAGES'):
+                pills = findall(r'<span class="[^"]*skill-pill[^"]*">(.*?)</span>', block)
+                if pills:
+                    story.append(Paragraph('  ·  '.join([striptags(p) for p in pills]), B))
 
-                if title_m:
-                    title_txt = strip_tags(title_m.group(1))
-                    date_txt  = strip_tags(date_m.group(1)) if date_m else ''
-                    row = f"<b>{title_txt}</b>" + (f"   <font color='#6b7280' size='8'>{date_txt}</font>" if date_txt else '')
-                    story.append(Paragraph(row, body_style))
-                if sub_m:
-                    story.append(Paragraph(f"<font color='#d4881a'>{strip_tags(sub_m.group(1))}</font>", body_style))
-                for b in bullets:
-                    story.append(Paragraph(f"• {strip_tags(b)}", bullet_style))
-                story.append(Spacer(1, 4))
+            elif heading_txt in ('WORK EXPERIENCE', 'EXPERIENCE'):
+                entries = findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>', block)
+                for entry in entries:
+                    et = find(r'class="[^"]*entry-title[^"]*"[^>]*>(.*?)</div>', entry)
+                    esub = findall(r'<span>(.*?)</span>', find(r'class="[^"]*entry-sub[^"]*"[^>]*>(.*?)</div>', entry, 0))
+                    bullets_li = findall(r'<li[^>]*>(.*?)</li>', entry)
+                    edesc = find(r'class="[^"]*entry-desc[^"]*"[^>]*>(.*?)</p>', entry)
+
+                    if et: story.append(Paragraph(f'<b>{et}</b>', B))
+                    if len(esub) >= 2:
+                        story.append(Paragraph(f'<font color="#d4881a">{striptags(esub[0])}</font>   <font color="#6b7280" size="8">{striptags(esub[1])}</font>', B))
+                    elif len(esub) == 1:
+                        story.append(Paragraph(f'<font color="#d4881a">{striptags(esub[0])}</font>', B))
+                    for bl in bullets_li:
+                        story.append(Paragraph(f'• {striptags(bl)}', BU))
+                    if edesc and not bullets_li:
+                        story.append(Paragraph(striptags(edesc), BU))
+                    story.append(Spacer(1, 4))
+
+            elif heading_txt in ('EDUCATION'):
+                entries = findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>', block)
+                for entry in entries:
+                    et  = find(r'class="[^"]*entry-title[^"]*"[^>]*>(.*?)</div>', entry)
+                    esub = findall(r'<span>(.*?)</span>', find(r'class="[^"]*entry-sub[^"]*"[^>]*>(.*?)</div>', entry, 0))
+                    if et: story.append(Paragraph(f'<b>{et}</b>', B))
+                    if len(esub) >= 2:
+                        story.append(Paragraph(f'<font color="#d4881a">{striptags(esub[0])}</font>   <font color="#6b7280" size="8">{striptags(esub[1])}</font>', B))
+                    story.append(Spacer(1, 3))
+
+            else:
+                # Generic section fallback
+                txt = striptags(block[:400])
+                if txt: story.append(Paragraph(txt, B))
 
         doc.build(story)
         pdf_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        print(f"PDF generated successfully: {len(buf.getvalue())} bytes")
 
     except Exception as e:
         pdf_b64 = None
