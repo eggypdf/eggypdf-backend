@@ -1418,9 +1418,20 @@ def ai_suggestions():
         if result is None:
             return jsonify({"error": f"All Gemini models failed: {'; '.join(errors)}"}), 500
 
-        text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+        # Safely get text from response
+        candidates = result.get("candidates", [])
+        if not candidates:
+            raise ValueError("Gemini returned no candidates")
 
-        # Clean markdown fences Gemini sometimes adds
+        content_parts = candidates[0].get("content", {}).get("parts", [])
+        if not content_parts:
+            raise ValueError("Gemini returned empty content")
+
+        text = content_parts[0].get("text", "").strip()
+        if not text:
+            raise ValueError("Gemini returned empty text")
+
+        # Clean markdown fences
         text = text.replace("```json", "").replace("```", "").strip()
 
         # Strategy 1: direct JSON parse
@@ -1430,32 +1441,38 @@ def ai_suggestions():
         except Exception:
             pass
 
-        # Strategy 2: extract JSON array using regex
+        # Strategy 2: extract JSON array with regex
         if not suggestions:
-            import re
-            m = re.search(r'\[.*?\]', text, re.DOTALL)
+            import re as _re2
+            m = _re2.search(r'\[.*?\]', text, _re2.DOTALL)
             if m:
                 try:
                     suggestions = json_lib.loads(m.group(0))
                 except Exception:
                     pass
 
-        # Strategy 3: split lines and clean
+        # Strategy 3: split by newlines and clean each line
         if not suggestions:
-            import re
+            import re as _re3
             lines = []
             for line in text.splitlines():
                 line = line.strip()
-                line = re.sub(r'^[\d\.\-\*\"\s]+', '', line)
-                line = line.strip('"').strip("'").strip(',').strip()
-                if len(line) > 8:
+                # Remove leading numbers, bullets, quotes
+                line = _re3.sub(r'^[0-9. \-\*]+', '', line)
+                line = line.strip().strip('"').strip("'").strip(',')
+                if len(line) > 10:
                     lines.append(line)
             suggestions = lines
 
         if not suggestions:
-            raise ValueError("Could not parse AI response")
+            raise ValueError("Could not parse AI response into suggestions")
 
-        suggestions = [str(s).strip() for s in suggestions if s][:8]
+        # Clean and validate each suggestion
+        suggestions = [str(s).strip() for s in suggestions if s and len(str(s).strip()) > 8][:8]
+
+        if not suggestions:
+            raise ValueError("All suggestions were empty after cleaning")
+
         return jsonify({"suggestions": suggestions})
 
     except Exception as e:
