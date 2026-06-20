@@ -1096,13 +1096,13 @@ def send_cv_email():
 
         # ── Styles ──
         DARK   = colors.HexColor('#1a1a2e')
-        ORANGE = colors.HexColor('#d4881a')
+        ORANGE = colors.HexColor('#4a5568')  # Professional dark grey for job title
         GREY   = colors.HexColor('#6b7280')
         LGREY  = colors.HexColor('#e5e7eb')
         BODY   = colors.HexColor('#374151')
 
         sName    = ParagraphStyle('Name',    fontName='Helvetica-Bold', fontSize=20, textColor=DARK,   spaceAfter=6, leading=24)
-        sJob     = ParagraphStyle('Job',     fontName='Helvetica-Bold', fontSize=11, textColor=ORANGE, spaceAfter=12, leading=16)
+        sJob     = ParagraphStyle('Job',     fontName='Helvetica',      fontSize=11, textColor=ORANGE, spaceAfter=12, leading=16)
         sHead    = ParagraphStyle('Head',    fontName='Helvetica-Bold', fontSize=9,  textColor=DARK,   spaceBefore=14, spaceAfter=5, leading=12)
         sBody    = ParagraphStyle('Body',    fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, spaceAfter=4)
         sBullet  = ParagraphStyle('Bullet',  fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, leftIndent=12, spaceAfter=3)
@@ -1128,12 +1128,23 @@ def send_cv_email():
                 from reportlab.platypus import Table, TableStyle, Image as RLImage
                 from reportlab.lib.utils import ImageReader
 
-                # Decode base64 directly into memory — no temp file needed
+                # Decode base64 directly into memory
                 header, encoded = photo_data.split(',', 1)
                 img_bytes = _b64.b64decode(encoded)
 
-                # Pass BytesIO directly to RLImage — confirmed working
-                img_buffer = io.BytesIO(img_bytes)
+                # Crop photo into circle using Pillow
+                from PIL import Image as _PILImg, ImageDraw as _PILDraw
+                pil_img = _PILImg.open(io.BytesIO(img_bytes)).convert('RGBA')
+                sz = 195  # 3x target for antialiasing
+                pil_img = pil_img.resize((sz, sz), _PILImg.LANCZOS)
+                mask = _PILImg.new('L', (sz, sz), 0)
+                _PILDraw.Draw(mask).ellipse((0, 0, sz, sz), fill=255)
+                circle = _PILImg.new('RGBA', (sz, sz), (255, 255, 255, 0))
+                circle.paste(pil_img, mask=mask)
+                circle = circle.resize((65, 65), _PILImg.LANCZOS)
+                img_buffer = io.BytesIO()
+                circle.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
                 photo_img = RLImage(img_buffer, width=65, height=65)
 
                 # Name + job in right column
