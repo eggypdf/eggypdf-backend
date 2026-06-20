@@ -1355,7 +1355,7 @@ def ai_suggestions():
             "4. Include one specific achievement or skill. "
             "5. ATS-friendly — no buzzwords, plain professional language. "
             "6. Must fit in 3-5 lines on a resume page. "
-            "Return ONLY a valid JSON array of 3 strings. No explanation, no markdown, no extra text."
+            "Return ONLY a valid JSON array of 4 strings. No explanation, no markdown, no extra text."
         )
     elif suggest_type == 'skills':
         prompt = (
@@ -1373,7 +1373,7 @@ def ai_suggestions():
 
         payload_dict = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 600}
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024}
         }
 
         # Using confirmed available models — gemini-2.5-flash confirmed working
