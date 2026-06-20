@@ -1132,16 +1132,14 @@ def send_cv_email():
                 header, encoded = photo_data.split(',', 1)
                 img_bytes = _b64.b64decode(encoded)
 
-                # Save to temp file
+                # Save to temp file — keep open until after PDF is built
                 ext = 'jpg' if 'jpeg' in header.lower() else 'png'
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}')
-                tmp.write(img_bytes)
-                tmp.close()
+                tmp_path = f'/tmp/eggy_photo_{_os.getpid()}.{ext}'
+                with open(tmp_path, 'wb') as tf:
+                    tf.write(img_bytes)
 
-                # Create circular-looking image (reportlab doesn't do circles natively)
-                # Use 80x80 point image
                 from reportlab.platypus import Image as RLImage
-                photo_img = RLImage(tmp.name, width=65, height=65)
+                photo_img = RLImage(tmp_path, width=65, height=65)
 
                 # Name + job in right column
                 name_para = Paragraph(xs(cv_name), sName)
@@ -1160,9 +1158,11 @@ def send_cv_email():
                     ('BOTTOMPADDING', (0,0), (-1,-1), 8),
                 ]))
                 story.append(tbl)
-                _os.unlink(tmp.name)
+                if _os.path.exists(tmp_path): _os.unlink(tmp_path)
             except Exception as photo_err:
+                import traceback
                 print(f"Photo in PDF error: {photo_err}")
+                print(traceback.format_exc())
                 story.append(Paragraph(xs(cv_name), sName))
                 if cv_job: story.append(Paragraph(xs(cv_job), sJob))
         else:
