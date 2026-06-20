@@ -1052,6 +1052,10 @@ def send_cv_email():
     name         = (data.get('name') or 'there').strip()
     resume_html  = (data.get('resume_html') or '').strip()
     template_css = (data.get('template_css') or '').strip()
+    photo_data   = (data.get('photo_data') or '').strip()
+    photo_pos_x  = float(data.get('photo_pos_x') or 50)
+    photo_pos_y  = float(data.get('photo_pos_y') or 50)
+    print(f"Email request: name={name}, email={email}, photo={'YES '+str(len(photo_data))+' chars' if photo_data else 'NO'}")
 
     if not email or not resume_html:
         return jsonify({"error": "Email and resume content required."}), 400
@@ -1111,16 +1115,59 @@ def send_cv_email():
                                 topMargin=1.8*cm, bottomMargin=1.8*cm)
         story = []
 
-        # ── 1. NAME ──
+        # ── 1. NAME + PHOTO ──
         cv_name = findone(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html_clean) or name
-        story.append(Paragraph(xs(cv_name), sName))
-
-        # ── 2. JOB TITLE ──
-        cv_job = findone(r'class="[^"]*resume-job-title[^"]*"[^>]*>(.*?)</', resume_html_clean)
+        cv_job  = findone(r'class="[^"]*resume-job-title[^"]*"[^>]*>(.*?)</', resume_html_clean)
         if not cv_job:
             cv_job = findone(r'class="[^"]*resume-title[^"]*"[^>]*>(.*?)</', resume_html_clean)
-        if cv_job:
-            story.append(Paragraph(xs(cv_job), sJob))
+
+        # Add photo + name side by side if photo exists
+        if photo_data and photo_data.startswith('data:image'):
+            try:
+                import base64 as _b64, tempfile, os as _os
+                from reportlab.platypus import Table, TableStyle
+                from reportlab.lib.utils import ImageReader
+
+                # Decode base64 photo
+                header, encoded = photo_data.split(',', 1)
+                img_bytes = _b64.b64decode(encoded)
+
+                # Save to temp file
+                ext = 'jpg' if 'jpeg' in header.lower() else 'png'
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}')
+                tmp.write(img_bytes)
+                tmp.close()
+
+                # Create circular-looking image (reportlab doesn't do circles natively)
+                # Use 80x80 point image
+                from reportlab.platypus import Image as RLImage
+                photo_img = RLImage(tmp.name, width=65, height=65)
+
+                # Name + job in right column
+                name_para = Paragraph(xs(cv_name), sName)
+                job_para  = Paragraph(xs(cv_job), sJob) if cv_job else Paragraph('', sJob)
+
+                # Table: photo left, name+job right
+                tbl = Table(
+                    [[photo_img, [name_para, job_para]]],
+                    colWidths=[80, None]
+                )
+                tbl.setStyle(TableStyle([
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('LEFTPADDING', (0,0), (-1,-1), 0),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 8),
+                    ('TOPPADDING', (0,0), (-1,-1), 0),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                ]))
+                story.append(tbl)
+                _os.unlink(tmp.name)
+            except Exception as photo_err:
+                print(f"Photo in PDF error: {photo_err}")
+                story.append(Paragraph(xs(cv_name), sName))
+                if cv_job: story.append(Paragraph(xs(cv_job), sJob))
+        else:
+            story.append(Paragraph(xs(cv_name), sName))
+            if cv_job: story.append(Paragraph(xs(cv_job), sJob))
 
         story.append(HRFlowable(width='100%', thickness=2, color=DARK, spaceAfter=10))
 
@@ -1219,6 +1266,8 @@ def send_cv_email():
     print(f"PDF status: {'GENERATED OK' if pdf_b64 else 'FAILED - no attachment'}")
     if pdf_b64:
         print(f"PDF size: {len(base64.b64decode(pdf_b64))} bytes")
+    else:
+        print("PDF FAILED - email will send without attachment")
 
     # ── Beautiful email body ──
     email_body = f"""<!DOCTYPE html>
