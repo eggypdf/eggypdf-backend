@@ -1347,15 +1347,14 @@ def ai_suggestions():
         )
     elif suggest_type == 'summary':
         prompt = (
-            f"Write exactly 4 different professional resume summary options for a {job_title}. "
-            "Rules for each summary: "
-            "1. Exactly 2-3 sentences only. "
-            "2. Between 50-80 words total — concise and scannable. "
-            "3. Start with job title and years of experience or key strength. "
-            "4. Include one specific achievement or skill. "
-            "5. ATS-friendly — no buzzwords, plain professional language. "
-            "6. Must fit in 3-5 lines on a resume page. "
-            "Return ONLY a valid JSON array of 4 strings. No explanation, no markdown, no extra text."
+            f"Write 4 short professional resume summaries for a {job_title}. "
+            "Each summary must be exactly 2-3 sentences and between 40-60 words. "
+            "Make each one different in tone and focus. "
+            "Return ONLY a JSON array of 4 strings. No extra text. "
+            'Example: ["Results-driven Web Developer with 5 years of experience building scalable applications. '
+            'Proficient in React and Node.js with a track record of delivering projects on time.", '
+            '"Creative Web Developer specialising in user-focused design and performance optimisation. '
+            'Built 20 plus web applications serving thousands of daily users."]'
         )
     elif suggest_type == 'skills':
         prompt = (
