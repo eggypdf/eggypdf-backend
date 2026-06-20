@@ -1124,22 +1124,17 @@ def send_cv_email():
         # Add photo + name side by side if photo exists
         if photo_data and photo_data.startswith('data:image'):
             try:
-                import base64 as _b64, tempfile, os as _os
-                from reportlab.platypus import Table, TableStyle
+                import base64 as _b64
+                from reportlab.platypus import Table, TableStyle, Image as RLImage
                 from reportlab.lib.utils import ImageReader
 
-                # Decode base64 photo
+                # Decode base64 directly into memory — no temp file needed
                 header, encoded = photo_data.split(',', 1)
                 img_bytes = _b64.b64decode(encoded)
 
-                # Save to temp file — keep open until after PDF is built
-                ext = 'jpg' if 'jpeg' in header.lower() else 'png'
-                tmp_path = f'/tmp/eggy_photo_{_os.getpid()}.{ext}'
-                with open(tmp_path, 'wb') as tf:
-                    tf.write(img_bytes)
-
-                from reportlab.platypus import Image as RLImage
-                photo_img = RLImage(tmp_path, width=65, height=65)
+                # Pass BytesIO directly to RLImage — confirmed working
+                img_buffer = io.BytesIO(img_bytes)
+                photo_img = RLImage(img_buffer, width=65, height=65)
 
                 # Name + job in right column
                 name_para = Paragraph(xs(cv_name), sName)
@@ -1158,7 +1153,7 @@ def send_cv_email():
                     ('BOTTOMPADDING', (0,0), (-1,-1), 8),
                 ]))
                 story.append(tbl)
-                if _os.path.exists(tmp_path): _os.unlink(tmp_path)
+                print("Photo added to PDF successfully")
             except Exception as photo_err:
                 import traceback
                 print(f"Photo in PDF error: {photo_err}")
