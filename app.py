@@ -1347,14 +1347,10 @@ def ai_suggestions():
         )
     elif suggest_type == 'summary':
         prompt = (
-            f"Write 4 short professional resume summaries for a {job_title}. "
-            "Each summary must be exactly 2-3 sentences and between 40-60 words. "
-            "Make each one different in tone and focus. "
-            "Return ONLY a JSON array of 4 strings. No extra text. "
-            'Example: ["Results-driven Web Developer with 5 years of experience building scalable applications. '
-            'Proficient in React and Node.js with a track record of delivering projects on time.", '
-            '"Creative Web Developer specialising in user-focused design and performance optimisation. '
-            'Built 20 plus web applications serving thousands of daily users."]'
+            f'Write 4 professional resume summary paragraphs for a {job_title}. '
+            'Each paragraph: 2 sentences, under 50 words, professional tone. '
+            'Output format: JSON array of 4 strings only. '
+            'No markdown. No explanation. No numbering. Just the JSON array.'
         )
     elif suggest_type == 'skills':
         prompt = (
@@ -1372,7 +1368,7 @@ def ai_suggestions():
 
         payload_dict = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024}
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 2048}
         }
 
         # Using confirmed available models — gemini-2.5-flash confirmed working
