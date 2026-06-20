@@ -1337,13 +1337,13 @@ def ai_suggestions():
     if suggest_type == 'bullets':
         prompt = (
             f"Write exactly 4 professional resume bullet points for a {job_title}. "
-            "Rules: "
-            "1. Every bullet must start with a strong action verb. "
-            "2. Every bullet must be EXACTLY the same number of words — between 12 and 16 words each. Count carefully. "
-            "3. Each bullet must describe a specific achievement or responsibility. "
-            "4. All 4 bullets must have identical word count. "
-            "Return ONLY a valid JSON array of 4 strings. No explanation, no markdown, no extra text. "
-            'Example (all 14 words each): ["Developed scalable web applications serving over 50,000 active users across multiple regions", "Reduced system deployment time by 40 percent through automated CI/CD pipeline implementation", "Led cross-functional team of 8 engineers delivering 3 major product releases on schedule", "Implemented comprehensive testing strategy that decreased production bug rate by 60 percent"]'
+            "Each bullet point must: "
+            "1. Start with a strong action verb (Developed, Led, Managed, Reduced, Built, etc). "
+            "2. Be between 10 and 18 words long. "
+            "3. Include a specific achievement, metric, or responsibility. "
+            "4. Sound professional and ATS-friendly. "
+            "Return ONLY a JSON array of exactly 4 strings. No extra text, no markdown, no explanation. "
+            'Example: ["Developed scalable REST APIs serving 50,000 daily active users with 99.9 percent uptime", "Led a team of 6 engineers to deliver 3 product features ahead of schedule", "Reduced page load time by 45 percent through code optimization and lazy loading techniques", "Managed end-to-end deployment pipeline cutting release time from 2 days to 4 hours"]'
         )
     elif suggest_type == 'summary':
         prompt = (
@@ -1376,12 +1376,10 @@ def ai_suggestions():
             "generationConfig": {"temperature": 0.7, "maxOutputTokens": 600}
         }
 
-        # Using confirmed available models from API key
+        # Using confirmed available models — gemini-2.5-flash confirmed working
         combos = [
             ("v1beta", "gemini-2.5-flash"),
             ("v1beta", "gemini-2.0-flash"),
-            ("v1beta", "gemini-2.0-flash-lite-001"),
-            ("v1beta", "gemini-2.0-flash-lite"),
             ("v1beta", "gemini-1.5-flash"),
             ("v1beta", "gemini-1.5-flash-latest"),
         ]
