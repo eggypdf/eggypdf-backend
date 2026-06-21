@@ -1159,13 +1159,19 @@ def send_cv_email():
 
                 name_col = [Paragraph(xs(cv_name), sName)]
                 if cv_job: name_col.append(Paragraph(xs(cv_job), sJob))
-                tbl = Table([[photo_img, name_col]], colWidths=[80, None])
+                # Photo col = photo width + gap, name col = remaining space
+                photo_col_w = target_pt + 12  # photo size + gap
+                name_col_w  = doc.width - photo_col_w
+                tbl = Table([[photo_img, name_col]],
+                            colWidths=[photo_col_w, name_col_w])
                 tbl.setStyle(TableStyle([
-                    ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
-                    ('LEFTPADDING',(0,0),(-1,-1),0),
-                    ('RIGHTPADDING',(0,0),(-1,-1),8),
-                    ('TOPPADDING',(0,0),(-1,-1),0),
-                    ('BOTTOMPADDING',(0,0),(-1,-1),6),
+                    ('VALIGN',        (0,0),(-1,-1),'MIDDLE'),
+                    ('LEFTPADDING',   (0,0),(0,-1), 0),
+                    ('RIGHTPADDING',  (0,0),(0,-1), 12),
+                    ('LEFTPADDING',   (1,0),(1,-1), 0),
+                    ('RIGHTPADDING',  (1,0),(1,-1), 0),
+                    ('TOPPADDING',    (0,0),(-1,-1),0),
+                    ('BOTTOMPADDING', (0,0),(-1,-1),8),
                 ]))
                 story.append(tbl)
                 print("Photo added to PDF in circle")
@@ -1252,20 +1258,22 @@ def send_cv_email():
                         # Pad row to row_size
                         while len(row) < row_size:
                             row.append(Paragraph('', sPill))
-                        col_w = (doc.width) / row_size
-                        tbl = Table([row], colWidths=[col_w]*row_size)
+                        # Use full doc width so skills align with all other content
+                        col_w = doc.width / row_size
+                        tbl = Table([row], colWidths=[col_w]*row_size,
+                                    hAlign='LEFT')
                         tbl.setStyle(TableStyle([
-                            ('BOX',       (0,0), (0,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('BOX',       (1,0), (1,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('BOX',       (2,0), (2,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('BOX',       (3,0), (3,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('BOX',       (4,0), (4,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('LEFTPADDING',  (0,0), (-1,-1), 6),
-                            ('RIGHTPADDING', (0,0), (-1,-1), 6),
-                            ('TOPPADDING',   (0,0), (-1,-1), 4),
-                            ('BOTTOMPADDING',(0,0), (-1,-1), 4),
-                            ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
-                            ('ALIGN',        (0,0), (-1,-1), 'CENTER'),
+                            ('BOX',          (0,0),(0,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('BOX',          (1,0),(1,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('BOX',          (2,0),(2,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('BOX',          (3,0),(3,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('BOX',          (4,0),(4,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('LEFTPADDING',  (0,0),(-1,-1), 6),
+                            ('RIGHTPADDING', (0,0),(-1,-1), 6),
+                            ('TOPPADDING',   (0,0),(-1,-1), 4),
+                            ('BOTTOMPADDING',(0,0),(-1,-1), 4),
+                            ('VALIGN',       (0,0),(-1,-1),'MIDDLE'),
+                            ('ALIGN',        (0,0),(-1,-1),'LEFT'),
                         ]))
                         story.append(tbl)
                         story.append(Spacer(1, 4))
