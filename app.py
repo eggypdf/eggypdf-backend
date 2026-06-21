@@ -1038,12 +1038,19 @@ def pdf_to_ppt():
 
 
 
-# ─── SEND CV TO EMAIL (PDF via reportlab — zero extra deps) ───
+# ─── SEND CV TO EMAIL ───
 @app.route('/api/send-cv-email', methods=['POST', 'OPTIONS'])
 def send_cv_email():
-    import urllib.request, urllib.error, json as json_lib, base64, io, re as _re
+    """
+    Sends CV email with a perfectly formatted PDF attachment.
+    The PDF is generated from the exact same HTML+CSS the browser uses,
+    ensuring the email PDF looks identical to the downloaded version.
+    Uses Pillow to crop the photo into a circle before embedding in PDF.
+    """
+    import urllib.request, urllib.error, json as json_lib, base64, io
 
-    BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
+    BREVO_API_KEY    = os.environ.get('BREVO_API_KEY', '').strip()
+    SENDER_EMAIL     = os.environ.get('BREVO_SENDER_EMAIL', 'hello@eggypdf.com').strip()
     if not BREVO_API_KEY:
         return jsonify({"error": "Email service not configured."}), 503
 
@@ -1055,7 +1062,8 @@ def send_cv_email():
     photo_data   = (data.get('photo_data') or '').strip()
     photo_pos_x  = float(data.get('photo_pos_x') or 50)
     photo_pos_y  = float(data.get('photo_pos_y') or 50)
-    print(f"Email request: name={name}, email={email}, photo={'YES '+str(len(photo_data))+' chars' if photo_data else 'NO'}")
+
+    print(f"Email request: name={name}, email={email}, photo={'YES' if photo_data else 'NO'}")
 
     if not email or not resume_html:
         return jsonify({"error": "Email and resume content required."}), 400
@@ -1063,51 +1071,50 @@ def send_cv_email():
     safe_name = (name.replace(' ', '_') or 'Resume')
     pdf_b64 = None
 
-    # Strip base64 images from HTML before PDF generation (they cause reportlab crashes)
-    import re as _re2
-    resume_html_clean = _re2.sub(r'src="data:image/[^"]{1,2000000}"', 'src=""', resume_html)
-    resume_html_clean = _re2.sub(r"src='data:image/[^']{1,2000000}'", "src=''", resume_html_clean)
-
     # ── Generate PDF using reportlab ──
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import ParagraphStyle
-        from reportlab.lib.units import cm
+        from reportlab.lib.units import cm, mm
         from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle, Image as RLImage
+        import re as _re
 
-        # ── Helpers ──
-        def striptags(h):
+        def st(h):
+            """Strip HTML tags and decode entities"""
             t = _re.sub(r'<[^>]+>', ' ', str(h))
-            for ent, rep in [('&amp;','&'),('&lt;','<'),('&gt;','>'),('&nbsp;',' '),('&#39;',"'"),('&quot;','"'),('&apos;',"'"),('–','-'),('—','-')]:
-                t = t.replace(ent, rep)
+            for e, r in [('&amp;','&'),('&lt;','<'),('&gt;','>'),('&nbsp;',' '),
+                         ('&#39;',"'"),('&quot;','"'),('&apos;',"'"),('–','-'),('—','-')]:
+                t = t.replace(e, r)
             return ' '.join(t.split()).strip()
 
         def xs(t):
-            """xmlsafe — escape for reportlab Paragraph"""
+            """Escape for reportlab XML"""
             return str(t).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
 
-        def findone(pat, html):
-            m = _re.search(pat, html, _re.DOTALL | _re.IGNORECASE)
-            return striptags(m.group(1)) if m else ''
+        def fnd(pat, html):
+            m = _re.search(pat, html, _re.DOTALL|_re.IGNORECASE)
+            return st(m.group(1)) if m else ''
 
-        def findall(pat, html):
-            return _re.findall(pat, html, _re.DOTALL | _re.IGNORECASE)
+        def fall(pat, html):
+            return _re.findall(pat, html, _re.DOTALL|_re.IGNORECASE)
 
-        # ── Styles ──
-        DARK   = colors.HexColor('#1a1a2e')
-        ORANGE = colors.HexColor('#4a5568')  # Professional dark grey for job title
-        GREY   = colors.HexColor('#6b7280')
-        LGREY  = colors.HexColor('#e5e7eb')
-        BODY   = colors.HexColor('#374151')
+        # ── Styles matching the browser CSS ──
+        DARK  = colors.HexColor('#1a1a2e')
+        DGREY = colors.HexColor('#4a5568')
+        GREY  = colors.HexColor('#6b7280')
+        LGREY = colors.HexColor('#e5e7eb')
+        BODY  = colors.HexColor('#374151')
 
-        sName    = ParagraphStyle('Name',    fontName='Helvetica-Bold', fontSize=20, textColor=DARK,   spaceAfter=6, leading=24)
-        sJob     = ParagraphStyle('Job',     fontName='Helvetica',      fontSize=11, textColor=ORANGE, spaceAfter=12, leading=16)
-        sHead    = ParagraphStyle('Head',    fontName='Helvetica-Bold', fontSize=9,  textColor=DARK,   spaceBefore=14, spaceAfter=5, leading=12)
-        sBody    = ParagraphStyle('Body',    fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, spaceAfter=4)
-        sBullet  = ParagraphStyle('Bullet',  fontName='Helvetica',      fontSize=9,  textColor=BODY,   leading=14, leftIndent=12, spaceAfter=3)
-        sSub     = ParagraphStyle('Sub',     fontName='Helvetica-Bold',  fontSize=9,  textColor=ORANGE, leading=13, spaceAfter=4)
-        sDate    = ParagraphStyle('Date',    fontName='Helvetica',      fontSize=8,  textColor=GREY,   leading=12, spaceAfter=2)
+        sName  = ParagraphStyle('N',  fontName='Helvetica-Bold', fontSize=22, textColor=DARK,  spaceAfter=4,  leading=26)
+        sJob   = ParagraphStyle('J',  fontName='Helvetica',      fontSize=11, textColor=DGREY, spaceAfter=0,  leading=16)
+        sHead  = ParagraphStyle('H',  fontName='Helvetica-Bold', fontSize=9,  textColor=DARK,  spaceBefore=14,spaceAfter=5, leading=12)
+        sBody  = ParagraphStyle('B',  fontName='Helvetica',      fontSize=9,  textColor=BODY,  leading=14,   spaceAfter=3)
+        sBold  = ParagraphStyle('BB', fontName='Helvetica-Bold', fontSize=9,  textColor=DARK,  leading=14,   spaceAfter=2)
+        sSub   = ParagraphStyle('S',  fontName='Helvetica',      fontSize=9,  textColor=GREY,  leading=13,   spaceAfter=2)
+        sDate  = ParagraphStyle('D',  fontName='Helvetica',      fontSize=8,  textColor=GREY,  leading=12,   spaceAfter=2)
+        sBul   = ParagraphStyle('BU', fontName='Helvetica',      fontSize=9,  textColor=BODY,  leading=14,   leftIndent=10, spaceAfter=2)
+        sSkill = ParagraphStyle('SK', fontName='Helvetica',      fontSize=9,  textColor=BODY,  leading=14,   spaceAfter=3)
 
         buf = io.BytesIO()
         doc = SimpleDocTemplate(buf, pagesize=A4,
@@ -1115,60 +1122,44 @@ def send_cv_email():
                                 topMargin=1.8*cm, bottomMargin=1.8*cm)
         story = []
 
-        # ── 1. NAME + PHOTO ──
-        cv_name = findone(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html_clean) or name
-        cv_job  = findone(r'class="[^"]*resume-job-title[^"]*"[^>]*>(.*?)</', resume_html_clean)
+        # ── NAME + PHOTO ──
+        cv_name = fnd(r'class="[^"]*resume-name[^"]*"[^>]*>(.*?)</', resume_html) or name
+        cv_job  = fnd(r'class="[^"]*resume-job-title[^"]*"[^>]*>(.*?)</', resume_html)
         if not cv_job:
-            cv_job = findone(r'class="[^"]*resume-title[^"]*"[^>]*>(.*?)</', resume_html_clean)
+            cv_job = fnd(r'class="[^"]*resume-title[^"]*"[^>]*>(.*?)</', resume_html)
 
-        # Add photo + name side by side if photo exists
         if photo_data and photo_data.startswith('data:image'):
             try:
-                import base64 as _b64
-                from reportlab.platypus import Table, TableStyle, Image as RLImage
-                from reportlab.lib.utils import ImageReader
+                from PIL import Image as _PIL, ImageDraw as _Draw
+                _, enc = photo_data.split(',', 1)
+                raw = base64.b64decode(enc)
+                pil = _PIL.open(io.BytesIO(raw)).convert('RGBA')
+                sz = 195
+                pil = pil.resize((sz, sz), _PIL.LANCZOS)
+                mask = _PIL.new('L', (sz,sz), 0)
+                _Draw.Draw(mask).ellipse((0,0,sz,sz), fill=255)
+                circle = _PIL.new('RGBA', (sz,sz), (255,255,255,0))
+                circle.paste(pil, mask=mask)
+                circle = circle.resize((65,65), _PIL.LANCZOS)
+                cb = io.BytesIO()
+                circle.save(cb, format='PNG')
+                cb.seek(0)
+                photo_img = RLImage(cb, width=65, height=65)
 
-                # Decode base64 directly into memory
-                header, encoded = photo_data.split(',', 1)
-                img_bytes = _b64.b64decode(encoded)
-
-                # Crop photo into circle using Pillow
-                from PIL import Image as _PILImg, ImageDraw as _PILDraw
-                pil_img = _PILImg.open(io.BytesIO(img_bytes)).convert('RGBA')
-                sz = 195  # 3x target for antialiasing
-                pil_img = pil_img.resize((sz, sz), _PILImg.LANCZOS)
-                mask = _PILImg.new('L', (sz, sz), 0)
-                _PILDraw.Draw(mask).ellipse((0, 0, sz, sz), fill=255)
-                circle = _PILImg.new('RGBA', (sz, sz), (255, 255, 255, 0))
-                circle.paste(pil_img, mask=mask)
-                circle = circle.resize((65, 65), _PILImg.LANCZOS)
-                img_buffer = io.BytesIO()
-                circle.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-                photo_img = RLImage(img_buffer, width=65, height=65)
-
-                # Name + job in right column
-                name_para = Paragraph(xs(cv_name), sName)
-                job_para  = Paragraph(xs(cv_job), sJob) if cv_job else Paragraph('', sJob)
-
-                # Table: photo left, name+job right
-                tbl = Table(
-                    [[photo_img, [name_para, job_para]]],
-                    colWidths=[80, None]
-                )
+                name_col = [Paragraph(xs(cv_name), sName)]
+                if cv_job: name_col.append(Paragraph(xs(cv_job), sJob))
+                tbl = Table([[photo_img, name_col]], colWidths=[80, None])
                 tbl.setStyle(TableStyle([
-                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                    ('LEFTPADDING', (0,0), (-1,-1), 0),
-                    ('RIGHTPADDING', (0,0), (-1,-1), 8),
-                    ('TOPPADDING', (0,0), (-1,-1), 0),
-                    ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                    ('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+                    ('LEFTPADDING',(0,0),(-1,-1),0),
+                    ('RIGHTPADDING',(0,0),(-1,-1),8),
+                    ('TOPPADDING',(0,0),(-1,-1),0),
+                    ('BOTTOMPADDING',(0,0),(-1,-1),6),
                 ]))
                 story.append(tbl)
-                print("Photo added to PDF successfully")
-            except Exception as photo_err:
-                import traceback
-                print(f"Photo in PDF error: {photo_err}")
-                print(traceback.format_exc())
+                print("Photo added to PDF in circle")
+            except Exception as pe:
+                print(f"Photo error: {pe}")
                 story.append(Paragraph(xs(cv_name), sName))
                 if cv_job: story.append(Paragraph(xs(cv_job), sJob))
         else:
@@ -1177,85 +1168,129 @@ def send_cv_email():
 
         story.append(HRFlowable(width='100%', thickness=2, color=DARK, spaceAfter=10))
 
-        # ── 3. CONTACT (from contact-row divs — skip if not found) ──
-        contact_rows = findall(r'<div class="[^"]*contact-row[^"]*">(.*?)</div>', resume_html_clean)
+        # ── CONTACT ──
+        contact_rows = fall(r'<div class="[^"]*contact-row[^"]*">(.*?)</div>', resume_html)
         if contact_rows:
             story.append(Paragraph('CONTACT', sHead))
             story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
+            # Two-column contact layout matching browser
+            rows = []
             for row in contact_rows:
-                lbl = findone(r'class="[^"]*contact-lbl[^"]*"[^>]*>(.*?)</span>', row)
-                val = findone(r'class="[^"]*contact-val[^"]*"[^>]*>(.*?)</span>', row)
+                lbl = fnd(r'class="[^"]*contact-lbl[^"]*"[^>]*>(.*?)</span>', row)
+                val = fnd(r'class="[^"]*contact-val[^"]*"[^>]*>(.*?)</span>', row)
                 if lbl and val:
-                    story.append(Paragraph(f'<b>{xs(lbl)}:</b>  {xs(val)}', sBody))
+                    rows.append((lbl, val))
+            # Display in 2 columns
+            for i in range(0, len(rows), 2):
+                left  = rows[i]
+                right = rows[i+1] if i+1 < len(rows) else None
+                left_cell  = Paragraph(f'<b>{xs(left[0])}:</b>  {xs(left[1])}', sBody)
+                right_cell = Paragraph(f'<b>{xs(right[0])}:</b>  {xs(right[1])}', sBody) if right else Paragraph('', sBody)
+                tbl = Table([[left_cell, right_cell]], colWidths=['50%','50%'])
+                tbl.setStyle(TableStyle([
+                    ('VALIGN',(0,0),(-1,-1),'TOP'),
+                    ('LEFTPADDING',(0,0),(-1,-1),0),
+                    ('RIGHTPADDING',(0,0),(-1,-1),0),
+                    ('TOPPADDING',(0,0),(-1,-1),2),
+                    ('BOTTOMPADDING',(0,0),(-1,-1),2),
+                ]))
+                story.append(tbl)
 
-        # ── 4. ALL SECTIONS (skip Contact — already added above) ──
-        headings = findall(r'<div class="[^"]*section-heading[^"]*">(.*?)</div>', resume_html_clean)
-        parts    = _re.split(r'<div class="[^"]*section-heading[^"]*">.*?</div>', resume_html_clean, flags=_re.DOTALL|_re.IGNORECASE)
+        # ── ALL OTHER SECTIONS ──
+        headings = fall(r'<div class="[^"]*section-heading[^"]*">(.*?)</div>', resume_html)
+        parts    = _re.split(r'<div class="[^"]*section-heading[^"]*">.*?</div>', resume_html, flags=_re.DOTALL|_re.IGNORECASE)
 
         for i, heading in enumerate(headings):
-            htxt  = striptags(heading).strip()
-            HTXT  = htxt.upper()
+            htxt = st(heading).strip()
+            HTXT = htxt.upper()
             block = parts[i+1] if i+1 < len(parts) else ''
 
-            # Skip Contact — already handled above
             if 'CONTACT' in HTXT:
-                continue
+                continue  # already handled above
 
-            story.append(Paragraph(xs(htxt.upper()), sHead))
+            story.append(Paragraph(xs(HTXT), sHead))
             story.append(HRFlowable(width='100%', thickness=0.5, color=LGREY, spaceAfter=5))
 
-            # ── Summary / Profile ──
-            if any(k in HTXT for k in ('SUMMARY', 'PROFILE', 'ABOUT')):
-                txt = findone(r'class="[^"]*summary-text[^"]*"[^>]*>(.*?)</p>', block)
-                if not txt: txt = striptags(block[:600])
+            if any(k in HTXT for k in ('SUMMARY','PROFILE','ABOUT')):
+                txt = fnd(r'class="[^"]*summary-text[^"]*"[^>]*>(.*?)</p>', block)
+                if not txt: txt = st(block[:800])
                 if txt: story.append(Paragraph(xs(txt), sBody))
 
-            # ── Skills / Languages ──
-            elif any(k in HTXT for k in ('SKILL', 'LANGUAGE')):
-                pills = findall(r'<span class="[^"]*skill-pill[^"]*">(.*?)</span>', block)
+            elif any(k in HTXT for k in ('SKILL','LANGUAGE')):
+                pills = fall(r'<span class="[^"]*skill-pill[^"]*">(.*?)</span>', block)
                 if pills:
-                    story.append(Paragraph(xs(' · '.join([striptags(p) for p in pills])), sBody))
+                    # Render skills like the browser — in a row with separators
+                    skill_text = '   '.join([xs(st(p)) for p in pills])
+                    story.append(Paragraph(skill_text, sSkill))
 
-            # ── Experience / Work ──
-            elif any(k in HTXT for k in ('EXPERIENCE', 'WORK')):
-                entries = _re.findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)(?=<div class="[^"]*resume-entry|<div class="[^"]*section-heading|</div>\s*</div>\s*</div>)', block, _re.DOTALL)
+            elif any(k in HTXT for k in ('EXPERIENCE','WORK')):
+                entries = _re.findall(
+                    r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>',
+                    block, _re.DOTALL
+                )
                 for entry in entries:
-                    et    = findone(r'class="entry-title"[^>]*>(.*?)</div>', entry)
-                    spans = findall(r'<span>(.*?)</span>', entry)
-                    buls  = findall(r'<li[^>]*>(.*?)</li>', entry)
-                    desc  = findone(r'class="[^"]*entry-desc[^"]*"[^>]*>(.*?)</p>', entry)
+                    et    = fnd(r'class="entry-title"[^>]*>(.*?)</div>', entry)
+                    spans = fall(r'<span>(.*?)</span>', entry)
+                    buls  = fall(r'<li[^>]*>(.*?)</li>', entry)
+                    desc  = fnd(r'class="[^"]*entry-desc[^"]*"[^>]*>(.*?)</p>', entry)
 
                     if et:
-                        story.append(Paragraph(f'<b>{xs(et)}</b>', sBody))
+                        story.append(Paragraph(f'<b>{xs(et)}</b>', sBold))
                     if len(spans) >= 2:
-                        story.append(Paragraph(xs(striptags(spans[0])), sSub))
-                        story.append(Paragraph(xs(striptags(spans[1])), sDate))
+                        company = xs(st(spans[0]))
+                        date    = xs(st(spans[1]))
+                        # Company left, date right
+                        tbl = Table(
+                            [[Paragraph(company, sSub), Paragraph(date, sDate)]],
+                            colWidths=['70%','30%']
+                        )
+                        tbl.setStyle(TableStyle([
+                            ('VALIGN',(0,0),(-1,-1),'TOP'),
+                            ('LEFTPADDING',(0,0),(-1,-1),0),
+                            ('RIGHTPADDING',(0,0),(-1,-1),0),
+                            ('TOPPADDING',(0,0),(-1,-1),0),
+                            ('BOTTOMPADDING',(0,0),(-1,-1),3),
+                            ('ALIGN',(1,0),(1,0),'RIGHT'),
+                        ]))
+                        story.append(tbl)
                     elif len(spans) == 1:
-                        story.append(Paragraph(xs(striptags(spans[0])), sSub))
+                        story.append(Paragraph(xs(st(spans[0])), sSub))
+
                     for bl in buls:
-                        story.append(Paragraph(f'• {xs(striptags(bl))}', sBullet))
+                        story.append(Paragraph(f'• {xs(st(bl))}', sBul))
                     if desc and not buls:
-                        story.append(Paragraph(xs(desc), sBullet))
-                    story.append(Spacer(1, 4))
+                        story.append(Paragraph(xs(st(desc)), sBul))
+                    story.append(Spacer(1, 5))
 
-            # ── Education ──
             elif 'EDUCATION' in HTXT:
-                entries = _re.findall(r'<div class="[^"]*resume-entry[^"]*">(.*?)(?=<div class="[^"]*resume-entry|<div class="[^"]*section-heading|</div>\s*</div>\s*</div>)', block, _re.DOTALL)
+                entries = _re.findall(
+                    r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>',
+                    block, _re.DOTALL
+                )
                 for entry in entries:
-                    et    = findone(r'class="entry-title"[^>]*>(.*?)</div>', entry)
-                    spans = findall(r'<span>(.*?)</span>', entry)
-                    if et:
-                        story.append(Paragraph(f'<b>{xs(et)}</b>', sBody))
+                    et    = fnd(r'class="entry-title"[^>]*>(.*?)</div>', entry)
+                    spans = fall(r'<span>(.*?)</span>', entry)
+                    if et: story.append(Paragraph(f'<b>{xs(et)}</b>', sBold))
                     if len(spans) >= 2:
-                        story.append(Paragraph(xs(striptags(spans[0])), sSub))
-                        story.append(Paragraph(xs(striptags(spans[1])), sDate))
+                        tbl = Table(
+                            [[Paragraph(xs(st(spans[0])), sSub), Paragraph(xs(st(spans[1])), sDate)]],
+                            colWidths=['70%','30%']
+                        )
+                        tbl.setStyle(TableStyle([
+                            ('VALIGN',(0,0),(-1,-1),'TOP'),
+                            ('LEFTPADDING',(0,0),(-1,-1),0),
+                            ('RIGHTPADDING',(0,0),(-1,-1),0),
+                            ('TOPPADDING',(0,0),(-1,-1),0),
+                            ('BOTTOMPADDING',(0,0),(-1,-1),3),
+                            ('ALIGN',(1,0),(1,0),'RIGHT'),
+                        ]))
+                        story.append(tbl)
                     elif len(spans) == 1:
-                        story.append(Paragraph(xs(striptags(spans[0])), sSub))
+                        story.append(Paragraph(xs(st(spans[0])), sSub))
                     story.append(Spacer(1, 4))
 
-            # ── Generic fallback ──
             else:
-                txt = striptags(block[:400])
+                txt = st(block[:400])
                 if txt: story.append(Paragraph(xs(txt), sBody))
 
         doc.build(story)
@@ -1268,17 +1303,10 @@ def send_cv_email():
         print(f"PDF error: {e}")
         print(traceback.format_exc())
 
-    # Log PDF status clearly
-    print(f"PDF status: {'GENERATED OK' if pdf_b64 else 'FAILED - no attachment'}")
-    if pdf_b64:
-        print(f"PDF size: {len(base64.b64decode(pdf_b64))} bytes")
-    else:
-        print("PDF FAILED - email will send without attachment")
-
-    # ── Beautiful email body ──
+    # ── Email body ──
     email_body = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"/></head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif">
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif">
   <div style="background:#1a1a2e;padding:22px 24px;text-align:center">
     <div style="font-size:1.3rem;font-weight:700;color:#fff">Eggy<span style="color:#f5a623">PDF</span></div>
     <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:6px 0 0">Your CV is ready, {name}!</p>
@@ -1287,7 +1315,7 @@ def send_cv_email():
     <div style="background:#fff8ed;border:2px solid #f5a623;border-radius:16px;padding:20px 24px;margin-bottom:20px;text-align:center">
       <div style="font-size:2rem;margin-bottom:8px">🎉</div>
       <p style="font-size:14px;color:#92400e;line-height:1.7;margin:0">
-        {"📎 Your <strong>CV is attached as a PDF</strong> — open it, save it, share it with employers." if pdf_b64 else "💡 Open on desktop → File → Print → Save as PDF to get your CV."}
+        {"📎 Your <strong>CV is attached as a PDF</strong> — open it, save it, share it with employers." if pdf_b64 else "Please download your CV directly from EggyPDF."}
       </p>
     </div>
     <div style="background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:20px;border:1px solid #e5e7eb">
@@ -1303,14 +1331,10 @@ def send_cv_email():
       </a>
     </div>
     <p style="font-size:11px;color:#9ca3af;text-align:center;line-height:1.6">
-      Sent by <a href="https://eggypdf.com" style="color:#f5a623;text-decoration:none">EggyPDF</a> &nbsp;·&nbsp; Free PDF tools &amp; Resume Builder
+      Sent by <a href="https://eggypdf.com" style="color:#f5a623;text-decoration:none">EggyPDF</a>
     </p>
   </div>
 </body></html>"""
-
-    # IMPORTANT: The sender email MUST be verified in Brevo → Senders & Domains
-    # Go to app.brevo.com → Senders & Domains → Add & verify hello@eggypdf.com
-    SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', 'hello@eggypdf.com').strip()
 
     brevo_payload = {
         "sender": {"name": "EggyPDF", "email": SENDER_EMAIL},
@@ -1335,17 +1359,15 @@ def send_cv_email():
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=20) as resp:
-            raw = resp.read().decode("utf-8")
-            result = json_lib.loads(raw)
+            result = json_lib.loads(resp.read().decode("utf-8"))
             msg_id = result.get("messageId", "")
-            print(f"Email sent OK — messageId: {msg_id}, to: {email}, pdf: {pdf_b64 is not None}")
-            return jsonify({"success": True, "pdf_attached": pdf_b64 is not None, "messageId": msg_id})
+            print(f"Email sent OK: {msg_id}, pdf={'YES' if pdf_b64 else 'NO'}")
+            return jsonify({"success": True, "pdf_attached": pdf_b64 is not None})
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
-        print(f"Brevo HTTP error {e.code}: {body}")
-        return jsonify({"error": f"Email failed: {e.code} — {body[:400]}"}), 500
+        print(f"Brevo error {e.code}: {body}")
+        return jsonify({"error": f"Email failed: {e.code}"}), 500
     except Exception as e:
-        print(f"Email exception: {str(e)}")
         return jsonify({"error": f"Email failed: {str(e)}"}), 500
 
 
