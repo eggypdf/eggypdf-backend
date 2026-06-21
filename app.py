@@ -1159,19 +1159,19 @@ def send_cv_email():
 
                 name_col = [Paragraph(xs(cv_name), sName)]
                 if cv_job: name_col.append(Paragraph(xs(cv_job), sJob))
-                # Photo col = photo width + gap, name col = remaining space
-                photo_col_w = target_pt + 12  # photo size + gap
+                # Exact column sizing: photo column = photo pt size + padding
+                photo_col_w = target_pt + 16
                 name_col_w  = doc.width - photo_col_w
                 tbl = Table([[photo_img, name_col]],
                             colWidths=[photo_col_w, name_col_w])
                 tbl.setStyle(TableStyle([
-                    ('VALIGN',        (0,0),(-1,-1),'MIDDLE'),
-                    ('LEFTPADDING',   (0,0),(0,-1), 0),
-                    ('RIGHTPADDING',  (0,0),(0,-1), 12),
-                    ('LEFTPADDING',   (1,0),(1,-1), 0),
-                    ('RIGHTPADDING',  (1,0),(1,-1), 0),
-                    ('TOPPADDING',    (0,0),(-1,-1),0),
-                    ('BOTTOMPADDING', (0,0),(-1,-1),8),
+                    ('VALIGN',        (0,0),(-1,-1),'TOP'),
+                    ('LEFTPADDING',   (0,0),(0,0),  0),
+                    ('RIGHTPADDING',  (0,0),(0,0),  16),
+                    ('LEFTPADDING',   (1,0),(1,0),  0),
+                    ('RIGHTPADDING',  (1,0),(1,0),  0),
+                    ('TOPPADDING',    (0,0),(-1,-1), 0),
+                    ('BOTTOMPADDING', (0,0),(-1,-1), 8),
                 ]))
                 story.append(tbl)
                 print("Photo added to PDF in circle")
@@ -1255,26 +1255,34 @@ def send_cv_email():
                     rows = [pill_cells[i:i+row_size] for i in range(0, len(pill_cells), row_size)]
 
                     for row in rows:
-                        # Pad row to row_size
-                        while len(row) < row_size:
-                            row.append(Paragraph('', sPill))
-                        # Use full doc width so skills align with all other content
+                        n_items = len(row)  # actual items before padding
+                        # Pad to row_size with None markers
+                        padded = row + [None] * (row_size - n_items)
+                        # Build cell paragraphs
+                        cells = []
+                        for cell in padded:
+                            if cell is not None:
+                                cells.append(Paragraph(xs(st(cell)), sPill))
+                            else:
+                                cells.append(Paragraph('', sPill))
+
                         col_w = doc.width / row_size
-                        tbl = Table([row], colWidths=[col_w]*row_size,
-                                    hAlign='LEFT')
-                        tbl.setStyle(TableStyle([
-                            ('BOX',          (0,0),(0,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('BOX',          (1,0),(1,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('BOX',          (2,0),(2,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('BOX',          (3,0),(3,-1), 0.5, _colors.HexColor('#1a1a2e')),
-                            ('BOX',          (4,0),(4,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                        tbl = Table([cells], colWidths=[col_w]*row_size, hAlign='LEFT')
+
+                        # Only draw box on cells that have content
+                        style_cmds = [
                             ('LEFTPADDING',  (0,0),(-1,-1), 6),
                             ('RIGHTPADDING', (0,0),(-1,-1), 6),
                             ('TOPPADDING',   (0,0),(-1,-1), 4),
                             ('BOTTOMPADDING',(0,0),(-1,-1), 4),
                             ('VALIGN',       (0,0),(-1,-1),'MIDDLE'),
                             ('ALIGN',        (0,0),(-1,-1),'LEFT'),
-                        ]))
+                        ]
+                        for ci in range(n_items):
+                            style_cmds.append(
+                                ('BOX', (ci,0),(ci,0), 0.5, _colors.HexColor('#1a1a2e'))
+                            )
+                        tbl.setStyle(TableStyle(style_cmds))
                         story.append(tbl)
                         story.append(Spacer(1, 4))
 
