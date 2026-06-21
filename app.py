@@ -1134,17 +1134,28 @@ def send_cv_email():
                 _, enc = photo_data.split(',', 1)
                 raw = base64.b64decode(enc)
                 pil = _PIL.open(io.BytesIO(raw)).convert('RGBA')
-                sz = 195
-                pil = pil.resize((sz, sz), _PIL.LANCZOS)
-                mask = _PIL.new('L', (sz,sz), 0)
-                _Draw.Draw(mask).ellipse((0,0,sz,sz), fill=255)
-                circle = _PIL.new('RGBA', (sz,sz), (255,255,255,0))
+                # High quality: work at 6x then scale down
+                target_pt = 90
+                work_sz = 540
+                pil = pil.resize((work_sz, work_sz), _PIL.LANCZOS)
+                # Circle mask
+                mask = _PIL.new('L', (work_sz, work_sz), 0)
+                _Draw.Draw(mask).ellipse((0, 0, work_sz, work_sz), fill=255)
+                circle = _PIL.new('RGBA', (work_sz, work_sz), (255,255,255,0))
                 circle.paste(pil, mask=mask)
-                circle = circle.resize((65,65), _PIL.LANCZOS)
+                # Draw dark navy border
+                border_draw = _Draw.Draw(circle)
+                bw = 10
+                border_draw.ellipse((bw, bw, work_sz-bw, work_sz-bw),
+                    outline=(26, 26, 46, 255), width=bw)
+                # Flatten to white background
+                final = _PIL.new('RGB', (work_sz, work_sz), (255,255,255))
+                final.paste(circle, mask=circle.split()[3])
+                final = final.resize((target_pt*3, target_pt*3), _PIL.LANCZOS)
                 cb = io.BytesIO()
-                circle.save(cb, format='PNG')
+                final.save(cb, format='PNG')
                 cb.seek(0)
-                photo_img = RLImage(cb, width=65, height=65)
+                photo_img = RLImage(cb, width=target_pt, height=target_pt)
 
                 name_col = [Paragraph(xs(cv_name), sName)]
                 if cv_job: name_col.append(Paragraph(xs(cv_job), sJob))
@@ -1219,9 +1230,45 @@ def send_cv_email():
             elif any(k in HTXT for k in ('SKILL','LANGUAGE')):
                 pills = fall(r'<span class="[^"]*skill-pill[^"]*">(.*?)</span>', block)
                 if pills:
-                    # Render skills like the browser — in a row with separators
-                    skill_text = '   '.join([xs(st(p)) for p in pills])
-                    story.append(Paragraph(skill_text, sSkill))
+                    from reportlab.platypus import Table, TableStyle
+                    from reportlab.lib import colors as _colors
+
+                    sPill = ParagraphStyle('Pill',
+                        fontName='Helvetica', fontSize=8,
+                        textColor=DARK, leading=12)
+
+                    # Build pill cells
+                    pill_cells = []
+                    for p in pills:
+                        txt = xs(st(p))
+                        cell = Paragraph(txt, sPill)
+                        pill_cells.append(cell)
+
+                    # Arrange pills in rows of up to 5
+                    row_size = 5
+                    rows = [pill_cells[i:i+row_size] for i in range(0, len(pill_cells), row_size)]
+
+                    for row in rows:
+                        # Pad row to row_size
+                        while len(row) < row_size:
+                            row.append(Paragraph('', sPill))
+                        col_w = (doc.width) / row_size
+                        tbl = Table([row], colWidths=[col_w]*row_size)
+                        tbl.setStyle(TableStyle([
+                            ('BOX',       (0,0), (0,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('BOX',       (1,0), (1,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('BOX',       (2,0), (2,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('BOX',       (3,0), (3,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('BOX',       (4,0), (4,-1), 0.5, _colors.HexColor('#1a1a2e')),
+                            ('LEFTPADDING',  (0,0), (-1,-1), 6),
+                            ('RIGHTPADDING', (0,0), (-1,-1), 6),
+                            ('TOPPADDING',   (0,0), (-1,-1), 4),
+                            ('BOTTOMPADDING',(0,0), (-1,-1), 4),
+                            ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
+                            ('ALIGN',        (0,0), (-1,-1), 'CENTER'),
+                        ]))
+                        story.append(tbl)
+                        story.append(Spacer(1, 4))
 
             elif any(k in HTXT for k in ('EXPERIENCE','WORK')):
                 entries = _re.findall(
