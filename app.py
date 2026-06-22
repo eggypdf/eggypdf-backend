@@ -1183,18 +1183,21 @@ def send_cv_email():
                 # Exact column sizing: photo column = photo pt size + padding
                 photo_col_w = target_pt + 16
                 name_col_w  = doc.width - photo_col_w
+                # rowHeights prevents the cell from clipping the image bottom
                 tbl = Table([[photo_img, name_col]],
-                            colWidths=[photo_col_w, name_col_w])
+                            colWidths=[photo_col_w, name_col_w],
+                            rowHeights=[target_pt + 8])
                 tbl.setStyle(TableStyle([
-                    ('VALIGN',        (0,0),(-1,-1),'TOP'),
-                    ('LEFTPADDING',   (0,0),(0,0),  0),
-                    ('RIGHTPADDING',  (0,0),(0,0),  16),
-                    ('LEFTPADDING',   (1,0),(1,0),  0),
-                    ('RIGHTPADDING',  (1,0),(1,0),  0),
-                    ('TOPPADDING',    (0,0),(-1,-1), 0),
-                    ('BOTTOMPADDING', (0,0),(-1,-1), 8),
+                    ('VALIGN',        (0,0),(-1,-1), 'MIDDLE'),
+                    ('LEFTPADDING',   (0,0),(0,0),    0),
+                    ('RIGHTPADDING',  (0,0),(0,0),    16),
+                    ('LEFTPADDING',   (1,0),(1,0),    0),
+                    ('RIGHTPADDING',  (1,0),(1,0),    0),
+                    ('TOPPADDING',    (0,0),(-1,-1),  0),
+                    ('BOTTOMPADDING', (0,0),(-1,-1),  0),
                 ]))
                 story.append(tbl)
+                story.append(Spacer(1, 8))
                 print("Photo added to PDF in circle")
             except Exception as pe:
                 print(f"Photo error: {pe}")
