@@ -1134,21 +1134,30 @@ def send_cv_email():
                 _, enc = photo_data.split(',', 1)
                 raw = base64.b64decode(enc)
                 pil = _PIL.open(io.BytesIO(raw)).convert('RGBA')
-                # High quality: work at 6x then scale down
                 target_pt = 90
                 work_sz = 540
+
+                # Step 1: Center-crop to square FIRST (fixes distortion on portrait/landscape photos)
+                w, h = pil.size
+                min_side = min(w, h)
+                left = (w - min_side) // 2
+                top  = (h - min_side) // 2
+                pil = pil.crop((left, top, left + min_side, top + min_side))
+
+                # Step 2: Resize to work size
                 pil = pil.resize((work_sz, work_sz), _PIL.LANCZOS)
-                # Circle mask
+
+                # Step 3: Circle mask
                 mask = _PIL.new('L', (work_sz, work_sz), 0)
                 _Draw.Draw(mask).ellipse((0, 0, work_sz, work_sz), fill=255)
                 circle = _PIL.new('RGBA', (work_sz, work_sz), (255,255,255,0))
                 circle.paste(pil, mask=mask)
-                # Draw dark navy border
-                border_draw = _Draw.Draw(circle)
-                bw = 10
-                border_draw.ellipse((bw, bw, work_sz-bw, work_sz-bw),
-                    outline=(26, 26, 46, 255), width=bw)
-                # Flatten to white background
+
+                # Step 4: Draw border inside the circle
+                _Draw.Draw(circle).ellipse((8, 8, work_sz-8, work_sz-8),
+                    outline=(26, 26, 46, 255), width=8)
+
+                # Step 5: Flatten to white background
                 final = _PIL.new('RGB', (work_sz, work_sz), (255,255,255))
                 final.paste(circle, mask=circle.split()[3])
                 final = final.resize((target_pt*3, target_pt*3), _PIL.LANCZOS)
@@ -1243,33 +1252,27 @@ def send_cv_email():
                         fontName='Helvetica', fontSize=8,
                         textColor=DARK, leading=12)
 
-                    # Build pill cells
-                    pill_cells = []
-                    for p in pills:
-                        txt = xs(st(p))
-                        cell = Paragraph(txt, sPill)
-                        pill_cells.append(cell)
+                    # pills is a list of raw HTML strings from regex
+                    # Clean each one to plain text first
+                    pill_texts = [st(p) for p in pills]
 
-                    # Arrange pills in rows of up to 5
                     row_size = 5
-                    rows = [pill_cells[i:i+row_size] for i in range(0, len(pill_cells), row_size)]
+                    # Split into rows of raw text strings
+                    text_rows = [pill_texts[i:i+row_size] for i in range(0, len(pill_texts), row_size)]
 
-                    for row in rows:
-                        n_items = len(row)  # actual items before padding
-                        # Pad to row_size with None markers
-                        padded = row + [None] * (row_size - n_items)
-                        # Build cell paragraphs
+                    for text_row in text_rows:
+                        n_items = len(text_row)
+                        # Build cell list — only n_items real cells, rest empty
                         cells = []
-                        for cell in padded:
-                            if cell is not None:
-                                cells.append(Paragraph(xs(st(cell)), sPill))
-                            else:
-                                cells.append(Paragraph('', sPill))
+                        for t in text_row:
+                            cells.append(Paragraph(xs(t), sPill))
+                        # Pad with empty (no border) cells
+                        for _ in range(row_size - n_items):
+                            cells.append(Paragraph('', sPill))
 
                         col_w = doc.width / row_size
                         tbl = Table([cells], colWidths=[col_w]*row_size, hAlign='LEFT')
 
-                        # Only draw box on cells that have content
                         style_cmds = [
                             ('LEFTPADDING',  (0,0),(-1,-1), 6),
                             ('RIGHTPADDING', (0,0),(-1,-1), 6),
@@ -1278,6 +1281,7 @@ def send_cv_email():
                             ('VALIGN',       (0,0),(-1,-1),'MIDDLE'),
                             ('ALIGN',        (0,0),(-1,-1),'LEFT'),
                         ]
+                        # Only draw box border on cells with real content
                         for ci in range(n_items):
                             style_cmds.append(
                                 ('BOX', (ci,0),(ci,0), 0.5, _colors.HexColor('#1a1a2e'))
