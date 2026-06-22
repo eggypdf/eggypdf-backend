@@ -1242,7 +1242,7 @@ def send_cv_email():
                 if not txt: txt = st(block[:800])
                 if txt: story.append(Paragraph(xs(txt), sBody))
 
-            elif any(k in HTXT for k in ('SKILL','LANGUAGE')):
+            elif 'SKILL' in HTXT:
                 pills = fall(r'<span class="[^"]*skill-pill[^"]*">(.*?)</span>', block)
                 if pills:
                     from reportlab.platypus import Table, TableStyle
@@ -1291,10 +1291,9 @@ def send_cv_email():
                         story.append(Spacer(1, 4))
 
             elif any(k in HTXT for k in ('EXPERIENCE','WORK')):
-                entries = _re.findall(
-                    r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>',
-                    block, _re.DOTALL
-                )
+                # Split by resume-entry div — avoids broken lazy regex
+                raw_entries = _re.split(r'(?=<div class="[^"]*resume-entry[^"]*">)', block)
+                entries = [e for e in raw_entries if 'resume-entry' in e]
                 for entry in entries:
                     et    = fnd(r'class="entry-title"[^>]*>(.*?)</div>', entry)
                     spans = fall(r'<span>(.*?)</span>', entry)
@@ -1330,10 +1329,8 @@ def send_cv_email():
                     story.append(Spacer(1, 5))
 
             elif 'EDUCATION' in HTXT:
-                entries = _re.findall(
-                    r'<div class="[^"]*resume-entry[^"]*">(.*?)</div>\s*</div>',
-                    block, _re.DOTALL
-                )
+                raw_entries = _re.split(r'(?=<div class="[^"]*resume-entry[^"]*">)', block)
+                entries = [e for e in raw_entries if 'resume-entry' in e]
                 for entry in entries:
                     et    = fnd(r'class="entry-title"[^>]*>(.*?)</div>', entry)
                     spans = fall(r'<span>(.*?)</span>', entry)
@@ -1355,6 +1352,13 @@ def send_cv_email():
                     elif len(spans) == 1:
                         story.append(Paragraph(xs(st(spans[0])), sSub))
                     story.append(Spacer(1, 4))
+
+            elif 'LANGUAGE' in HTXT:
+                # Languages as plain text — no pill boxes
+                pills = fall(r'<span class="[^"]*skill-pill[^"]*">(.*?)</span>', block)
+                if pills:
+                    lang_text = '  ·  '.join([xs(st(p)) for p in pills])
+                    story.append(Paragraph(lang_text, sBody))
 
             else:
                 txt = st(block[:400])
