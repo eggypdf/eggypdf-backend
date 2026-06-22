@@ -1137,11 +1137,23 @@ def send_cv_email():
                 target_pt = 90
                 work_sz = 540
 
-                # Step 1: Center-crop to square FIRST (fixes distortion on portrait/landscape photos)
+                # Step 1: Position-aware crop to square using user's drag position
+                # photo_pos_x/y (0-100) tell us where the user positioned the image
                 w, h = pil.size
                 min_side = min(w, h)
-                left = (w - min_side) // 2
-                top  = (h - min_side) // 2
+                if w > h:
+                    # Landscape: slide horizontally based on pos_x
+                    max_offset = w - min_side
+                    left = int(max_offset * photo_pos_x / 100)
+                    top  = 0
+                elif h > w:
+                    # Portrait: slide vertically based on pos_y
+                    max_offset = h - min_side
+                    left = 0
+                    top  = int(max_offset * photo_pos_y / 100)
+                else:
+                    # Already square
+                    left, top = 0, 0
                 pil = pil.crop((left, top, left + min_side, top + min_side))
 
                 # Step 2: Resize to work size
