@@ -1133,60 +1133,52 @@ def send_cv_email():
                 from PIL import Image as _PIL, ImageDraw as _Draw
                 _, enc = photo_data.split(',', 1)
                 raw = base64.b64decode(enc)
-                pil = _PIL.open(io.BytesIO(raw)).convert('RGBA')
-                target_pt = 90
-                work_sz = 540
+                pil = _PIL.open(io.BytesIO(raw)).convert('RGB')
+                target_w = 70   # width in points
+                target_h = 85   # height in points (portrait ratio)
+                work_w   = 420  # 6x for quality
+                work_h   = 510
 
-                # Step 1: Position-aware crop to square using user's drag position
-                # photo_pos_x/y (0-100) tell us where the user positioned the image
+                # Crop to portrait ratio using position
                 w, h = pil.size
-                min_side = min(w, h)
-                if w > h:
-                    # Landscape: slide horizontally based on pos_x
-                    max_offset = w - min_side
+                target_ratio = target_w / target_h  # ~0.82
+                src_ratio = w / h
+
+                if src_ratio > target_ratio:
+                    # Image wider than needed — crop sides
+                    new_w = int(h * target_ratio)
+                    max_offset = w - new_w
                     left = int(max_offset * photo_pos_x / 100)
-                    top  = 0
-                elif h > w:
-                    # Portrait: slide vertically based on pos_y
-                    max_offset = h - min_side
-                    left = 0
-                    top  = int(max_offset * photo_pos_y / 100)
+                    pil = pil.crop((left, 0, left + new_w, h))
                 else:
-                    # Already square
-                    left, top = 0, 0
-                pil = pil.crop((left, top, left + min_side, top + min_side))
+                    # Image taller than needed — crop top/bottom
+                    new_h = int(w / target_ratio)
+                    max_offset = h - new_h
+                    top = int(max_offset * photo_pos_y / 100)
+                    pil = pil.crop((0, top, w, top + new_h))
 
-                # Step 2: Resize to work size
-                pil = pil.resize((work_sz, work_sz), _PIL.LANCZOS)
+                # Resize to work size with high quality
+                pil = pil.resize((work_w, work_h), _PIL.LANCZOS)
 
-                # Step 3: Circle mask
-                mask = _PIL.new('L', (work_sz, work_sz), 0)
-                _Draw.Draw(mask).ellipse((0, 0, work_sz, work_sz), fill=255)
-                circle = _PIL.new('RGBA', (work_sz, work_sz), (255,255,255,0))
-                circle.paste(pil, mask=mask)
+                # Add thin dark border
+                from PIL import ImageOps
+                pil = ImageOps.expand(pil, border=3, fill=(26, 26, 46))
 
-                # Step 4: Draw border inside the circle
-                _Draw.Draw(circle).ellipse((8, 8, work_sz-8, work_sz-8),
-                    outline=(26, 26, 46, 255), width=8)
-
-                # Step 5: Flatten to white background
-                final = _PIL.new('RGB', (work_sz, work_sz), (255,255,255))
-                final.paste(circle, mask=circle.split()[3])
-                final = final.resize((target_pt*3, target_pt*3), _PIL.LANCZOS)
+                # Resize to final output size
+                final = pil.resize((target_w*3, target_h*3), _PIL.LANCZOS)
                 cb = io.BytesIO()
                 final.save(cb, format='PNG')
                 cb.seek(0)
-                photo_img = RLImage(cb, width=target_pt, height=target_pt)
+                photo_img = RLImage(cb, width=target_w, height=target_h)
 
                 name_col = [Paragraph(xs(cv_name), sName)]
                 if cv_job: name_col.append(Paragraph(xs(cv_job), sJob))
                 # Exact column sizing: photo column = photo pt size + padding
-                photo_col_w = target_pt + 16
+                photo_col_w = target_w + 16
                 name_col_w  = doc.width - photo_col_w
-                # rowHeights prevents the cell from clipping the image bottom
                 tbl = Table([[photo_img, name_col]],
                             colWidths=[photo_col_w, name_col_w],
-                            rowHeights=[target_pt + 8])
+                            rowHeights=[target_h + 6])
                 tbl.setStyle(TableStyle([
                     ('VALIGN',        (0,0),(-1,-1), 'MIDDLE'),
                     ('LEFTPADDING',   (0,0),(0,0),    0),
