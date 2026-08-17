@@ -490,6 +490,19 @@ let langCount = 0;
 // ═══════════════════════════════════════
 const BACKEND = 'https://eggypdf-backend-ib0b.onrender.com';
 
+// ═══════════════════════════════════════
+// LEMON SQUEEZY — PAYMENT GATE CONFIG
+// Fill these in once your store + product are approved.
+// Store subdomain: from your store URL, e.g. "eggypdf" in eggypdf.lemonsqueezy.com
+// Variant ID: click Share on your product, copy the ID after /buy/ in the link
+// ═══════════════════════════════════════
+const LEMONSQUEEZY_STORE = 'YOUR-STORE-SUBDOMAIN';
+const LEMONSQUEEZY_VARIANT_ID = 'YOUR_VARIANT_ID';
+
+function generateSessionId(){
+  return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+}
+
 const summaryLib = {
   default: [
     "Results-driven professional with a proven track record of delivering high-quality work in fast-paced environments. Adept at problem-solving and cross-functional collaboration.",
@@ -1613,6 +1626,7 @@ const BREVO_API_KEY  = 'YOUR_BREVO_API_KEY_HERE';   // e.g. 'xkeysib-abc123...'
 const BREVO_LIST_ID  = 0;                             // e.g. 3  (your list number)
 
 function showDownloadModal(){
+  resetDownloadModal();
   document.getElementById('dlOverlay').classList.add('show');
   document.body.style.overflow = 'hidden';
   // Pre-fill email if user typed it before
@@ -1629,10 +1643,10 @@ function closeDlModal(e){
   if(e.target === document.getElementById('dlOverlay')) closeDownloadModal();
 }
 
-function downloadFree(){
-  closeDownloadModal();
-  downloadPDF();
-}
+// NOTE: the old "Download Without Email" free bypass has been removed —
+// it skipped payment entirely, which defeats the whole point of the gate.
+// If you ever want a free/watermarked sample tier, that's a separate
+// feature to design deliberately, not a leftover bypass button.
 
 async function submitEmailAndDownload(){
   const email = document.getElementById('dlEmailInput').value.trim();
@@ -1647,10 +1661,10 @@ async function submitEmailAndDownload(){
   }
 
   btn.disabled = true;
-  btn.textContent = 'Saving...';
+  btn.textContent = 'Redirecting to payment...';
   sessionStorage.setItem('eggy_email', email);
 
-  // ── Step 1: Save email to Brevo contact list ──
+  // ── Save email to Brevo contact list (still valuable pre-payment) ──
   try{
     if(BREVO_API_KEY !== 'YOUR_BREVO_API_KEY_HERE' && BREVO_LIST_ID !== 0){
       await fetch('https://api.brevo.com/v3/contacts', {
@@ -1666,7 +1680,61 @@ async function submitEmailAndDownload(){
     }
   } catch(e){ console.log('Brevo contact save:', e.message); }
 
-  // ── Step 2: Send CV to user email via backend ──
+  startResumeCheckout(email);
+}
+
+function startResumeCheckout(email){
+  const sessionId = generateSessionId();
+  sessionStorage.setItem('eggy_session_id', sessionId);
+
+  const checkoutUrl =
+    `https://${LEMONSQUEEZY_STORE}.lemonsqueezy.com/checkout/buy/${LEMONSQUEEZY_VARIANT_ID}` +
+    `?checkout[email]=${encodeURIComponent(email)}` +
+    `&checkout[custom][session_id]=${sessionId}`;
+
+  window.open(checkoutUrl, '_blank');
+
+  document.getElementById('dlFormWrap').style.display = 'none';
+  document.getElementById('dlWaiting').style.display = 'block';
+
+  pollForPayment(sessionId, email);
+}
+
+function pollForPayment(sessionId, email){
+  const maxAttempts = 100; // ~5 minutes at 3s intervals
+  let attempts = 0;
+
+  const interval = setInterval(async () => {
+    attempts++;
+    try{
+      const res = await fetch(BACKEND + '/check-payment/' + sessionId);
+      const data = await res.json();
+      if(data.paid){
+        clearInterval(interval);
+        await finishPaidDownload(email);
+        return;
+      }
+    } catch(e){ console.log('Payment check failed:', e.message); }
+
+    if(attempts >= maxAttempts){
+      clearInterval(interval);
+      document.getElementById('dlWaiting').style.display = 'none';
+      document.getElementById('dlTimeout').style.display = 'block';
+    }
+  }, 3000);
+}
+
+function retryPaymentCheck(){
+  const sessionId = sessionStorage.getItem('eggy_session_id');
+  const email = sessionStorage.getItem('eggy_email');
+  if(!sessionId || !email) return;
+  document.getElementById('dlTimeout').style.display = 'none';
+  document.getElementById('dlWaiting').style.display = 'block';
+  pollForPayment(sessionId, email);
+}
+
+async function finishPaidDownload(email){
+  // ── Send the CV to the user's email via backend (backup copy) ──
   try{
     const d = getData();
     const userName = [d.firstName, d.lastName].filter(Boolean).join(' ') || 'there';
@@ -1685,18 +1753,24 @@ async function submitEmailAndDownload(){
     });
   } catch(e){ console.log('Email send:', e.message); }
 
-  // ── Step 3: Show success and trigger local download ──
-  document.getElementById('dlFormWrap').style.display = 'none';
+  document.getElementById('dlWaiting').style.display = 'none';
   document.getElementById('dlSuccess').style.display = 'block';
 
   setTimeout(()=>{
     closeDownloadModal();
-    document.getElementById('dlFormWrap').style.display = 'block';
-    document.getElementById('dlSuccess').style.display = 'none';
-    btn.disabled = false;
-    btn.textContent = 'Send & Download';
+    resetDownloadModal();
     downloadPDF();
   }, 1800);
+}
+
+function resetDownloadModal(){
+  document.getElementById('dlFormWrap').style.display = 'block';
+  document.getElementById('dlWaiting').style.display = 'none';
+  document.getElementById('dlTimeout').style.display = 'none';
+  document.getElementById('dlSuccess').style.display = 'none';
+  const btn = document.getElementById('dlEmailBtn');
+  btn.disabled = false;
+  btn.textContent = 'Unlock PDF — $4.99';
 }
 
 // Close on Escape key
@@ -1717,28 +1791,38 @@ updatePreview();
 
     <div id="dlFormWrap">
       <span class="dl-egg">🥚</span>
-      <h2 class="dl-title">Email Me My CV</h2>
+      <h2 class="dl-title">Unlock Your Resume PDF</h2>
       <p class="dl-sub">
-        By adding your email you will get<br/>
-        early access of our upcoming<br/>
-        <strong>"AI Features"</strong>
+        One-time payment of <strong>$4.99</strong><br/>
+        Get your polished, ATS-friendly resume<br/>
+        as a downloadable PDF — instantly.
       </p>
 
       <div class="dl-error" id="dlError"></div>
       <div class="dl-email-row">
         <input type="email" id="dlEmailInput" class="dl-email-input" placeholder="your@email.com"/>
-        <button class="dl-email-btn" id="dlEmailBtn" onclick="submitEmailAndDownload()">Send & Download</button>
+        <button class="dl-email-btn" id="dlEmailBtn" onclick="submitEmailAndDownload()">Unlock PDF — $4.99</button>
       </div>
-      <p class="dl-benefit">✅ No spam, ever &nbsp;·&nbsp; Unsubscribe anytime</p>
+      <p class="dl-benefit">✅ Secure checkout &nbsp;·&nbsp; Instant download &nbsp;·&nbsp; No spam</p>
+    </div>
 
-      <div class="dl-divider">OR</div>
-      <button class="dl-free-btn" onclick="downloadFree()">Download Without Email</button>
+    <div class="dl-waiting" id="dlWaiting" style="display:none">
+      <span class="check-circle">⏳</span>
+      <p class="s1">Complete your payment in the new tab</p>
+      <p class="s2">Your PDF will unlock automatically here<br/>the moment payment is confirmed.</p>
+    </div>
+
+    <div class="dl-timeout" id="dlTimeout" style="display:none">
+      <span class="check-circle">⚠️</span>
+      <p class="s1">Still waiting on payment</p>
+      <p class="s2">If you already paid, click below to check again.<br/>Otherwise, close the payment tab and retry.</p>
+      <button class="dl-email-btn" onclick="retryPaymentCheck()">Check Again</button>
     </div>
 
     <div class="dl-success" id="dlSuccess">
       <span class="check-circle">🎉</span>
-      <p class="s1">You are on the early access list!</p>
-      <p class="s2">Your CV is downloading now.<br/>We will notify you first when AI features go live.</p>
+      <p class="s1">Payment confirmed!</p>
+      <p class="s2">Your resume PDF is downloading now.<br/>A copy is also on its way to your email.</p>
     </div>
 
   </div>
