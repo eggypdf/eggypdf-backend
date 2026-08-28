@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg"/>
+<link rel="icon" type="image/png" href="../egg.png"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Edit PDF Online Free – Add Text, Sign, Annotate | EggyPDF</title>
+<meta name="description" content="Edit PDF files online for free. Add text, draw signatures, highlight, add shapes, stamps and annotations. No sign up, no download needed."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;--text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;--bg:#f3f4f6;--white:#fff;--radius:10px;--tool-bg:#1a1a2e}
+body{font-family:'Inter',sans-serif;color:var(--text);background:var(--bg);min-height:100vh;overflow-x:hidden}
+a{text-decoration:none;color:inherit}
+
+/* HEADER */
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1rem;position:sticky;top:0;z-index:200}
+.header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;height:56px;gap:1rem}
+.logo{font-size:1.1rem;font-weight:700}.logo span{color:var(--brand)}
+.back-btn{font-size:13px;color:var(--muted);padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:var(--white);cursor:pointer;margin-left:auto}
+
+/* UPLOAD ZONE */
+.upload-zone{max-width:700px;margin:40px auto;padding:0 1rem}
+.upload-box{border:2.5px dashed var(--border);border-radius:16px;padding:52px 24px;text-align:center;background:var(--white);cursor:pointer;transition:all 0.2s}
+.upload-box:hover,.upload-box.drag{border-color:var(--brand);background:var(--brand-light)}
+.upload-icon{font-size:3rem;margin-bottom:14px}
+.upload-box h2{font-size:1.2rem;font-weight:700;margin-bottom:8px}
+.upload-box p{color:var(--muted);font-size:14px;margin-bottom:20px}
+.upload-btn{display:inline-block;background:var(--brand);color:#fff;padding:12px 28px;border-radius:50px;font-weight:700;font-size:14px;cursor:pointer;border:none}
+#fileInput{display:none}
+
+/* EDITOR LAYOUT */
+#editorWrap{display:none;height:calc(100vh - 56px)}
+.editor-layout{display:flex;height:100%}
+
+/* LEFT TOOLBAR */
+.toolbar{width:60px;background:var(--tool-bg);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px;flex-shrink:0;overflow-y:auto}
+.tool-btn{width:44px;height:44px;border-radius:8px;border:none;background:transparent;color:#9ca3af;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:18px;transition:all 0.15s;position:relative}
+.tool-btn:hover{background:rgba(255,255,255,0.1);color:#fff}
+.tool-btn.active{background:var(--brand);color:#fff}
+.tool-btn span{font-size:8px;margin-top:2px;line-height:1}
+.tool-sep{width:32px;height:1px;background:rgba(255,255,255,0.1);margin:4px 0}
+
+/* PROPERTIES PANEL */
+.props-panel{width:220px;background:var(--white);border-right:1px solid var(--border);padding:12px;overflow-y:auto;flex-shrink:0}
+.props-panel h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:10px}
+.prop-group{margin-bottom:16px}
+.prop-label{font-size:12px;color:var(--muted);margin-bottom:5px;display:block}
+.prop-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.prop-input{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;color:var(--text);outline:none}
+.prop-input:focus{border-color:var(--brand)}
+.prop-select{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;background:var(--white);cursor:pointer;outline:none}
+.color-row{display:flex;gap:6px;flex-wrap:wrap}
+.color-swatch{width:24px;height:24px;border-radius:5px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s}
+.color-swatch.active{border-color:var(--brand)}
+input[type=color]{width:32px;height:28px;border:1.5px solid var(--border);border-radius:5px;cursor:pointer;padding:1px}
+input[type=range]{width:100%;accent-color:var(--brand)}
+.prop-btn{width:100%;padding:8px;border-radius:7px;border:1.5px solid var(--border);background:var(--white);font-size:12px;font-weight:600;cursor:pointer;color:var(--text);transition:all 0.15s}
+.prop-btn:hover{border-color:var(--brand);color:var(--brand-dark)}
+.prop-btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.prop-btn.primary:hover{background:var(--brand-dark)}
+.prop-btn.danger{border-color:#ef4444;color:#ef4444}
+
+/* CANVAS AREA */
+.canvas-area{flex:1;overflow:auto;background:#525659;display:flex;flex-direction:column;align-items:center;padding:20px;gap:16px;position:relative}
+.page-container{position:relative;box-shadow:0 4px 24px rgba(0,0,0,0.4);cursor:crosshair}
+.page-container canvas{display:block}
+.anno-canvas{position:absolute;top:0;left:0;cursor:crosshair}
+
+/* RIGHT PANEL - PAGES */
+.pages-panel{width:120px;background:var(--white);border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;padding:10px}
+.pages-panel h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:10px;text-align:center}
+.page-thumb{border:2px solid var(--border);border-radius:6px;margin-bottom:8px;cursor:pointer;overflow:hidden;transition:border-color 0.15s}
+.page-thumb:hover,.page-thumb.active{border-color:var(--brand)}
+.page-thumb canvas{width:100%;display:block}
+.page-num{font-size:10px;text-align:center;color:var(--muted);padding:3px 0}
+
+/* TOP BAR */
+.top-bar{background:var(--white);border-bottom:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.top-bar-btn{padding:7px 14px;border-radius:7px;border:1.5px solid var(--border);background:var(--white);font-size:13px;font-weight:600;cursor:pointer;color:var(--text);transition:all 0.15s;display:flex;align-items:center;gap:5px}
+.top-bar-btn:hover{border-color:var(--brand);color:var(--brand-dark)}
+.top-bar-btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.top-bar-btn.primary:hover{background:var(--brand-dark)}
+.zoom-info{font-size:13px;color:var(--muted);padding:0 8px}
+.page-info{font-size:13px;color:var(--muted);margin-left:auto}
+
+/* SIGNATURE PAD */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--white);border-radius:14px;padding:24px;width:500px;max-width:95vw}
+.modal h3{font-size:1rem;font-weight:700;margin-bottom:16px}
+.sig-tabs{display:flex;gap:8px;margin-bottom:16px}
+.sig-tab{padding:8px 16px;border-radius:7px;border:1.5px solid var(--border);background:var(--white);font-size:13px;font-weight:600;cursor:pointer}
+.sig-tab.active{background:var(--brand);border-color:var(--brand);color:#fff}
+#sigCanvas{border:1.5px solid var(--border);border-radius:8px;cursor:crosshair;touch-action:none}
+.sig-type-input{width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:24px;font-family:'Dancing Script',cursive,serif;text-align:center;outline:none}
+.modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+
+/* STAMP PICKER */
+.stamp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.stamp-item{padding:10px 6px;border:1.5px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;font-size:11px;font-weight:700;transition:all 0.15s}
+.stamp-item:hover{border-color:var(--brand)}
+
+/* TOOLTIP */
+.tippy{position:absolute;left:62px;background:var(--text);color:#fff;font-size:11px;padding:4px 8px;border-radius:5px;white-space:nowrap;pointer-events:none;z-index:300;opacity:0;transition:opacity 0.15s}
+.tool-btn:hover .tippy{opacity:1}
+
+@media(max-width:768px){
+  .props-panel{display:none}
+  .pages-panel{display:none}
+  .toolbar{width:48px}
+  .tool-btn{width:38px;height:38px;font-size:16px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="../index.html" class="logo">Eggy<span>PDF</span></a>
+    <span style="font-size:14px;font-weight:600;color:var(--muted)">Edit PDF</span>
+    <button class="back-btn" onclick="history.back()">← Back</button>
+  </div>
+</header>
+
+<!-- UPLOAD -->
+<div class="upload-zone" id="uploadZone">
+  <div class="upload-box" id="dropZone">
+    <div class="upload-icon">✏️</div>
+    <h2>Edit Your PDF</h2>
+    <p>Add text, signatures, highlights, shapes, stamps and more.<br/>All edits happen in your browser — nothing is uploaded to any server.</p>
+    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">📂 Choose PDF File</button>
+    <p style="margin-top:12px;font-size:12px;color:var(--muted)">or drag and drop your PDF here</p>
+  </div>
+  <input type="file" id="fileInput" accept=".pdf"/>
+</div>
+
+<!-- EDITOR -->
+<div id="editorWrap">
+  <div style="display:flex;flex-direction:column;height:100%">
+
+    <!-- TOP BAR -->
+    <div class="top-bar">
+      <button class="top-bar-btn" onclick="document.getElementById('fileInput').click()">📂 Open New PDF</button>
+      <button class="top-bar-btn" onclick="changeZoom(-0.25)">🔍−</button>
+      <span class="zoom-info" id="zoomInfo">100%</span>
+      <button class="top-bar-btn" onclick="changeZoom(0.25)">🔍+</button>
+      <button class="top-bar-btn" onclick="undoAction()">↩️ Undo</button>
+      <button class="top-bar-btn" onclick="redoAction()">↪️ Redo</button>
+      <button class="top-bar-btn" onclick="clearPage()">🗑️ Clear Page</button>
+      <button class="top-bar-btn primary" onclick="savePDF()">⬇️ Download Edited PDF</button>
+      <span class="page-info" id="pageInfo">Page 1 of 1</span>
+    </div>
+
+    <div class="editor-layout" style="flex:1;overflow:hidden">
+
+      <!-- LEFT TOOLBAR -->
+      <div class="toolbar">
+        <button class="tool-btn active" id="btn-select" onclick="setTool('select')" title="Select">
+          🖱️<span>Select</span><span class="tippy">Select & Move</span>
+        </button>
+        <div class="tool-sep"></div>
+
+        <button class="tool-btn" id="btn-text" onclick="setTool('text')" title="Add Text">
+          T<span>Text</span><span class="tippy">Add Text</span>
+        </button>
+        <button class="tool-btn" id="btn-freetext" onclick="setTool('freetext')" title="Free Text Box">
+          📝<span>Note</span><span class="tippy">Text Box</span>
+        </button>
+        <div class="tool-sep"></div>
+
+        <button class="tool-btn" id="btn-draw" onclick="setTool('draw')" title="Draw">
+          ✏️<span>Draw</span><span class="tippy">Free Draw</span>
+        </button>
+        <button class="tool-btn" id="btn-highlight" onclick="setTool('highlight')" title="Highlight">
+          🖊️<span>Hi-lite</span><span class="tippy">Highlight</span>
+        </button>
+        <button class="tool-btn" id="btn-eraser" onclick="setTool('eraser')" title="Eraser">
+          ⬜<span>Erase</span><span class="tippy">Eraser</span>
+        </button>
+        <div class="tool-sep"></div>
+
+        <button class="tool-btn" id="btn-line" onclick="setTool('line')" title="Line">
+          ╱<span>Line</span><span class="tippy">Draw Line</span>
+        </button>
+        <button class="tool-btn" id="btn-rect" onclick="setTool('rect')" title="Rectangle">
+          □<span>Rect</span><span class="tippy">Rectangle</span>
+        </button>
+        <button class="tool-btn" id="btn-circle" onclick="setTool('circle')" title="Circle">
+          ○<span>Circle</span><span class="tippy">Circle</span>
+        </button>
+        <button class="tool-btn" id="btn-arrow" onclick="setTool('arrow')" title="Arrow">
+          →<span>Arrow</span><span class="tippy">Arrow</span>
+        </button>
+        <div class="tool-sep"></div>
+
+        <button class="tool-btn" id="btn-signature" onclick="openSignatureModal()" title="Signature">
+          ✍️<span>Sign</span><span class="tippy">Add Signature</span>
+        </button>
+        <button class="tool-btn" id="btn-image" onclick="document.getElementById('imgInput').click()" title="Image">
+          🖼️<span>Image</span><span class="tippy">Add Image</span>
+        </button>
+        <button class="tool-btn" id="btn-stamp" onclick="toggleStampPicker()" title="Stamp">
+          🔖<span>Stamp</span><span class="tippy">Add Stamp</span>
+        </button>
+        <div class="tool-sep"></div>
+
+        <button class="tool-btn" id="btn-whiteout" onclick="setTool('whiteout')" title="Whiteout">
+          ▪️<span>Wipeout</span><span class="tippy">White Out</span>
+        </button>
+      </div>
+
+      <!-- PROPERTIES PANEL -->
+      <div class="props-panel" id="propsPanel">
+        <h4 id="propTitle">Properties</h4>
+
+        <!-- Text props -->
+        <div id="textProps" class="prop-group">
+          <span class="prop-label">Font Size</span>
+          <input type="range" min="8" max="72" value="16" id="fontSize" oninput="updateProp()"/>
+          <div class="prop-row"><span id="fontSizeVal" style="font-size:12px;color:var(--muted)">16px</span></div>
+
+          <span class="prop-label">Font Family</span>
+          <select class="prop-select" id="fontFamily" onchange="updateProp()">
+            <option value="Arial">Arial</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Courier New">Courier New</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Verdana">Verdana</option>
+          </select>
+
+          <span class="prop-label" style="margin-top:10px;display:block">Style</span>
+          <div class="prop-row">
+            <button class="prop-btn" id="btnBold" onclick="toggleBold()" style="font-weight:700">B</button>
+            <button class="prop-btn" id="btnItalic" onclick="toggleItalic()" style="font-style:italic">I</button>
+            <button class="prop-btn" id="btnUnder" onclick="toggleUnderline()">U̲</button>
+          </div>
+        </div>
+
+        <!-- Color -->
+        <div class="prop-group">
+          <span class="prop-label">Color</span>
+          <div class="color-row">
+            <div class="color-swatch active" style="background:#1a1a2e" onclick="setColor('#1a1a2e',this)"></div>
+            <div class="color-swatch" style="background:#ef4444" onclick="setColor('#ef4444',this)"></div>
+            <div class="color-swatch" style="background:#3b82f6" onclick="setColor('#3b82f6',this)"></div>
+            <div class="color-swatch" style="background:#22c55e" onclick="setColor('#22c55e',this)"></div>
+            <div class="color-swatch" style="background:#f5a623" onclick="setColor('#f5a623',this)"></div>
+            <div class="color-swatch" style="background:#a855f7" onclick="setColor('#a855f7',this)"></div>
+            <div class="color-swatch" style="background:#ffffff;border:1px solid #e5e7eb" onclick="setColor('#ffffff',this)"></div>
+            <input type="color" id="customColor" value="#1a1a2e" onchange="setColor(this.value,null)"/>
+          </div>
+        </div>
+
+        <!-- Stroke/Opacity -->
+        <div class="prop-group" id="strokeProps">
+          <span class="prop-label">Stroke Width</span>
+          <input type="range" min="1" max="20" value="2" id="strokeWidth" oninput="updateProp()"/>
+          <div class="prop-row"><span id="strokeVal" style="font-size:12px;color:var(--muted)">2px</span></div>
+
+          <span class="prop-label">Opacity</span>
+          <input type="range" min="10" max="100" value="100" id="opacityVal" oninput="updateProp()"/>
+          <div class="prop-row"><span id="opacityDisp" style="font-size:12px;color:var(--muted)">100%</span></div>
+        </div>
+
+        <!-- Fill -->
+        <div class="prop-group" id="fillProps">
+          <span class="prop-label">Fill Color</span>
+          <div class="color-row">
+            <div class="color-swatch" style="background:transparent;border:1px dashed #9ca3af" onclick="setFill('transparent',this)" title="No fill"></div>
+            <div class="color-swatch active" style="background:#fef3c7" onclick="setFill('#fef3c7',this)"></div>
+            <div class="color-swatch" style="background:#dbeafe" onclick="setFill('#dbeafe',this)"></div>
+            <div class="color-swatch" style="background:#dcfce7" onclick="setFill('#dcfce7',this)"></div>
+            <div class="color-swatch" style="background:#fce7f3" onclick="setFill('#fce7f3',this)"></div>
+            <input type="color" id="fillColor" value="#fef3c7" onchange="setFill(this.value,null)"/>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="prop-group">
+          <button class="prop-btn danger" onclick="deleteSelected()" style="margin-bottom:6px">🗑️ Delete Selected</button>
+          <button class="prop-btn" onclick="duplicateSelected()">📋 Duplicate</button>
+          <button class="prop-btn" style="margin-top:6px" onclick="bringForward()">⬆️ Bring Forward</button>
+          <button class="prop-btn" onclick="sendBackward()">⬇️ Send Backward</button>
+        </div>
+      </div>
+
+      <!-- CANVAS AREA -->
+      <div class="canvas-area" id="canvasArea">
+        <!-- Pages rendered here by JS -->
+      </div>
+
+      <!-- PAGES PANEL -->
+      <div class="pages-panel" id="pagesPanel">
+        <h4>Pages</h4>
+        <div id="pageThumbList"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- STAMP PICKER -->
+<div id="stampPicker" style="display:none;position:fixed;z-index:400;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.15);width:260px">
+  <h4 style="font-size:13px;font-weight:700;margin-bottom:12px">Choose Stamp</h4>
+  <div class="stamp-grid">
+    <div class="stamp-item" style="color:#22c55e;border-color:#22c55e" onclick="addStamp('APPROVED')">✅ APPROVED</div>
+    <div class="stamp-item" style="color:#ef4444;border-color:#ef4444" onclick="addStamp('REJECTED')">❌ REJECTED</div>
+    <div class="stamp-item" style="color:#3b82f6;border-color:#3b82f6" onclick="addStamp('REVIEWED')">🔵 REVIEWED</div>
+    <div class="stamp-item" style="color:#f5a623;border-color:#f5a623" onclick="addStamp('DRAFT')">📝 DRAFT</div>
+    <div class="stamp-item" style="color:#a855f7;border-color:#a855f7" onclick="addStamp('CONFIDENTIAL')">🔒 CONFIDENTIAL</div>
+    <div class="stamp-item" style="color:#ef4444;border-color:#ef4444" onclick="addStamp('URGENT')">🔴 URGENT</div>
+    <div class="stamp-item" style="color:#22c55e;border-color:#22c55e" onclick="addStamp('PAID')">💰 PAID</div>
+    <div class="stamp-item" style="color:#6b7280;border-color:#6b7280" onclick="addStamp('VOID')">⊘ VOID</div>
+    <div class="stamp-item" style="color:#3b82f6;border-color:#3b82f6" onclick="addStamp('COPY')">📋 COPY</div>
+  </div>
+  <button onclick="document.getElementById('stampPicker').style.display='none'" style="margin-top:12px;width:100%;padding:8px;border-radius:7px;border:1px solid var(--border);background:var(--white);cursor:pointer;font-size:13px">Close</button>
+</div>
+
+<!-- SIGNATURE MODAL -->
+<div class="modal-overlay" id="sigModal">
+  <div class="modal">
+    <h3>✍️ Add Signature</h3>
+    <div class="sig-tabs">
+      <button class="sig-tab active" onclick="setSigTab('draw',this)">Draw</button>
+      <button class="sig-tab" onclick="setSigTab('type',this)">Type</button>
+    </div>
+    <div id="sigDrawPanel">
+      <canvas id="sigCanvas" width="440" height="160" style="width:100%;max-width:440px"></canvas>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <select class="prop-select" id="sigColor" style="width:auto">
+          <option value="#1a1a2e">Black</option>
+          <option value="#1d4ed8">Blue</option>
+          <option value="#ef4444">Red</option>
+        </select>
+        <button class="prop-btn" onclick="clearSigCanvas()">Clear</button>
+      </div>
+    </div>
+    <div id="sigTypePanel" style="display:none">
+      <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Pacifico&family=Caveat:wght@700&display=swap" rel="stylesheet"/>
+      <input type="text" class="sig-type-input" id="sigTypeText" placeholder="Type your signature..." style="font-family:'Dancing Script',cursive"/>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="prop-btn" onclick="setSigFont('Dancing Script')" style="font-family:'Dancing Script',cursive;font-size:14px">Script</button>
+        <button class="prop-btn" onclick="setSigFont('Pacifico')" style="font-family:'Pacifico',cursive;font-size:14px">Pacifico</button>
+        <button class="prop-btn" onclick="setSigFont('Caveat')" style="font-family:'Caveat',cursive;font-size:14px">Casual</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="prop-btn" onclick="closeSignatureModal()">Cancel</button>
+      <button class="prop-btn primary" onclick="insertSignature()">Insert Signature</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="imgInput" accept="image/*" style="display:none"/>
+
+<!-- PDF.js + fabric.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
+// ── State ──
+let pdfDoc = null;
+let pages = [];          // {canvas, fabricCanvas} per page
+let currentPage = 1;
+let zoom = 1.0;
+let currentTool = 'select';
+let currentColor = '#1a1a2e';
+let currentFill = '#fef3c7';
+let isBold = false;
+let isItalic = false;
+let isUnderline = false;
+let sigMode = 'draw';
+let sigFont = 'Dancing Script';
+let history = [];
+let redoStack = [];
+let activeFabric = null;
+
+// Signature canvas
+let sigCtx, sigDrawing = false, sigLastX, sigLastY;
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── File Input ──
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(file && file.type === 'application/pdf') loadPDF(file);
+});
+
+// Drag & Drop
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if(file && file.type === 'application/pdf') loadPDF(file);
+});
+
+// ── Load PDF ──
+async function loadPDF(file){
+  const arrayBuffer = await file.arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+  pages = [];
+  document.getElementById('canvasArea').innerHTML = '';
+  document.getElementById('pageThumbList').innerHTML = '';
+  document.getElementById('uploadZone').style.display = 'none';
+  document.getElementById('editorWrap').style.display = 'block';
+  document.getElementById('pageInfo').textContent = `Page 1 of ${pdfDoc.numPages}`;
+
+  for(let i = 1; i <= pdfDoc.numPages; i++){
+    await renderPage(i);
+  }
+  currentPage = 1;
+  updatePageInfo();
+}
+
+async function renderPage(pageNum){
+  const page = await pdfDoc.getPage(pageNum);
+  const viewport = page.getViewport({scale: zoom * 1.5});
+
+  // PDF canvas
+  const pdfCanvas = document.createElement('canvas');
+  pdfCanvas.width = viewport.width;
+  pdfCanvas.height = viewport.height;
+  await page.render({canvasContext: pdfCanvas.getContext('2d'), viewport}).promise;
+
+  // Container
+  const container = document.createElement('div');
+  container.className = 'page-container';
+  container.style.width = viewport.width + 'px';
+  container.style.height = viewport.height + 'px';
+  container.dataset.pageNum = pageNum;
+  container.appendChild(pdfCanvas);
+
+  // Fabric canvas overlay
+  const fabricEl = document.createElement('canvas');
+  fabricEl.className = 'anno-canvas';
+  fabricEl.width = viewport.width;
+  fabricEl.height = viewport.height;
+  container.appendChild(fabricEl);
+  document.getElementById('canvasArea').appendChild(container);
+
+  const fabricCanvas = new fabric.Canvas(fabricEl, {
+    width: viewport.width,
+    height: viewport.height,
+    selection: true,
+    preserveObjectStacking: true
+  });
+
+  setupFabricEvents(fabricCanvas, pageNum);
+
+  pages.push({pdfCanvas, fabricCanvas, container, viewport});
+
+  // Thumbnail
+  const thumb = document.createElement('div');
+  thumb.className = 'page-thumb' + (pageNum === 1 ? ' active' : '');
+  thumb.dataset.pageNum = pageNum;
+  const thumbCanvas = document.createElement('canvas');
+  const thumbVp = page.getViewport({scale: 0.15});
+  thumbCanvas.width = thumbVp.width;
+  thumbCanvas.height = thumbVp.height;
+  await page.render({canvasContext: thumbCanvas.getContext('2d'), viewport: thumbVp}).promise;
+  thumb.appendChild(thumbCanvas);
+  const num = document.createElement('div');
+  num.className = 'page-num';
+  num.textContent = pageNum;
+  thumb.appendChild(num);
+  thumb.onclick = () => scrollToPage(pageNum);
+  document.getElementById('pageThumbList').appendChild(thumb);
+
+  if(pageNum === 1) activeFabric = fabricCanvas;
+}
+
+// ── Fabric Events ──
+function setupFabricEvents(fc, pageNum){
+  let isDrawingShape = false;
+  let startX, startY, activeShape;
+
+  fc.on('mouse:down', opt => {
+    activeFabric = fc;
+    currentPage = pageNum;
+    updatePageInfo();
+
+    const pointer = fc.getPointer(opt.e);
+    startX = pointer.x;
+    startY = pointer.y;
+
+    if(currentTool === 'text'){
+      addText(fc, pointer.x, pointer.y);
+    } else if(currentTool === 'freetext'){
+      addTextBox(fc, pointer.x, pointer.y);
+    } else if(['rect','circle','line','arrow'].includes(currentTool)){
+      isDrawingShape = true;
+      fc.selection = false;
+      activeShape = createShape(fc, pointer.x, pointer.y);
+      if(activeShape) fc.add(activeShape);
+    } else if(currentTool === 'whiteout'){
+      const rect = new fabric.Rect({
+        left: pointer.x, top: pointer.y,
+        width: 1, height: 1,
+        fill: '#ffffff', stroke: 'transparent',
+        selectable: true
+      });
+      fc.add(rect);
+      activeShape = rect;
+      isDrawingShape = true;
+    }
+  });
+
+  fc.on('mouse:move', opt => {
+    if(!isDrawingShape || !activeShape) return;
+    const pointer = fc.getPointer(opt.e);
+    const w = pointer.x - startX;
+    const h = pointer.y - startY;
+
+    if(currentTool === 'rect' || currentTool === 'whiteout'){
+      activeShape.set({
+        width: Math.abs(w), height: Math.abs(h),
+        left: w < 0 ? pointer.x : startX,
+        top: h < 0 ? pointer.y : startY
+      });
+    } else if(currentTool === 'circle'){
+      const r = Math.sqrt(w*w + h*h) / 2;
+      activeShape.set({rx: Math.abs(w)/2, ry: Math.abs(h)/2,
+        left: Math.min(startX, pointer.x), top: Math.min(startY, pointer.y),
+        width: Math.abs(w), height: Math.abs(h)});
+    } else if(currentTool === 'line'){
+      activeShape.set({x2: pointer.x, y2: pointer.y});
+    } else if(currentTool === 'arrow'){
+      activeShape.set({x2: pointer.x, y2: pointer.y});
+    }
+    fc.renderAll();
+  });
+
+  fc.on('mouse:up', () => {
+    if(isDrawingShape){
+      isDrawingShape = false;
+      activeShape = null;
+      fc.selection = true;
+      saveHistory();
+    }
+  });
+
+  fc.on('object:modified', saveHistory);
+  fc.on('object:added', () => {});
+}
+
+function createShape(fc, x, y){
+  const stroke = currentColor;
+  const sw = parseInt(document.getElementById('strokeWidth').value);
+  const fill = currentFill;
+  const op = parseInt(document.getElementById('opacityVal').value) / 100;
+
+  const base = {stroke, strokeWidth: sw, fill, opacity: op, selectable: true};
+
+  if(currentTool === 'rect') return new fabric.Rect({...base, left:x, top:y, width:1, height:1});
+  if(currentTool === 'circle') return new fabric.Ellipse({...base, left:x, top:y, rx:1, ry:1, width:2, height:2});
+  if(currentTool === 'line') return new fabric.Line([x,y,x,y], {...base, fill:'transparent'});
+  if(currentTool === 'arrow') return new fabric.Line([x,y,x,y], {...base, fill:'transparent'});
+  return null;
+}
+
+// ── Tools ──
+function setTool(tool){
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('btn-'+tool);
+  if(btn) btn.classList.add('active');
+
+  pages.forEach(({fabricCanvas}) => {
+    fabricCanvas.isDrawingMode = (tool === 'draw' || tool === 'highlight' || tool === 'eraser');
+    if(fabricCanvas.isDrawingMode){
+      const sw = parseInt(document.getElementById('strokeWidth').value);
+      if(tool === 'eraser'){
+        fabricCanvas.freeDrawingBrush = new fabric.EraserBrush(fabricCanvas);
+        fabricCanvas.freeDrawingBrush.width = sw * 5;
+      } else {
+        fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
+        fabricCanvas.freeDrawingBrush.color = tool === 'highlight'
+          ? hexToRgba(currentColor, 0.35) : currentColor;
+        fabricCanvas.freeDrawingBrush.width = tool === 'highlight' ? sw * 6 : sw;
+      }
+    }
+    fabricCanvas.selection = (tool === 'select');
+    fabricCanvas.defaultCursor = tool === 'select' ? 'default' : 'crosshair';
+  });
+}
+
+function hexToRgba(hex, alpha){
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── Add Text ──
+function addText(fc, x, y){
+  const size = parseInt(document.getElementById('fontSize').value);
+  const family = document.getElementById('fontFamily').value;
+  const t = new fabric.IText('Click to edit text', {
+    left: x, top: y,
+    fontSize: size,
+    fontFamily: family,
+    fill: currentColor,
+    fontWeight: isBold ? 'bold' : 'normal',
+    fontStyle: isItalic ? 'italic' : 'normal',
+    underline: isUnderline,
+    opacity: parseInt(document.getElementById('opacityVal').value) / 100,
+    editable: true,
+    selectable: true
+  });
+  fc.add(t);
+  fc.setActiveObject(t);
+  t.enterEditing();
+  t.selectAll();
+  saveHistory();
+}
+
+function addTextBox(fc, x, y){
+  const size = parseInt(document.getElementById('fontSize').value);
+  const t = new fabric.Textbox('Text box — click to edit', {
+    left: x, top: y, width: 200,
+    fontSize: size,
+    fontFamily: document.getElementById('fontFamily').value,
+    fill: currentColor,
+    backgroundColor: currentFill === 'transparent' ? '' : currentFill,
+    fontWeight: isBold ? 'bold' : 'normal',
+    editable: true, selectable: true
+  });
+  fc.add(t);
+  fc.setActiveObject(t);
+  saveHistory();
+}
+
+// ── Color & Props ──
+function setColor(hex, el){
+  currentColor = hex;
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  if(el) el.classList.add('active');
+  document.getElementById('customColor').value = hex;
+
+  if(activeFabric){
+    const obj = activeFabric.getActiveObject();
+    if(obj){ obj.set('fill', hex); activeFabric.renderAll(); }
+    if(activeFabric.isDrawingMode){
+      activeFabric.freeDrawingBrush.color = currentTool === 'highlight'
+        ? hexToRgba(hex, 0.35) : hex;
+    }
+  }
+}
+
+function setFill(hex, el){
+  currentFill = hex;
+  document.querySelectorAll('#fillProps .color-swatch').forEach(s => s.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(activeFabric){
+    const obj = activeFabric.getActiveObject();
+    if(obj){ obj.set('fill', hex); activeFabric.renderAll(); }
+  }
+}
+
+function updateProp(){
+  const sz = document.getElementById('fontSize').value;
+  document.getElementById('fontSizeVal').textContent = sz + 'px';
+  const sw = document.getElementById('strokeWidth').value;
+  document.getElementById('strokeVal').textContent = sw + 'px';
+  const op = document.getElementById('opacityVal').value;
+  document.getElementById('opacityDisp').textContent = op + '%';
+
+  if(activeFabric){
+    const obj = activeFabric.getActiveObject();
+    if(obj){
+      obj.set({fontSize: parseInt(sz), strokeWidth: parseInt(sw), opacity: parseInt(op)/100});
+      activeFabric.renderAll();
+    }
+    if(activeFabric.freeDrawingBrush) activeFabric.freeDrawingBrush.width = parseInt(sw);
+  }
+}
+
+function toggleBold(){
+  isBold = !isBold;
+  document.getElementById('btnBold').style.background = isBold ? 'var(--brand)' : '';
+  document.getElementById('btnBold').style.color = isBold ? '#fff' : '';
+  if(activeFabric){ const o = activeFabric.getActiveObject(); if(o){ o.set('fontWeight', isBold?'bold':'normal'); activeFabric.renderAll(); }}
+}
+function toggleItalic(){
+  isItalic = !isItalic;
+  document.getElementById('btnItalic').style.background = isItalic ? 'var(--brand)' : '';
+  document.getElementById('btnItalic').style.color = isItalic ? '#fff' : '';
+  if(activeFabric){ const o = activeFabric.getActiveObject(); if(o){ o.set('fontStyle', isItalic?'italic':'normal'); activeFabric.renderAll(); }}
+}
+function toggleUnderline(){
+  isUnderline = !isUnderline;
+  document.getElementById('btnUnder').style.background = isUnderline ? 'var(--brand)' : '';
+  document.getElementById('btnUnder').style.color = isUnderline ? '#fff' : '';
+  if(activeFabric){ const o = activeFabric.getActiveObject(); if(o){ o.set('underline', isUnderline); activeFabric.renderAll(); }}
+}
+
+// ── Stamps ──
+function toggleStampPicker(){
+  const p = document.getElementById('stampPicker');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  const btn = document.getElementById('btn-stamp');
+  const rect = btn.getBoundingClientRect();
+  p.style.top = rect.top + 'px';
+  p.style.left = (rect.right + 8) + 'px';
+}
+
+function addStamp(label){
+  document.getElementById('stampPicker').style.display = 'none';
+  if(!activeFabric) return;
+  const colors = {
+    APPROVED:'#22c55e', REJECTED:'#ef4444', REVIEWED:'#3b82f6',
+    DRAFT:'#f5a623', CONFIDENTIAL:'#a855f7', URGENT:'#ef4444',
+    PAID:'#22c55e', VOID:'#6b7280', COPY:'#3b82f6'
+  };
+  const color = colors[label] || '#1a1a2e';
+  const rect = new fabric.Rect({width:140, height:44, rx:4, ry:4, fill:'transparent', stroke:color, strokeWidth:2.5, left:80, top:80});
+  const text = new fabric.Text(label, {fontSize:18, fontWeight:'900', fill:color, fontFamily:'Arial', left:80+70, top:80+22, originX:'center', originY:'center'});
+  const group = new fabric.Group([rect, text], {left:80, top:80, selectable:true});
+  activeFabric.add(group);
+  activeFabric.setActiveObject(group);
+  saveHistory();
+}
+
+// ── Image Upload ──
+document.getElementById('imgInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(!file || !activeFabric) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    fabric.Image.fromURL(ev.target.result, img => {
+      img.scaleToWidth(200);
+      img.set({left:80, top:80, selectable:true});
+      activeFabric.add(img);
+      activeFabric.setActiveObject(img);
+      saveHistory();
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
+// ── Signature ──
+function openSignatureModal(){
+  document.getElementById('sigModal').classList.add('show');
+  initSigCanvas();
+}
+function closeSignatureModal(){
+  document.getElementById('sigModal').classList.remove('show');
+}
+function setSigTab(mode, btn){
+  sigMode = mode;
+  document.querySelectorAll('.sig-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('sigDrawPanel').style.display = mode === 'draw' ? 'block' : 'none';
+  document.getElementById('sigTypePanel').style.display = mode === 'type' ? 'block' : 'none';
+}
+function setSigFont(font){
+  sigFont = font;
+  document.getElementById('sigTypeText').style.fontFamily = font;
+}
+function initSigCanvas(){
+  const c = document.getElementById('sigCanvas');
+  sigCtx = c.getContext('2d');
+  sigCtx.clearRect(0,0,c.width,c.height);
+  sigCtx.strokeStyle = document.getElementById('sigColor').value;
+  sigCtx.lineWidth = 2.5;
+  sigCtx.lineCap = 'round';
+
+  c.onmousedown = e => { sigDrawing = true; const r = c.getBoundingClientRect(); sigLastX = e.clientX - r.left; sigLastY = e.clientY - r.top; };
+  c.onmousemove = e => {
+    if(!sigDrawing) return;
+    const r = c.getBoundingClientRect();
+    sigCtx.beginPath();
+    sigCtx.moveTo(sigLastX, sigLastY);
+    sigLastX = e.clientX - r.left; sigLastY = e.clientY - r.top;
+    sigCtx.lineTo(sigLastX, sigLastY);
+    sigCtx.stroke();
+  };
+  c.onmouseup = c.onmouseleave = () => sigDrawing = false;
+
+  // Touch
+  c.ontouchstart = e => { e.preventDefault(); const t = e.touches[0]; const r = c.getBoundingClientRect(); sigDrawing = true; sigLastX = t.clientX-r.left; sigLastY = t.clientY-r.top; };
+  c.ontouchmove = e => {
+    e.preventDefault();
+    if(!sigDrawing) return;
+    const t = e.touches[0]; const r = c.getBoundingClientRect();
+    sigCtx.beginPath(); sigCtx.moveTo(sigLastX, sigLastY);
+    sigLastX = t.clientX-r.left; sigLastY = t.clientY-r.top;
+    sigCtx.lineTo(sigLastX, sigLastY); sigCtx.stroke();
+  };
+  c.ontouchend = () => sigDrawing = false;
+}
+function clearSigCanvas(){
+  const c = document.getElementById('sigCanvas');
+  sigCtx.clearRect(0,0,c.width,c.height);
+}
+function insertSignature(){
+  if(!activeFabric){ closeSignatureModal(); return; }
+  if(sigMode === 'draw'){
+    const c = document.getElementById('sigCanvas');
+    const dataURL = c.toDataURL();
+    fabric.Image.fromURL(dataURL, img => {
+      img.scaleToWidth(180);
+      img.set({left:80, top:80, selectable:true});
+      activeFabric.add(img);
+      activeFabric.setActiveObject(img);
+      saveHistory();
+    });
+  } else {
+    const txt = document.getElementById('sigTypeText').value || 'Signature';
+    const t = new fabric.Text(txt, {
+      left:80, top:80, fontSize:36, fontFamily:sigFont,
+      fill: document.getElementById('sigColor').value, selectable:true
+    });
+    activeFabric.add(t);
+    activeFabric.setActiveObject(t);
+    saveHistory();
+  }
+  closeSignatureModal();
+}
+
+// ── Edit Actions ──
+function deleteSelected(){
+  if(!activeFabric) return;
+  const obj = activeFabric.getActiveObjects();
+  obj.forEach(o => activeFabric.remove(o));
+  activeFabric.discardActiveObject();
+  activeFabric.renderAll();
+  saveHistory();
+}
+function duplicateSelected(){
+  if(!activeFabric) return;
+  const obj = activeFabric.getActiveObject();
+  if(!obj) return;
+  obj.clone(cloned => {
+    cloned.set({left: obj.left + 20, top: obj.top + 20});
+    activeFabric.add(cloned);
+    activeFabric.setActiveObject(cloned);
+    activeFabric.renderAll();
+    saveHistory();
+  });
+}
+function bringForward(){
+  if(!activeFabric) return;
+  const obj = activeFabric.getActiveObject();
+  if(obj){ activeFabric.bringForward(obj); activeFabric.renderAll(); }
+}
+function sendBackward(){
+  if(!activeFabric) return;
+  const obj = activeFabric.getActiveObject();
+  if(obj){ activeFabric.sendBackwards(obj); activeFabric.renderAll(); }
+}
+function clearPage(){
+  if(!activeFabric) return;
+  if(confirm('Clear all annotations on this page?')){
+    activeFabric.clear();
+    activeFabric.renderAll();
+    saveHistory();
+  }
+}
+
+// ── Zoom ──
+function changeZoom(delta){
+  zoom = Math.min(3, Math.max(0.5, zoom + delta));
+  document.getElementById('zoomInfo').textContent = Math.round(zoom * 100) + '%';
+  // Re-render all pages at new zoom
+  if(pdfDoc){
+    const file = document.getElementById('fileInput').files[0];
+    if(file) loadPDF(file);
+  }
+}
+
+// ── History ──
+function saveHistory(){
+  if(!activeFabric) return;
+  const state = JSON.stringify(activeFabric.toJSON());
+  history.push({pageIdx: currentPage-1, state});
+  redoStack = [];
+}
+function undoAction(){
+  if(history.length === 0 || !activeFabric) return;
+  const last = history.pop();
+  redoStack.push(last);
+  const prev = [...history].reverse().find(h => h.pageIdx === last.pageIdx);
+  if(prev){
+    activeFabric.loadFromJSON(prev.state, () => activeFabric.renderAll());
+  } else {
+    activeFabric.clear();
+    activeFabric.renderAll();
+  }
+}
+function redoAction(){
+  if(redoStack.length === 0 || !activeFabric) return;
+  const next = redoStack.pop();
+  history.push(next);
+  activeFabric.loadFromJSON(next.state, () => activeFabric.renderAll());
+}
+
+// ── Page Navigation ──
+function scrollToPage(num){
+  currentPage = num;
+  const container = document.querySelector(`.page-container[data-page-num="${num}"]`);
+  if(container) container.scrollIntoView({behavior:'smooth', block:'start'});
+  document.querySelectorAll('.page-thumb').forEach(t => {
+    t.classList.toggle('active', parseInt(t.dataset.pageNum) === num);
+  });
+  activeFabric = pages[num-1]?.fabricCanvas;
+  updatePageInfo();
+}
+function updatePageInfo(){
+  document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${pdfDoc ? pdfDoc.numPages : 1}`;
+}
+
+// ── Save PDF ──
+async function savePDF(){
+  if(!pdfDoc || pages.length === 0){ alert('No PDF loaded'); return; }
+  const btn = document.querySelector('.top-bar-btn.primary');
+  btn.textContent = '⏳ Processing...';
+  btn.disabled = true;
+
+  try{
+    const {jsPDF} = window.jspdf;
+    const firstVp = pages[0].viewport;
+    const pdf = new jsPDF({
+      orientation: firstVp.width > firstVp.height ? 'landscape' : 'portrait',
+      unit: 'px',
+      format: [firstVp.width / 1.5, firstVp.height / 1.5]
+    });
+
+    for(let i = 0; i < pages.length; i++){
+      if(i > 0) pdf.addPage([pages[i].viewport.width/1.5, pages[i].viewport.height/1.5], pages[i].viewport.width > pages[i].viewport.height ? 'landscape' : 'portrait');
+
+      const {pdfCanvas, fabricCanvas, viewport} = pages[i];
+
+      // Merge PDF + annotations onto one canvas
+      const mergedCanvas = document.createElement('canvas');
+      mergedCanvas.width = viewport.width;
+      mergedCanvas.height = viewport.height;
+      const ctx = mergedCanvas.getContext('2d');
+
+      // Draw PDF
+      ctx.drawImage(pdfCanvas, 0, 0);
+
+      // Draw fabric annotations
+      const fabricDataURL = fabricCanvas.toDataURL({format:'png', multiplier:1});
+      await new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => { ctx.drawImage(img, 0, 0); resolve(); };
+        img.src = fabricDataURL;
+      });
+
+      const imgData = mergedCanvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(imgData, 'JPEG', 0, 0, viewport.width/1.5, viewport.height/1.5);
+    }
+
+    pdf.save(`EggyPDF_Edited_${Date.now()}.pdf`);
+  } catch(e){
+    alert('Save failed: ' + e.message);
+  } finally{
+    btn.textContent = '⬇️ Download Edited PDF';
+    btn.disabled = false;
+  }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if((e.ctrlKey || e.metaKey) && e.key === 'z'){ e.preventDefault(); undoAction(); }
+  if((e.ctrlKey || e.metaKey) && e.key === 'y'){ e.preventDefault(); redoAction(); }
+  if((e.ctrlKey || e.metaKey) && e.key === 's'){ e.preventDefault(); savePDF(); }
+  if(e.key === 'Delete' || e.key === 'Backspace'){ if(activeFabric && activeFabric.getActiveObject()) deleteSelected(); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg"/>
+<link rel="icon" type="image/png" href="../egg.png"/>
+<link rel="apple-touch-icon" href="../egg.png"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Free QR Code Generator – EggyPDF</title>
+<meta name="description" content="Generate QR codes instantly for URLs, text, email, phone and WiFi. Free, no sign up, never stored."/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;--text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;--bg:#f9fafb;--white:#fff;--radius:10px}
+body{font-family:'Inter',sans-serif;color:var(--text);background:var(--bg);min-height:100vh}
+a{text-decoration:none;color:inherit}
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;height:60px;gap:1rem}
+.logo{font-size:1.15rem;font-weight:700}.logo span{color:var(--brand)}
+.back-btn{font-size:13.5px;color:var(--muted);padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--white);cursor:pointer}
+.tool-hero{background:linear-gradient(160deg,var(--brand-light),var(--white));padding:40px 1.5rem 32px;text-align:center;border-bottom:1px solid var(--border)}
+.tool-icon-big{font-size:3rem;margin-bottom:12px}
+.tool-hero h1{font-size:1.9rem;font-weight:700;margin-bottom:8px}
+.tool-hero p{color:var(--muted);font-size:14.5px;max-width:500px;margin:0 auto}
+main{max-width:760px;margin:0 auto;padding:36px 1.5rem 60px}
+
+/* Type tabs */
+.type-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.type-tab{padding:8px 18px;border-radius:50px;border:1.5px solid var(--border);background:var(--white);font-size:13.5px;font-weight:600;cursor:pointer;transition:all 0.15s;color:var(--muted)}
+.type-tab.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.type-tab:hover:not(.active){border-color:var(--brand);color:var(--brand-dark)}
+
+/* Input card */
+.input-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+.field-group{margin-bottom:16px}
+.field-group:last-child{margin-bottom:0}
+.field-group label{display:block;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px}
+.field-group input,.field-group select{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);outline:none;transition:border-color 0.15s}
+.field-group input:focus,.field-group select:focus{border-color:var(--brand)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Options */
+.options-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+.opt-group{display:flex;flex-direction:column;gap:6px}
+.opt-group label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em}
+.opt-group select{padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--white);cursor:pointer;outline:none}
+.color-pick{display:flex;align-items:center;gap:8px}
+.color-pick input[type=color]{width:36px;height:36px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;padding:2px}
+
+/* Generate button */
+.action-btn{width:100%;padding:14px;background:var(--brand);color:var(--white);border:none;border-radius:var(--radius);font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background 0.15s;margin-bottom:24px}
+.action-btn:hover{background:var(--brand-dark)}
+
+/* QR Result */
+.qr-result{display:none;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:28px;text-align:center}
+.qr-canvas-wrap{display:inline-block;padding:16px;background:#fff;border-radius:10px;box-shadow:0 2px 16px rgba(0,0,0,0.08);margin-bottom:20px}
+canvas{display:block}
+.qr-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+.dl-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all 0.15s}
+.dl-png{background:var(--brand);color:#fff}.dl-png:hover{background:var(--brand-dark)}
+.dl-svg{background:var(--white);color:var(--text);border:1.5px solid var(--border)}.dl-svg:hover{border-color:var(--brand);color:var(--brand-dark)}
+.new-btn{background:var(--white);color:var(--muted);border:1.5px solid var(--border);}.new-btn:hover{border-color:var(--brand);color:var(--brand-dark)}
+.privacy-note{font-size:12px;color:var(--muted);background:var(--bg);border-radius:8px;padding:10px 14px;display:inline-block}
+
+/* Footer */
+footer{background:var(--white);border-top:1px solid var(--border);padding:28px 1.5rem;text-align:center}
+.footer-inner{max-width:1100px;margin:0 auto}
+.footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:10px}
+.footer-links a{font-size:13px;color:var(--muted)}.footer-links a:hover{color:var(--text)}
+.footer-copy{font-size:12px;color:var(--muted)}
+
+@media(max-width:600px){
+  .field-row{grid-template-columns:1fr}
+  .options-row{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="../index.html" class="logo">Eggy<span>PDF</span></a>
+    <button class="back-btn" onclick="history.back()">← Back</button>
+  </div>
+</header>
+
+<div class="tool-hero">
+  <div class="tool-icon-big">⬛</div>
+  <h1>QR Code Generator</h1>
+  <p>Generate a QR code instantly for any URL, text, email, phone or WiFi. Free — nothing stored, nothing tracked.</p>
+</div>
+
+<main>
+
+  <!-- Type selector -->
+  <div class="type-tabs">
+    <button class="type-tab active" onclick="setType('url',this)">🔗 URL</button>
+    <button class="type-tab" onclick="setType('wifi',this)">📶 WiFi</button>
+    <button class="type-tab" onclick="setType('text',this)">📝 Text</button>
+    <button class="type-tab" onclick="setType('email',this)">📧 Email</button>
+    <button class="type-tab" onclick="setType('phone',this)">📞 Phone</button>
+  </div>
+
+  <!-- Input card -->
+  <div class="input-card">
+    <!-- URL -->
+    <div id="form-url">
+      <div class="field-group">
+        <label>Website URL</label>
+        <input type="text" id="inp-url" placeholder="https://eggypdf.com" oninput="liveGenerate()"/>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">⚠️ Must start with <strong>https://</strong> — e.g. https://eggypdf.com</p>
+      </div>
+    </div>
+
+    <!-- Text -->
+    <div id="form-text" style="display:none">
+      <div class="field-group">
+        <label>Text</label>
+        <input type="text" id="inp-text" placeholder="Enter any text..." oninput="liveGenerate()"/>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">💡 Scanning this QR will display the text on screen.</p>
+      </div>
+    </div>
+
+    <!-- Email -->
+    <div id="form-email" style="display:none">
+      <div class="field-group">
+        <label>Email Address</label>
+        <input type="email" id="inp-email-addr" placeholder="hello@example.com" oninput="liveGenerate()"/>
+      </div>
+      <div class="field-group">
+        <label>Subject (optional)</label>
+        <input type="text" id="inp-email-sub" placeholder="Email subject" oninput="liveGenerate()"/>
+      </div>
+    </div>
+
+    <!-- Phone -->
+    <div id="form-phone" style="display:none">
+      <div class="field-group">
+        <label>Phone Number</label>
+        <input type="tel" id="inp-phone" placeholder="+971 50 000 0000" oninput="liveGenerate()"/>
+      </div>
+    </div>
+
+    <!-- WiFi -->
+    <div id="form-wifi" style="display:none">
+      <div class="field-row">
+        <div class="field-group">
+          <label>Network Name (SSID)</label>
+          <input type="text" id="inp-wifi-ssid" placeholder="MyWiFiNetwork" oninput="liveGenerate()"/>
+        </div>
+        <div class="field-group">
+          <label>Password</label>
+          <input type="password" id="inp-wifi-pass" placeholder="Password" oninput="liveGenerate()"/>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Security Type</label>
+        <select id="inp-wifi-sec" onchange="liveGenerate()">
+          <option value="WPA">WPA/WPA2</option>
+          <option value="WEP">WEP</option>
+          <option value="nopass">None (Open)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div class="options-row">
+    <div class="opt-group">
+      <label>Size</label>
+      <select id="opt-size" onchange="liveGenerate()">
+        <option value="200">Small (200px)</option>
+        <option value="300" selected>Medium (300px)</option>
+        <option value="400">Large (400px)</option>
+        <option value="600">Extra Large (600px)</option>
+      </select>
+    </div>
+    <div class="opt-group">
+      <label>QR Colour</label>
+      <div class="color-pick">
+        <input type="color" id="opt-fg" value="#1a1a2e" onchange="liveGenerate()"/>
+        <span style="font-size:13px;color:var(--muted)">Foreground</span>
+      </div>
+    </div>
+    <div class="opt-group">
+      <label>Background</label>
+      <div class="color-pick">
+        <input type="color" id="opt-bg" value="#ffffff" onchange="liveGenerate()"/>
+        <span style="font-size:13px;color:var(--muted)">Background</span>
+      </div>
+    </div>
+    <div class="opt-group">
+      <label>Error Correction</label>
+      <select id="opt-ec" onchange="liveGenerate()">
+        <option value="M" selected>Medium (recommended)</option>
+        <option value="L">Low</option>
+        <option value="Q">High</option>
+        <option value="H">Max</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="action-btn" onclick="generateQR()">📱 Generate QR Code</button>
+
+  <!-- Result -->
+  <div class="qr-result" id="qrResult">
+    <div class="qr-canvas-wrap">
+      <canvas id="qrCanvas"></canvas>
+    </div>
+    <div class="qr-actions">
+      <button class="dl-btn dl-png" onclick="downloadPNG()">⬇️ Download PNG</button>
+      <button class="dl-btn dl-svg" onclick="downloadSVG()">⬇️ Download SVG</button>
+      <button class="dl-btn new-btn" onclick="resetTool()">🔄 New QR Code</button>
+    </div>
+    <div class="privacy-note">🔒 This QR code was generated in your browser. Nothing was sent to our servers or stored anywhere.</div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../about-us.html">About</a>
+      <a href="../privacy-policy.html">Privacy</a>
+      <a href="../contact.html">Contact</a>
+    </div>
+    <p class="footer-copy">© 2026 EggyPDF. All rights reserved.</p>
+  </div>
+</footer>
+
+<!-- QR Code library — loaded from CDN, runs entirely in browser -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+// ── State ──
+let currentType = 'url';
+let lastQRData  = null;
+let debounceTimer = null;
+
+// ── Type switcher ──
+function setType(type, btn){
+  currentType = type;
+  document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['url','text','email','phone','wifi'].forEach(t => {
+    document.getElementById('form-'+t).style.display = t === type ? 'block' : 'none';
+  });
+  liveGenerate();
+}
+
+// ── Build QR string from inputs ──
+function buildQRString(){
+  switch(currentType){
+    case 'url':{
+      let v = document.getElementById('inp-url').value.trim();
+      if(!v) return null;
+      // Auto-add https:// if user forgot
+      if(!v.startsWith('http://') && !v.startsWith('https://')){
+        v = 'https://' + v;
+        document.getElementById('inp-url').value = v;
+      }
+      return v;
+    }
+    case 'text':{
+      const v = document.getElementById('inp-text').value.trim();
+      return v || null;
+    }
+    case 'email':{
+      const addr = document.getElementById('inp-email-addr').value.trim();
+      const sub  = document.getElementById('inp-email-sub').value.trim();
+      if(!addr) return null;
+      return sub ? `mailto:${addr}?subject=${encodeURIComponent(sub)}` : `mailto:${addr}`;
+    }
+    case 'phone':{
+      const v = document.getElementById('inp-phone').value.trim().replace(/\s/g,'');
+      return v ? `tel:${v}` : null;
+    }
+    case 'wifi':{
+      const ssid = document.getElementById('inp-wifi-ssid').value.trim();
+      const pass = document.getElementById('inp-wifi-pass').value;
+      const sec  = document.getElementById('inp-wifi-sec').value;
+      if(!ssid) return null;
+      return `WIFI:T:${sec};S:${ssid};P:${pass};;`;
+    }
+  }
+  return null;
+}
+
+// ── Live generate with debounce ──
+function liveGenerate(){
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(()=>{
+    const data = buildQRString();
+    if(data) renderQR(data);
+  }, 400);
+}
+
+// ── Render QR onto canvas — mobile compatible ──
+function renderQR(data){
+  const size = parseInt(document.getElementById('opt-size').value);
+  const fg   = document.getElementById('opt-fg').value;
+  const bg   = document.getElementById('opt-bg').value;
+  const ec   = document.getElementById('opt-ec').value;
+
+  try{
+    // Create temp container off-screen
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = 'position:fixed;left:-9999px;top:-9999px;visibility:hidden';
+    document.body.appendChild(tempDiv);
+
+    const qr = new QRCode(tempDiv, {
+      text: data,
+      width: size,
+      height: size,
+      colorDark: fg,
+      colorLight: bg,
+      correctLevel: QRCode.CorrectLevel[ec] || QRCode.CorrectLevel.M
+    });
+
+    // Wait for QR to render then copy to our visible canvas
+    function tryExtract(attempts){
+      const srcCanvas = tempDiv.querySelector('canvas');
+      const srcImg    = tempDiv.querySelector('img');
+
+      if(srcCanvas && srcCanvas.width > 0){
+        // Direct canvas copy — works on all browsers
+        const target = document.getElementById('qrCanvas');
+        target.width  = size;
+        target.height = size;
+        target.getContext('2d').drawImage(srcCanvas, 0, 0, size, size);
+        document.body.removeChild(tempDiv);
+        lastQRData = data;
+        showResult();
+      } else if(srcImg && srcImg.complete && srcImg.naturalWidth > 0){
+        // Image loaded — draw to canvas
+        const target = document.getElementById('qrCanvas');
+        target.width  = size;
+        target.height = size;
+        target.getContext('2d').drawImage(srcImg, 0, 0, size, size);
+        document.body.removeChild(tempDiv);
+        lastQRData = data;
+        showResult();
+      } else if(srcImg && !srcImg.complete){
+        // Image still loading — wait
+        srcImg.onload = ()=>{
+          const target = document.getElementById('qrCanvas');
+          target.width  = size;
+          target.height = size;
+          target.getContext('2d').drawImage(srcImg, 0, 0, size, size);
+          document.body.removeChild(tempDiv);
+          lastQRData = data;
+          showResult();
+        };
+      } else if(attempts > 0){
+        setTimeout(()=>tryExtract(attempts-1), 150);
+      } else {
+        document.body.removeChild(tempDiv);
+        alert('QR generation failed. Please try again.');
+      }
+    }
+
+    setTimeout(()=>tryExtract(10), 100);
+
+  } catch(e){
+    console.error('QR Error:', e);
+    alert('Could not generate QR code: ' + e.message);
+  }
+}
+
+function showResult(){
+  document.getElementById('qrResult').style.display = 'block';
+  setTimeout(()=>{
+    document.getElementById('qrResult').scrollIntoView({behavior:'smooth', block:'nearest'});
+  }, 100);
+}
+
+// ── Generate button click ──
+function generateQR(){
+  const raw = currentType === 'url' ? document.getElementById('inp-url').value.trim() : '';
+  const data = buildQRString();
+  if(!data){
+    if(currentType === 'url' && raw && !raw.includes('.')){
+      alert('Please enter a valid website URL (e.g. https://eggypdf.com). For plain text, use the Text tab instead.');
+    } else {
+      alert('Please enter some content to generate a QR code.');
+    }
+    return;
+  }
+  renderQR(data);
+}
+
+// ── Download PNG ──
+function downloadPNG(){
+  const canvas = document.getElementById('qrCanvas');
+  const link   = document.createElement('a');
+  // Fresh timestamp in filename — never reuses same name
+  link.download = `EggyPDF_QR_${Date.now()}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ── Download SVG ──
+function downloadSVG(){
+  if(!lastQRData) return;
+  const size = parseInt(document.getElementById('opt-size').value);
+  const fg   = document.getElementById('opt-fg').value;
+  const bg   = document.getElementById('opt-bg').value;
+  const canvas = document.getElementById('qrCanvas');
+
+  // Convert canvas to SVG-embedded image
+  const dataURL = canvas.toDataURL('image/png');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+  <rect width="${size}" height="${size}" fill="${bg}"/>
+  <image href="${dataURL}" width="${size}" height="${size}"/>
+</svg>`;
+
+  const blob = new Blob([svg], {type:'image/svg+xml'});
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = `EggyPDF_QR_${Date.now()}.svg`;
+  link.href = url;
+  link.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+}
+
+// ── Reset ──
+function resetTool(){
+  lastQRData = null;
+  document.getElementById('qrResult').style.display = 'none';
+  document.querySelectorAll('input[type=text],input[type=url],input[type=email],input[type=tel],input[type=password]')
+    .forEach(i => i.value = '');
+  const ctx = document.getElementById('qrCanvas').getContext('2d');
+  ctx.clearRect(0, 0, 600, 600);
+}
+
+// ── Privacy: clear canvas on page hide ──
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    const ctx = document.getElementById('qrCanvas').getContext('2d');
+    ctx.clearRect(0, 0, 600, 600);
+    lastQRData = null;
+  }
+});
+</script>
+</body>
+</html>

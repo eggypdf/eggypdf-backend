@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="icon" type="image/png" href="/egg.png"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Blog – PDF Tips, Guides & Tutorials | EggyPDF</title>
+<meta name="description" content="Free PDF guides, tutorials and tips. Learn how to compress, merge, convert and edit PDF files. Resume writing guides for UAE and Gulf job seekers."/>
+<meta name="robots" content="index, follow"/>
+<link rel="canonical" href="https://eggypdf.com/blog.html"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;--text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;--bg:#f9fafb;--white:#fff;--radius:10px}
+body{font-family:'Inter',sans-serif;color:var(--text);background:var(--white);font-size:15px;line-height:1.6}
+a{text-decoration:none;color:inherit}
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem;position:sticky;top:0;z-index:100}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:1.5rem;height:62px}
+.logo{font-size:1.15rem;font-weight:700}.logo span{color:var(--brand)}
+.nav-links{display:flex;gap:4px;margin-left:auto}
+.nav-item{padding:8px 13px;font-size:14px;font-weight:500;color:var(--muted);border-radius:8px;transition:color .15s}
+.nav-item:hover,.nav-item.active{color:var(--text)}
+.blog-hero{background:linear-gradient(160deg,var(--brand-light),var(--white));padding:52px 1.5rem 40px;text-align:center;border-bottom:1px solid var(--border)}
+.blog-hero h1{font-size:2.1rem;font-weight:700;margin-bottom:12px}
+.blog-hero p{color:var(--muted);font-size:15.5px;max-width:560px;margin:0 auto 24px}
+.cat-bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:8px}
+.cat-btn{padding:7px 16px;border-radius:50px;border:1.5px solid var(--border);background:var(--white);font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s}
+.cat-btn.active,.cat-btn:hover{background:var(--brand);border-color:var(--brand);color:#fff}
+.search-wrap{max-width:420px;margin:20px auto 0;position:relative}
+.search-wrap input{width:100%;padding:11px 16px 11px 40px;border:1.5px solid var(--border);border-radius:50px;font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.search-wrap input:focus{border-color:var(--brand)}
+.search-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted)}
+main{max-width:1100px;margin:0 auto;padding:40px 1.5rem 60px}
+.featured-post{display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:16px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:44px;background:var(--white);box-shadow:0 2px 12px rgba(0,0,0,0.06)}
+.featured-img{background:linear-gradient(135deg,var(--brand-light),#fde68a);display:flex;align-items:center;justify-content:center;font-size:5rem;min-height:220px}
+.featured-body{padding:32px 28px;display:flex;flex-direction:column;justify-content:center}
+.post-tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-dark);background:var(--brand-light);padding:3px 10px;border-radius:50px;margin-bottom:12px}
+.featured-body h2{font-size:1.4rem;font-weight:700;margin-bottom:10px;line-height:1.35}
+.featured-body p{color:var(--muted);font-size:14px;line-height:1.7;margin-bottom:18px}
+.read-btn{display:inline-flex;align-items:center;gap:6px;background:var(--brand);color:#fff;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;transition:background .15s}
+.read-btn:hover{background:var(--brand-dark)}
+.post-meta{font-size:12px;color:var(--muted);margin-top:10px}
+.section-title{font-size:1.15rem;font-weight:700;margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid var(--border)}
+.posts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:48px}
+.post-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:box-shadow .15s,transform .15s;display:flex;flex-direction:column}
+.post-card:hover{box-shadow:0 4px 20px rgba(245,166,35,.15);transform:translateY(-2px);border-color:var(--brand)}
+.post-thumb{height:120px;display:flex;align-items:center;justify-content:center;font-size:3rem}
+.post-body{padding:18px;flex:1;display:flex;flex-direction:column}
+.post-body .post-tag{margin-bottom:8px}
+.post-body h3{font-size:15px;font-weight:700;margin-bottom:8px;line-height:1.4}
+.post-body p{font-size:13px;color:var(--muted);line-height:1.6;flex:1;margin-bottom:14px}
+.post-link{font-size:13px;font-weight:700;color:var(--brand-dark)}
+.post-link:hover{color:var(--brand)}
+.post-date{font-size:11px;color:var(--muted);margin-top:8px}
+#noResults{display:none;text-align:center;padding:40px;color:var(--muted)}
+footer{background:#1c1c28;color:#9ca3af;padding:36px 1.5rem 24px;text-align:center;font-size:13px}
+.footer-logo{font-size:1rem;font-weight:700;color:#fff;margin-bottom:12px}.footer-logo span{color:var(--brand)}
+.footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:16px}
+.footer-links a{color:#9ca3af}.footer-links a:hover{color:#fff}
+@media(max-width:700px){.featured-post{grid-template-columns:1fr}.featured-img{min-height:140px}.posts-grid{grid-template-columns:1fr}.blog-hero h1{font-size:1.6rem}}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <a href="/index.html" class="logo">Eggy<span>PDF</span></a>
+    <nav class="nav-links">
+      <a href="/index.html" class="nav-item">Tools</a>
+      <a href="/resume-builder.html" class="nav-item">Resume Builder</a>
+      <a href="/blog.html" class="nav-item active">Blog</a>
+      <a href="/about-us.html" class="nav-item">About</a>
+    </nav>
+  </div>
+</header>
+
+<div class="blog-hero">
+  <h1>PDF Tips, Guides &amp; Tutorials</h1>
+  <p>Learn how to work smarter with PDF files. Free guides for students, professionals and Gulf job seekers.</p>
+  <div class="cat-bar">
+    <button class="cat-btn active" onclick="filterPosts('all',this)">All Posts</button>
+    <button class="cat-btn" onclick="filterPosts('pdf-tips',this)">PDF Tips</button>
+    <button class="cat-btn" onclick="filterPosts('resume',this)">Resume &amp; CV</button>
+    <button class="cat-btn" onclick="filterPosts('convert',this)">Convert &amp; Edit</button>
+    <button class="cat-btn" onclick="filterPosts('productivity',this)">Productivity</button>
+  </div>
+  <div class="search-wrap">
+    <svg class="search-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="searchInput" placeholder="Search articles..." oninput="searchPosts()"/>
+  </div>
+</div>
+
+<main>
+
+  <!-- FEATURED POST -->
+  <div class="featured-post" id="featuredPost" data-cat="resume">
+    <div class="featured-img">📋</div>
+    <div class="featured-body">
+      <span class="post-tag">Resume &amp; CV</span>
+      <h2>How to Build a Professional CV for Dubai Jobs in 2025</h2>
+      <p>UAE employers receive hundreds of CVs for every job posting. Learn exactly what format, length and keywords you need to stand out — and get it all done for free in under 30 minutes.</p>
+      <a href="/blog/how-to-build-cv-dubai-jobs-2025.html" class="read-btn">Read Article →</a>
+      <p class="post-meta">📅 June 2025 &nbsp;·&nbsp; ⏱ 8 min read</p>
+    </div>
+  </div>
+
+  <!-- ALL POSTS -->
+  <!-- ═══════════════════════════════════════════════════════════════
+       HOW TO ADD A NEW BLOG POST:
+       1. Copy one <article> block below
+       2. Change data-cat to: pdf-tips | resume | convert | productivity
+       3. Update data-title with searchable keywords (lowercase)
+       4. Update the emoji, title, description and link
+       5. Create the actual blog post file in the /blog/ folder
+       6. Done — the post appears automatically on this page
+  ═══════════════════════════════════════════════════════════════ -->
+  <div class="section-title">All Articles</div>
+  <div class="posts-grid" id="postsGrid">
+
+    <article class="post-card" data-cat="resume" data-title="how to build cv dubai jobs 2025 resume uae gulf ats">
+      <div class="post-thumb" style="background:#fff8ed">📋</div>
+      <div class="post-body">
+        <span class="post-tag">Resume &amp; CV</span>
+        <h3>How to Build a Professional CV for Dubai Jobs in 2025</h3>
+        <p>Step-by-step guide to creating a CV that gets shortlisted by UAE employers. Includes ATS tips and free template.</p>
+        <a href="/blog/how-to-build-cv-dubai-jobs-2025.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="pdf-tips" data-title="how to compress pdf send whatsapp email smaller file size reduce">
+      <div class="post-thumb" style="background:#f0fdf4">🗜️</div>
+      <div class="post-body">
+        <span class="post-tag">PDF Tips</span>
+        <h3>How to Compress a PDF to Send on WhatsApp or Email</h3>
+        <p>PDF too large to send? Learn how to reduce file size in seconds without losing quality — no software needed.</p>
+        <a href="/blog/how-to-compress-pdf-whatsapp-email.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="convert" data-title="how to convert pdf to word editable document free online">
+      <div class="post-thumb" style="background:#eff6ff">📝</div>
+      <div class="post-body">
+        <span class="post-tag">Convert &amp; Edit</span>
+        <h3>How to Convert PDF to Word Free Without Losing Format</h3>
+        <p>Need to edit a PDF? Convert it to a Word document in seconds. Works for scanned PDFs too.</p>
+        <a href="/blog/how-to-convert-pdf-to-word-free.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="pdf-tips" data-title="how to merge combine multiple pdf files into one document">
+      <div class="post-thumb" style="background:#fdf4ff">🔗</div>
+      <div class="post-body">
+        <span class="post-tag">PDF Tips</span>
+        <h3>How to Merge Multiple PDF Files Into One Document</h3>
+        <p>Combine multiple PDFs into a single file in seconds. Perfect for reports, invoices or CV portfolios.</p>
+        <a href="/blog/how-to-merge-pdf-files.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="resume" data-title="cv resume format uae gulf job seekers ats friendly photo">
+      <div class="post-thumb" style="background:#fff8ed">🇦🇪</div>
+      <div class="post-body">
+        <span class="post-tag">Resume &amp; CV</span>
+        <h3>The Best CV Format for UAE and Gulf Job Applications</h3>
+        <p>Photo or no photo? One page or two? What UAE employers actually prefer — everything answered.</p>
+        <a href="/blog/best-cv-format-uae-gulf-jobs.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="convert" data-title="how to convert jpg image to pdf mobile phone free android iphone">
+      <div class="post-thumb" style="background:#fef9c3">🖼️</div>
+      <div class="post-body">
+        <span class="post-tag">Convert &amp; Edit</span>
+        <h3>How to Convert a JPG Image to PDF on Your Phone</h3>
+        <p>Need to turn a photo into a PDF? The fastest way to do it on iPhone or Android for free.</p>
+        <a href="/blog/how-to-convert-jpg-to-pdf-phone.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="productivity" data-title="free pdf tools online no download signup best 2025">
+      <div class="post-thumb" style="background:#f0fdfa">⚡</div>
+      <div class="post-body">
+        <span class="post-tag">Productivity</span>
+        <h3>7 Free PDF Tools Everyone Should Know About in 2025</h3>
+        <p>Stop paying for Adobe Acrobat. These 7 free tools handle everything — compress, merge, convert and more.</p>
+        <a href="/blog/7-free-pdf-tools-everyone-should-know.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="pdf-tips" data-title="how to protect password lock pdf file secure document">
+      <div class="post-thumb" style="background:#fef2f2">🔒</div>
+      <div class="post-body">
+        <span class="post-tag">PDF Tips</span>
+        <h3>How to Password Protect a PDF File for Free</h3>
+        <p>Keep sensitive documents safe by adding a password to your PDF. Takes less than 30 seconds.</p>
+        <a href="/blog/how-to-password-protect-pdf.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="resume" data-title="cover letter examples uae dubai jobs how to write hiring manager">
+      <div class="post-thumb" style="background:#fff8ed">✉️</div>
+      <div class="post-body">
+        <span class="post-tag">Resume &amp; CV</span>
+        <h3>How to Write a Cover Letter for UAE Jobs (With Examples)</h3>
+        <p>Most applicants skip the cover letter. Here is how to write one that gets read by hiring managers in Dubai.</p>
+        <a href="/blog/how-to-write-cover-letter-uae-jobs.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="convert" data-title="how to split pdf extract pages separate documents free">
+      <div class="post-thumb" style="background:#f0fdf4">✂️</div>
+      <div class="post-body">
+        <span class="post-tag">Convert &amp; Edit</span>
+        <h3>How to Split a PDF Into Separate Pages or Files</h3>
+        <p>Extract specific pages from a large PDF or split it into multiple documents — free in your browser.</p>
+        <a href="/blog/how-to-split-pdf-pages.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="productivity" data-title="qr code generator free how to use business card menu wifi">
+      <div class="post-thumb" style="background:#f8fafc">⬛</div>
+      <div class="post-body">
+        <span class="post-tag">Productivity</span>
+        <h3>How to Create a QR Code Free (URL, WiFi, Contact)</h3>
+        <p>QR codes for your business card, restaurant menu or LinkedIn profile. Generate one in under 60 seconds.</p>
+        <a href="/blog/how-to-create-qr-code-free.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="pdf-tips" data-title="how to add watermark pdf document brand logo text free">
+      <div class="post-thumb" style="background:#eff6ff">💧</div>
+      <div class="post-body">
+        <span class="post-tag">PDF Tips</span>
+        <h3>How to Add a Watermark to a PDF Document for Free</h3>
+        <p>Protect your documents or add your brand with a custom text or image watermark in seconds.</p>
+        <a href="/blog/how-to-add-watermark-pdf.html" class="post-link">Read Article →</a>
+        <p class="post-date">June 2025</p>
+      </div>
+    </article>
+
+  </div>
+  <div id="noResults"><p style="font-size:1.1rem;margin-bottom:8px">No articles found.</p><p>Try a different search or category.</p></div>
+</main>
+
+<footer>
+  <div class="footer-logo">Eggy<span>PDF</span></div>
+  <div class="footer-links">
+    <a href="/index.html">Home</a><a href="/resume-builder.html">Resume Builder</a>
+    <a href="/blog.html">Blog</a><a href="/about-us.html">About</a>
+    <a href="/contact.html">Contact</a><a href="/privacy-policy.html">Privacy</a>
+  </div>
+  <p>© 2026 EggyPDF. All rights reserved.</p>
+</footer>
+
+<script>
+function filterPosts(cat,btn){
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const fp=document.getElementById('featuredPost');
+  document.querySelectorAll('#postsGrid article').forEach(c=>{
+    c.style.display=(cat==='all'||c.dataset.cat===cat)?'':'none';
+  });
+  if(fp) fp.style.display=(cat==='all'||fp.dataset.cat===cat)?'':'none';
+  checkEmpty();
+}
+function searchPosts(){
+  const q=document.getElementById('searchInput').value.toLowerCase().trim();
+  const fp=document.getElementById('featuredPost');
+  document.querySelectorAll('#postsGrid article').forEach(c=>{
+    c.style.display=(!q||(c.dataset.title||'').includes(q)||c.innerText.toLowerCase().includes(q))?'':'none';
+  });
+  if(fp) fp.style.display=(!q||fp.innerText.toLowerCase().includes(q))?'':'none';
+  if(q) document.querySelectorAll('.cat-btn').forEach((b,i)=>{if(i===0)b.classList.add('active');else b.classList.remove('active');});
+  checkEmpty();
+}
+function checkEmpty(){
+  const v=[...document.querySelectorAll('#postsGrid article')].filter(c=>c.style.display!=='none');
+  document.getElementById('noResults').style.display=v.length?'none':'block';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>POST TITLE HERE | EggyPDF Blog</title>
+<meta name="description" content="META DESCRIPTION HERE — 150 characters max."/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;--text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;--bg:#f9fafb;--white:#fff}
+body{font-family:'Inter',sans-serif;color:var(--text);background:var(--bg);line-height:1.7}
+a{text-decoration:none;color:inherit}
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem;position:sticky;top:0;z-index:100}
+.hdr{max-width:1100px;margin:0 auto;display:flex;align-items:center;height:62px;gap:1.5rem}
+.logo{font-size:1.15rem;font-weight:700}.logo span{color:var(--brand)}
+nav{display:flex;gap:4px;margin-left:auto}
+.nav-link{padding:7px 14px;border-radius:7px;font-size:13.5px;font-weight:500;color:var(--muted)}
+.nav-link:hover{color:var(--text);background:#f3f4f6}
+.nav-cta{background:var(--brand);color:#fff !important;border-radius:7px;padding:7px 16px;font-weight:700}
+/* POST LAYOUT */
+.post-wrap{max-width:720px;margin:0 auto;padding:40px 1.5rem 80px}
+/* Breadcrumb */
+.breadcrumb{font-size:13px;color:var(--muted);margin-bottom:24px}
+.breadcrumb a{color:var(--brand-dark)}.breadcrumb a:hover{text-decoration:underline}
+/* Hero */
+.post-hero{margin-bottom:32px}
+.post-cat{display:inline-block;background:var(--brand);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:14px}
+.post-hero h1{font-size:2rem;font-weight:700;line-height:1.25;margin-bottom:14px}
+.post-meta{font-size:13px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
+.post-divider{border:none;border-top:2px solid var(--border);margin:28px 0}
+/* Content */
+.post-content h2{font-size:1.3rem;font-weight:700;margin:36px 0 14px;color:var(--text)}
+.post-content h3{font-size:1.1rem;font-weight:700;margin:28px 0 10px;color:var(--text)}
+.post-content p{margin-bottom:16px;font-size:15.5px;color:#374151;line-height:1.75}
+.post-content ul,.post-content ol{padding-left:22px;margin-bottom:16px}
+.post-content li{font-size:15.5px;color:#374151;line-height:1.75;margin-bottom:6px}
+.post-content strong{color:var(--text);font-weight:700}
+.post-content a{color:var(--brand-dark);text-decoration:underline}
+/* Tip box */
+.tip-box{background:var(--brand-light);border-left:4px solid var(--brand);border-radius:0 8px 8px 0;padding:16px 20px;margin:24px 0;font-size:14.5px}
+.tip-box strong{color:var(--brand-dark)}
+/* CTA box */
+.cta-box{background:var(--text);color:#fff;border-radius:12px;padding:28px;text-align:center;margin:36px 0}
+.cta-box h3{font-size:1.2rem;font-weight:700;margin-bottom:8px}
+.cta-box p{font-size:14px;color:rgba(255,255,255,0.75);margin-bottom:18px}
+.cta-btn{display:inline-block;background:var(--brand);color:#fff;padding:12px 28px;border-radius:50px;font-weight:700;font-size:14px;transition:background .15s}
+.cta-btn:hover{background:var(--brand-dark)}
+/* Related */
+.related{margin-top:48px;padding-top:32px;border-top:2px solid var(--border)}
+.related h3{font-size:1.1rem;font-weight:700;margin-bottom:16px}
+.related-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.related-card{background:var(--white);border:1.5px solid var(--border);border-radius:8px;padding:16px;font-size:13.5px;font-weight:600;color:var(--text);transition:border-color .15s}
+.related-card:hover{border-color:var(--brand);color:var(--brand-dark)}
+footer{background:var(--white);border-top:1px solid var(--border);padding:24px 1.5rem;text-align:center;margin-top:40px}
+.foot-links{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:8px}
+.foot-links a{font-size:13px;color:var(--muted)}.foot-links a:hover{color:var(--text)}
+.foot-copy{font-size:12px;color:var(--muted)}
+@media(max-width:600px){.post-hero h1{font-size:1.5rem}nav .nav-link:not(.nav-cta){display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr">
+    <a href="../index.html" class="logo">Eggy<span>PDF</span></a>
+    <nav>
+      <a href="../index.html" class="nav-link">Tools</a>
+      <a href="../blog.html" class="nav-link">Blog</a>
+      <a href="../about-us.html" class="nav-link">About</a>
+      <a href="../resume-builder.html" class="nav-cta nav-link">Build CV Free</a>
+    </nav>
+  </div>
+</header>
+
+<div class="post-wrap">
+
+  <div class="breadcrumb">
+    <a href="../index.html">Home</a> › <a href="../blog.html">Blog</a> › POST TITLE SHORT
+  </div>
+
+  <div class="post-hero">
+    <span class="post-cat">CATEGORY HERE</span>
+    <h1>FULL POST TITLE HERE</h1>
+    <div class="post-meta">
+      <span>📅 MONTH YEAR</span>
+      <span>⏱ X min read</span>
+      <span>✍️ Ahmad — Founder, EggyPDF</span>
+    </div>
+  </div>
+
+  <hr class="post-divider"/>
+
+  <div class="post-content">
+
+    <!-- WRITE YOUR BLOG POST CONTENT BELOW -->
+    <!-- Use: <h2> for main sections, <h3> for sub-sections -->
+    <!-- Use: <p> for paragraphs -->
+    <!-- Use: <ul><li> for bullet lists -->
+    <!-- Use: tip-box div for tips/callouts -->
+    <!-- Use: cta-box div for tool call to actions -->
+
+    <p>OPENING PARAGRAPH — introduce the topic and why it matters to the reader.</p>
+
+    <h2>First Section Heading</h2>
+    <p>Content goes here.</p>
+
+    <div class="tip-box">
+      <strong>💡 Pro Tip:</strong> Your tip text here.
+    </div>
+
+    <h2>Second Section Heading</h2>
+    <p>Content goes here.</p>
+    <ul>
+      <li>Point one</li>
+      <li>Point two</li>
+      <li>Point three</li>
+    </ul>
+
+    <!-- TOOL CTA — change href and button text to match the tool -->
+    <div class="cta-box">
+      <h3>Try It Free — No Sign Up Needed</h3>
+      <p>Use EggyPDF's free TOOL NAME directly in your browser. Nothing to install.</p>
+      <a href="../tools/TOOL-PAGE.html" class="cta-btn">Open TOOL NAME →</a>
+    </div>
+
+    <h2>Third Section Heading</h2>
+    <p>Content goes here.</p>
+
+  </div>
+
+  <!-- RELATED POSTS — update links manually -->
+  <div class="related">
+    <h3>Related Articles</h3>
+    <div class="related-grid">
+      <a href="POST-SLUG.html" class="related-card">📋 Related Post Title One</a>
+      <a href="POST-SLUG.html" class="related-card">🗜️ Related Post Title Two</a>
+      <a href="POST-SLUG.html" class="related-card">💼 Related Post Title Three</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="foot-links">
+    <a href="../index.html">Tools</a>
+    <a href="../blog.html">Blog</a>
+    <a href="../contact.html">Contact</a>
+    <a href="../privacy-policy.html">Privacy</a>
+  </div>
+  <p class="foot-copy">© 2026 EggyPDF. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

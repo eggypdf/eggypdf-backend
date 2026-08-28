@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" fill="none">
+  <!-- Egg bottom half -->
+  <path d="M6 26 Q6 40 22 40 Q38 40 38 26 L6 26 Z"
+    fill="#fde68a" stroke="#d4a017" stroke-width="1.4"/>
+
+  <!-- Egg top half -->
+  <path d="M6 26 Q6 6 22 6 Q38 6 38 26 Z"
+    fill="#fef3c7" stroke="#d4a017" stroke-width="1.4"/>
+
+  <!-- PDF document (blue, same as website logo) -->
+  <rect x="14" y="12" width="16" height="20" rx="2"
+    fill="#e8f0fe" stroke="#3b82f6" stroke-width="1.2"/>
+  <!-- PDF dog-ear -->
+  <path d="M26 12 L30 16 L26 16 Z" fill="#bfdbfe" stroke="#3b82f6" stroke-width="0.8"/>
+  <!-- PDF text -->
+  <text x="15.5" y="20" font-family="Arial,sans-serif"
+    font-size="5.5" font-weight="900" fill="#1d4ed8">PDF</text>
+  <!-- Document lines -->
+  <rect x="17" y="22" width="6" height="1.5" rx="0.75" fill="#3b82f6"/>
+  <rect x="17" y="25" width="10" height="1.5" rx="0.75" fill="#93c5fd"/>
+  <rect x="17" y="28" width="8" height="1.5" rx="0.75" fill="#93c5fd"/>
+</svg>

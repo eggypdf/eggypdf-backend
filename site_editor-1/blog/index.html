@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="icon" type="image/png" href="/egg.png"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Blog – PDF Tips, Resume Advice & Free Tools | EggyPDF</title>
+<meta name="description" content="Read expert guides on PDF tools, resume writing tips for UAE job seekers, and how to get the most out of free online PDF tools."/>
+<meta name="robots" content="index, follow"/>
+<link rel="canonical" href="https://eggypdf.com/blog/"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;--text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;--bg:#f9fafb;--white:#fff;--radius:10px}
+body{font-family:'Inter',sans-serif;color:var(--text);background:var(--white);font-size:15px;line-height:1.6}
+a{text-decoration:none;color:inherit}
+/* HEADER */
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem;position:sticky;top:0;z-index:100}
+.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:1.5rem;height:62px}
+.logo-name{font-size:1.2rem;font-weight:700;color:var(--text)}.logo-name span{color:var(--brand)}
+.nav-links{display:flex;gap:4px;margin-left:auto}
+.nav-item{padding:8px 12px;font-size:14px;font-weight:500;color:var(--muted);border-radius:7px}
+.nav-item:hover,.nav-item.active{background:var(--bg);color:var(--text)}
+/* HERO */
+.blog-hero{background:linear-gradient(160deg,var(--brand-light),var(--white));border-bottom:1px solid var(--border);padding:52px 1.5rem 40px;text-align:center}
+.blog-hero h1{font-size:2rem;font-weight:700;margin-bottom:10px}
+.blog-hero p{color:var(--muted);font-size:15px;max-width:520px;margin:0 auto 20px}
+/* CATEGORY TABS */
+.cat-bar{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem;overflow-x:auto}
+.cat-inner{max-width:1100px;margin:0 auto;display:flex;gap:0}
+.ctab{padding:14px 18px;font-size:13.5px;font-weight:600;border:none;background:none;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:all 0.15s}
+.ctab:hover{color:var(--text)}.ctab.active{color:var(--brand-dark);border-bottom-color:var(--brand)}
+/* GRID */
+main{max-width:1100px;margin:0 auto;padding:40px 1.5rem 60px}
+.blog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px}
+/* CARD */
+.blog-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:box-shadow 0.2s,transform 0.2s;display:flex;flex-direction:column}
+.blog-card:hover{box-shadow:0 6px 24px rgba(245,166,35,0.15);transform:translateY(-2px);border-color:var(--brand)}
+.card-thumb{height:160px;display:flex;align-items:center;justify-content:center;font-size:3.5rem;flex-shrink:0}
+.card-body{padding:20px;flex:1;display:flex;flex-direction:column}
+.card-cat{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--brand-dark);margin-bottom:8px}
+.card-title{font-size:15px;font-weight:700;line-height:1.4;margin-bottom:8px;color:var(--text)}
+.card-excerpt{font-size:13px;color:var(--muted);line-height:1.6;flex:1;margin-bottom:14px}
+.card-meta{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:10px}
+.card-read{margin-left:auto;font-size:12px;font-weight:700;color:var(--brand-dark)}
+/* FOOTER */
+footer{background:var(--white);border-top:1px solid var(--border);padding:28px 1.5rem;text-align:center}
+.footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:10px}
+.footer-links a{font-size:13px;color:var(--muted)}.footer-links a:hover{color:var(--text)}
+.footer-copy{font-size:12px;color:var(--muted)}
+@media(max-width:600px){.blog-hero h1{font-size:1.5rem}.blog-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo-name">Eggy<span>PDF</span></a>
+    <nav class="nav-links">
+      <a href="/" class="nav-item">Home</a>
+      <a href="/blog/" class="nav-item active">Blog</a>
+      <a href="/about-us.html" class="nav-item">About</a>
+      <a href="/contact.html" class="nav-item">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<div class="blog-hero">
+  <h1>📖 EggyPDF Blog</h1>
+  <p>PDF tips, resume advice for UAE job seekers, and guides for every tool on EggyPDF.</p>
+</div>
+
+<!-- CATEGORY FILTER -->
+<div class="cat-bar">
+  <div class="cat-inner">
+    <button class="ctab active" onclick="filterCat('all',this)">All Posts</button>
+    <button class="ctab" onclick="filterCat('resume',this)">Resume & CV</button>
+    <button class="ctab" onclick="filterCat('compress',this)">Compress & Optimize</button>
+    <button class="ctab" onclick="filterCat('convert',this)">Convert PDF</button>
+    <button class="ctab" onclick="filterCat('organize',this)">Organize PDF</button>
+    <button class="ctab" onclick="filterCat('security',this)">Security</button>
+    <button class="ctab" onclick="filterCat('qr',this)">QR Codes</button>
+  </div>
+</div>
+
+<main>
+  <div class="blog-grid" id="blogGrid">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         HOW TO ADD A NEW BLOG POST:
+         1. Copy one <a class="blog-card"> block below
+         2. Change: href, data-cat, card-thumb emoji, card-cat text,
+                    card-title, card-excerpt, date
+         3. Create the blog post HTML file in /blog/ folder
+         4. Upload to Cloudflare
+         That's it! No backend needed.
+    ═══════════════════════════════════════════════════════════ -->
+
+    <a href="/blog/how-to-compress-pdf.html" class="blog-card" data-cat="compress">
+      <div class="card-thumb" style="background:#fff8ed">🗜️</div>
+      <div class="card-body">
+        <div class="card-cat">Compress PDF</div>
+        <div class="card-title">How to Compress a PDF Without Losing Quality</div>
+        <div class="card-excerpt">Learn the right way to reduce PDF file size for email, WhatsApp, and job applications — without making it blurry or unreadable.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 4 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+    <a href="/blog/resume-builder-uae.html" class="blog-card" data-cat="resume">
+      <div class="card-thumb" style="background:#f0fdf4">📋</div>
+      <div class="card-body">
+        <div class="card-cat">Resume & CV</div>
+        <div class="card-title">How to Build a Professional CV for UAE Jobs in 2025</div>
+        <div class="card-excerpt">A step-by-step guide to creating an ATS-friendly resume that gets past filters and lands interviews at Dubai and UAE companies.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 6 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+    <a href="/blog/pdf-to-word.html" class="blog-card" data-cat="convert">
+      <div class="card-thumb" style="background:#eff6ff">📝</div>
+      <div class="card-body">
+        <div class="card-cat">Convert PDF</div>
+        <div class="card-title">How to Convert PDF to Word Without Losing Formatting</div>
+        <div class="card-excerpt">Converting PDFs to editable Word documents is easy when you know the right tool. Here is the fastest free method with no sign-up.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 3 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+    <a href="/blog/merge-pdf.html" class="blog-card" data-cat="organize">
+      <div class="card-thumb" style="background:#fdf4ff">🔗</div>
+      <div class="card-body">
+        <div class="card-cat">Organize PDF</div>
+        <div class="card-title">How to Merge Multiple PDFs into One File for Free</div>
+        <div class="card-excerpt">Combining PDFs is a daily task for students, office workers, and freelancers. Here is the quickest way to do it without installing software.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 3 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+    <a href="/blog/protect-pdf.html" class="blog-card" data-cat="security">
+      <div class="card-thumb" style="background:#fef2f2">🔒</div>
+      <div class="card-body">
+        <div class="card-cat">Security</div>
+        <div class="card-title">How to Password Protect a PDF File — Free Method</div>
+        <div class="card-excerpt">Sending sensitive documents? Learn how to add password protection to any PDF file in seconds, no software download required.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 3 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+    <a href="/blog/jpg-to-pdf.html" class="blog-card" data-cat="convert">
+      <div class="card-thumb" style="background:#f0fdf4">🖼️</div>
+      <div class="card-body">
+        <div class="card-cat">Convert PDF</div>
+        <div class="card-title">How to Convert JPG Images to PDF on Any Device</div>
+        <div class="card-excerpt">Whether you are on a phone or laptop, converting photos and images to PDF is simple. No app download needed — works in your browser.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 3 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+    <a href="/blog/qr-code-generator.html" class="blog-card" data-cat="qr">
+      <div class="card-thumb" style="background:#f0fdf4;display:flex;align-items:center;justify-content:center"><svg width="40" height="40" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="7" height="7" rx="1" stroke="#1a1a2e" stroke-width="1.5" fill="none"/><rect x="3" y="3" width="3" height="3" fill="#1a1a2e"/><rect x="13" y="1" width="7" height="7" rx="1" stroke="#1a1a2e" stroke-width="1.5" fill="none"/><rect x="15" y="3" width="3" height="3" fill="#1a1a2e"/><rect x="1" y="13" width="7" height="7" rx="1" stroke="#1a1a2e" stroke-width="1.5" fill="none"/><rect x="3" y="15" width="3" height="3" fill="#1a1a2e"/><rect x="13" y="13" width="2.5" height="2.5" fill="#1a1a2e"/><rect x="16.5" y="13" width="2.5" height="2.5" fill="#1a1a2e"/><rect x="13" y="16.5" width="2.5" height="2.5" fill="#1a1a2e"/><rect x="16.5" y="16.5" width="2.5" height="2.5" fill="#1a1a2e"/></svg></div>
+      <div class="card-body">
+        <div class="card-cat">QR Codes</div>
+        <div class="card-title">How to Generate a QR Code for Free — And What to Use It For</div>
+        <div class="card-excerpt">QR codes are everywhere in UAE — restaurants, business cards, CVs. Learn how to create one in seconds and what types are most useful.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 4 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+    <a href="/blog/split-pdf.html" class="blog-card" data-cat="organize">
+      <div class="card-thumb" style="background:#fff8ed">✂️</div>
+      <div class="card-body">
+        <div class="card-cat">Organize PDF</div>
+        <div class="card-title">How to Split a PDF into Separate Pages or Sections</div>
+        <div class="card-excerpt">Need to extract just one page from a long PDF? Or split a report into chapters? Here is the easiest free method available online.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 3 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+    <a href="/blog/cv-format-dubai.html" class="blog-card" data-cat="resume">
+      <div class="card-thumb" style="background:#eff6ff">🏙️</div>
+      <div class="card-body">
+        <div class="card-cat">Resume & CV</div>
+        <div class="card-title">CV Format for Dubai Jobs: What Employers Actually Want</div>
+        <div class="card-excerpt">Dubai employers have specific CV expectations. This guide covers the right format, length, photo requirements, and what to never include.</div>
+        <div class="card-meta"><span>📅 June 2026</span><span>⏱️ 5 min read</span><span class="card-read">Read →</span></div>
+      </div>
+    </a>
+
+  </div>
+</main>
+
+<footer>
+  <div style="max-width:1100px;margin:0 auto">
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/about-us.html">About</a>
+      <a href="/privacy-policy.html">Privacy</a>
+      <a href="/contact.html">Contact</a>
+    </div>
+    <p class="footer-copy">© 2026 EggyPDF. All rights reserved.</p>
+  </div>
+</footer>
+
+<script>
+function filterCat(cat, btn){
+  document.querySelectorAll('.ctab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.blog-card').forEach(card=>{
+    card.style.display=(cat==='all'||card.dataset.cat===cat)?'flex':'none';
+  });
+}
+</script>
+</body>
+</html>
