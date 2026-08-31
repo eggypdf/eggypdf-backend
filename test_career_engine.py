@@ -1,3 +1,5 @@
+import unittest
+
 from career_engine import analyze_resume, extract_skills
 
 
@@ -27,24 +29,28 @@ content marketing, analytics, communication and lead generation experience.
 """
 
 
-def test_analysis_is_explainable_and_bounded():
-    result = analyze_resume(SAMPLE_RESUME, SAMPLE_JOB)
-    assert 0 <= result["score"] <= 100
-    assert result["checks"]
-    assert "keyword_analysis" in result
-    assert "recommendations" in result
+class CareerEngineTests(unittest.TestCase):
+    def test_analysis_is_explainable_and_bounded(self):
+        result = analyze_resume(SAMPLE_RESUME, SAMPLE_JOB)
+        self.assertGreaterEqual(result["score"], 0)
+        self.assertLessEqual(result["score"], 100)
+        self.assertTrue(result["checks"])
+        self.assertIn("keyword_analysis", result)
+        self.assertIn("recommendations", result)
+
+    def test_relevant_skills_are_detected(self):
+        skills = extract_skills(SAMPLE_RESUME)
+        self.assertIn("seo", skills)
+        self.assertIn("google ads", skills)
+        self.assertIn("canva", skills)
+        self.assertIn("excel", skills)
+
+    def test_job_match_finds_missing_terms(self):
+        result = analyze_resume(SAMPLE_RESUME, SAMPLE_JOB)
+        analysis = result["keyword_analysis"]
+        self.assertGreater(analysis["match_percentage"], 0)
+        self.assertTrue("social" in analysis["missing"] or "media" in analysis["missing"])
 
 
-def test_relevant_skills_are_detected():
-    skills = extract_skills(SAMPLE_RESUME)
-    assert "seo" in skills
-    assert "google ads" in skills
-    assert "canva" in skills
-    assert "excel" in skills
-
-
-def test_job_match_finds_missing_terms():
-    result = analyze_resume(SAMPLE_RESUME, SAMPLE_JOB)
-    analysis = result["keyword_analysis"]
-    assert analysis["match_percentage"] > 0
-    assert "social" in analysis["missing"] or "media" in analysis["missing"]
+if __name__ == "__main__":
+    unittest.main()
