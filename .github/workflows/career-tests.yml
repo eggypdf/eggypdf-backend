@@ -1,0 +1,22 @@
+name: Career Pro Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [dev/career-pro-foundation]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install minimal test dependencies
+        run: pip install Flask Werkzeug pypdf
+      - name: Run Career Pro tests
+        run: python -m unittest -v test_career_engine.py test_career_routes.py
