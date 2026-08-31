@@ -1,4 +1,4 @@
-"""EggyPDF Career Engine
+"""EggyPDF Career Engine.
 
 Deterministic ATS-style analysis utilities used by the Career Pro API.
 This module deliberately avoids claiming compatibility with a specific ATS vendor.
@@ -20,6 +20,9 @@ STOP_WORDS = {
     "they", "this", "those", "through", "to", "too", "under", "until", "very", "was", "were",
     "what", "when", "where", "which", "while", "who", "whom", "why", "will", "with", "would",
     "you", "your", "yours", "job", "work", "working", "role", "team", "company", "experience",
+    "hiring", "hire", "seeking", "looking", "candidate", "candidates", "required", "requirement",
+    "requirements", "preferred", "responsibilities", "responsibility", "position", "opportunity",
+    "ideal", "must", "join", "apply", "application",
 }
 
 COMMON_SKILLS = {
@@ -37,7 +40,7 @@ ACTION_VERBS = {
     "achieved", "analyzed", "built", "created", "delivered", "developed", "drove", "generated",
     "grew", "implemented", "improved", "increased", "launched", "led", "managed", "optimized",
     "reduced", "resolved", "streamlined", "supervised", "trained", "automated", "designed",
-    "negotiated", "executed", "coordinated", "produced", "increased", "decreased",
+    "negotiated", "executed", "coordinated", "produced", "decreased",
 }
 
 
@@ -47,7 +50,11 @@ def normalize(text: str) -> str:
 
 
 def tokenize(text: str) -> List[str]:
-    return re.findall(r"[a-z][a-z0-9+#./-]{1,30}", normalize(text))
+    """Return clean keyword tokens without sentence punctuation.
+
+    Dots are retained only inside tokens such as node.js, not at sentence endings.
+    """
+    return re.findall(r"[a-z][a-z0-9+#]*(?:\.[a-z0-9+#]+)?", normalize(text))
 
 
 def extract_keywords(text: str, limit: int = 40) -> List[str]:
@@ -66,18 +73,26 @@ def extract_skills(text: str) -> List[str]:
 
 
 def keyword_overlap(resume: str, job: str) -> Tuple[List[str], List[str], float]:
-    resume_n = normalize(resume)
+    resume_tokens = set(tokenize(resume))
     job_keywords = extract_keywords(job, 40)
-    matched = [k for k in job_keywords if re.search(r"(?<![a-z0-9])" + re.escape(k) + r"(?![a-z0-9])", resume_n)]
-    missing = [k for k in job_keywords if k not in matched]
+    matched = [k for k in job_keywords if k in resume_tokens]
+    missing = [k for k in job_keywords if k not in resume_tokens]
     score = round((len(matched) / len(job_keywords)) * 100) if job_keywords else 0
     return matched, missing, score
+
+
+def contact_signals(text: str) -> Dict[str, bool]:
+    """Detect actual contact values rather than merely section labels."""
+    return {
+        "email": bool(re.search(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", text, re.I)),
+        "phone": bool(re.search(r"(?:\+?\d[\d\s().-]{7,}\d)", text)),
+        "linkedin": bool(re.search(r"(?:linkedin\.com/in/|\blinkedin\b)", text, re.I)),
+    }
 
 
 def section_signals(text: str) -> Dict[str, bool]:
     n = normalize(text)
     aliases = {
-        "contact": ["email", "phone", "linkedin"],
         "summary": ["summary", "professional summary", "profile", "objective"],
         "experience": ["experience", "work history", "employment"],
         "education": ["education", "academic"],
@@ -90,19 +105,28 @@ def analyze_resume(resume_text: str, job_text: str = "") -> Dict:
     resume_text = resume_text or ""
     job_text = job_text or ""
     sections = section_signals(resume_text)
+    contacts = contact_signals(resume_text)
     skills = extract_skills(resume_text)
     matched, missing, keyword_score = keyword_overlap(resume_text, job_text) if job_text.strip() else ([], [], 0)
 
     lines = [x.strip() for x in resume_text.splitlines() if x.strip()]
     bullets = [x for x in lines if re.match(r"^[•●▪◦*-]\s+", x)]
-    action_bullets = [x for x in bullets if any(re.search(r"\b" + re.escape(v) + r"\b", x.lower()) for v in ACTION_VERBS)]
-    quantified = [x for x in bullets if re.search(r"\b\d+(?:\.\d+)?\s*(?:%|k|m|million|billion|hours|days|people|clients|customers|projects)?\b", x.lower())]
+    action_bullets = [
+        x for x in bullets
+        if any(re.search(r"\b" + re.escape(v) + r"\b", x.lower()) for v in ACTION_VERBS)
+    ]
+    quantified = [
+        x for x in bullets
+        if re.search(r"\b\d+(?:\.\d+)?\s*(?:%|k|m|million|billion|hours|days|people|clients|customers|projects)?\b", x.lower())
+    ]
 
     checks = []
+
     def check(name, passed, detail, weight):
         checks.append({"name": name, "passed": bool(passed), "detail": detail, "weight": weight})
 
-    check("Contact information", sections["contact"], "Include an email, phone number, and a professional profile link.", 10)
+    contact_ok = contacts["email"] and contacts["phone"]
+    check("Contact information", contact_ok, "Include a valid email address and phone number. LinkedIn is recommended.", 10)
     check("Professional summary", sections["summary"], "Add a concise summary aligned to the target role.", 10)
     check("Work experience", sections["experience"], "Use a clear employment/experience section with dates and outcomes.", 15)
     check("Education", sections["education"], "Include education or relevant training where appropriate.", 10)
@@ -120,6 +144,7 @@ def analyze_resume(resume_text: str, job_text: str = "") -> Dict:
         "score": score,
         "score_label": "Strong" if score >= 80 else "Needs improvement" if score >= 60 else "Needs work",
         "checks": checks,
+        "contact_analysis": contacts,
         "keyword_analysis": {
             "matched": matched[:30],
             "missing": missing[:20],
