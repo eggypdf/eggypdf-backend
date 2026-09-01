@@ -1,0 +1,35 @@
+name: Package Corrected Cloudflare Frontend Once
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare corrected Cloudflare upload folder
+        run: |
+          mkdir -p cloudflare-upload/blog
+          cp index.html cloudflare-upload/
+          cp ats-checker.html cloudflare-upload/
+          cp resume-builder.html cloudflare-upload/
+          cp about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg cloudflare-upload/
+          cp site_editor-1/blog.html cloudflare-upload/blog.html
+          cp -R site_editor-1/blog/. cloudflare-upload/blog/
+          for f in compress crop delete-pages excel-to-pdf jpg-to-pdf merge page-numbers pdf-to-excel pdf-to-jpg pdf-to-png pdf-to-ppt pdf-to-text pdf-to-word png-to-pdf ppt-to-pdf protect rotate split unlock watermark word-to-pdf; do
+            test -f "$f.html"
+            cp "$f.html" cloudflare-upload/
+          done
+          if [ -f qr-code.html ]; then cp qr-code.html cloudflare-upload/; elif [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html cloudflare-upload/qr-code.html; fi
+          test -f cloudflare-upload/index.html
+          test -f cloudflare-upload/ats-checker.html
+          test ! -f cloudflare-upload/edit-pdf.html
+      - name: Upload corrected Cloudflare package
+        uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Cloudflare-Day2-Corrected
+          path: cloudflare-upload/
+          if-no-files-found: error
+          retention-days: 3
