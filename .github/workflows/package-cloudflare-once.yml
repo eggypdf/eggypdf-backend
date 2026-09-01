@@ -1,0 +1,26 @@
+name: Package Cloudflare Frontend Once
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Cloudflare upload folder
+        run: |
+          mkdir -p cloudflare-upload
+          cp -R site_editor-1/. cloudflare-upload/
+          cp ats-checker.html cloudflare-upload/ats-checker.html
+          test -f cloudflare-upload/index.html
+          test -f cloudflare-upload/ats-checker.html
+          test -d cloudflare-upload/tools
+      - name: Upload Cloudflare package
+        uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Cloudflare-Day2
+          path: cloudflare-upload/
+          if-no-files-found: error
+          retention-days: 3
