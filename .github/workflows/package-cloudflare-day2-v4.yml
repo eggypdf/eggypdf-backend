@@ -1,0 +1,110 @@
+name: Package Cloudflare Frontend Day2 V4
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build V4 frontend
+        run: |
+          set -euo pipefail
+          mkdir -p cloudflare-upload/tools cloudflare-upload/blog
+          cp index.html cloudflare-upload/index.html
+          cp resume-builder.html cloudflare-upload/resume-builder.html
+
+          python - <<'PY'
+          from pathlib import Path
+
+          # Homepage: fix malformed head/CSS and add ATS Checker after Resume Builder.
+          p=Path('cloudflare-upload/index.html')
+          s=p.read_text()
+          s=s.replace('<title>EggyPDF – Free Online PDF Tools | Merge, Compress, Convert PDF</title> <title>EggyPDF – Free PDF Tools & Resume Builder Online</title>', '<title>EggyPDF – Free PDF Tools & Resume Builder Online</title>')
+          s=s.replace('<meta name="description" content=<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers.">', '<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers."/>')
+          s=s.replace('</style> .seo-section {', '.seo-section {')
+          if '.seo-section {' in s and s.find('.seo-section {') < s.find('</head>') and s.find('</style>') < s.find('.seo-section {'):
+              s=s.replace('</head>', '</style>\n</head>', 1)
+          resume_card='''    <a href="resume-builder.html" class="tool-card" data-cat="resume" style="border-color:#f5a623;background:linear-gradient(135deg,#fff8ed,#fff)">
+      <div class="tool-icon" style="background:#fff3cd;font-size:1.5rem">📋</div>
+      <h3 style="color:#d4881a">Resume Builder <span style="font-size:10px;background:#f5a623;color:#fff;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;margin-left:4px">NEW</span></h3>
+      <p>Create a professional resume with live preview. UAE &amp; Europe formats supported.</p>
+    </a>'''
+          ats_card='''
+
+    <a href="ats-checker.html" class="tool-card" data-cat="ai" style="border-color:#f5a623;background:linear-gradient(135deg,#fff8ed,#fff)">
+      <div class="tool-icon" style="background:#fff3cd;font-size:1.5rem">🎯</div>
+      <h3 style="color:#d4881a">ATS Resume Checker <span style="font-size:10px;background:#f5a623;color:#fff;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;margin-left:4px">NEW</span></h3>
+      <p>Check your resume against a job description and see missing keywords, strengths, and improvements.</p>
+    </a>'''
+          assert resume_card in s, 'Resume Builder card anchor not found'
+          if 'href="ats-checker.html"' not in s:
+              s=s.replace(resume_card, resume_card+ats_card, 1)
+          p.write_text(s)
+
+          # Resume Builder: move SEO section inside body and add scoped responsive styling.
+          p=Path('cloudflare-upload/resume-builder.html')
+          s=p.read_text()
+          marker='\n</body>\n</html>\n<section class="seo-section">'
+          assert marker in s, 'SEO section location changed unexpectedly'
+          s=s.replace(marker, '\n<section class="seo-section">', 1)
+          assert s.rstrip().endswith('</section>')
+          s=s.rstrip() + '\n</body>\n</html>\n'
+          css='''
+
+/* SEO content below builder */
+.seo-section{max-width:780px;margin:56px auto;padding:0 24px 56px;font-family:'Inter',sans-serif;color:var(--text);line-height:1.7}
+.seo-section h2{font-size:1.45rem;line-height:1.3;margin:34px 0 12px;color:var(--text)}
+.seo-section h3{font-size:1rem;line-height:1.45;margin:20px 0 6px;color:var(--text)}
+.seo-section p{font-size:.97rem;line-height:1.75;color:#4b5563;margin:0 0 16px}
+.seo-section .faq{margin-top:8px}
+@media(max-width:600px){
+  .seo-section{margin:32px auto 0;padding:0 20px 40px}
+  .seo-section h2{font-size:1.2rem;line-height:1.35;margin:28px 0 10px}
+  .seo-section h3{font-size:.98rem;line-height:1.4;margin:18px 0 5px}
+  .seo-section p{font-size:.94rem;line-height:1.7;margin-bottom:14px}
+}
+'''
+          assert '</style>' in s
+          s=s.replace('</style>', css+'\n</style>', 1)
+          p.write_text(s)
+          PY
+
+          cp ats-checker.html cloudflare-upload/
+          cp about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg cloudflare-upload/
+          [ -f egg.png ] && cp egg.png cloudflare-upload/ || true
+          cp site_editor-1/blog.html cloudflare-upload/blog.html
+          cp -R site_editor-1/blog/. cloudflare-upload/blog/
+          for f in compress crop delete-pages excel-to-pdf jpg-to-pdf merge page-numbers pdf-to-excel pdf-to-jpg pdf-to-png pdf-to-ppt pdf-to-text pdf-to-word png-to-pdf ppt-to-pdf protect rotate split unlock watermark word-to-pdf; do
+            test -f "$f.html"
+            cp "$f.html" "cloudflare-upload/tools/$f.html"
+          done
+          if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html cloudflare-upload/tools/qr-code.html; fi
+
+          python - <<'PY'
+          from pathlib import Path
+          home=Path('cloudflare-upload/index.html').read_text()
+          resume=Path('cloudflare-upload/resume-builder.html').read_text()
+          assert home.count('<title>') == 1
+          assert 'content=<meta' not in home
+          assert 'href="ats-checker.html"' in home
+          assert '>ATS Resume Checker ' in home
+          assert 'data-cat="ai"' in home
+          assert Path('cloudflare-upload/ats-checker.html').exists()
+          assert resume.rfind('</section>') < resume.rfind('</body>') < resume.rfind('</html>')
+          assert '/* SEO content below builder */' in resume
+          assert '@media(max-width:600px)' in resume
+          required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
+          assert all(Path(f'cloudflare-upload/tools/{x}.html').exists() for x in required)
+          print('V4 VALIDATION PASSED')
+          PY
+
+      - name: Upload V4 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Cloudflare-Day2-V4
+          path: cloudflare-upload/
+          if-no-files-found: error
+          retention-days: 3
