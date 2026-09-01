@@ -1,0 +1,66 @@
+name: Package Cloudflare Frontend Day2 V3
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build validated frontend package
+        run: |
+          set -euo pipefail
+          mkdir -p cloudflare-upload/tools cloudflare-upload/blog
+
+          cp index.html cloudflare-upload/index.html
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('cloudflare-upload/index.html')
+          s=p.read_text()
+          s=s.replace('<title>EggyPDF – Free Online PDF Tools | Merge, Compress, Convert PDF</title> <title>EggyPDF – Free PDF Tools & Resume Builder Online</title>', '<title>EggyPDF – Free PDF Tools & Resume Builder Online</title>')
+          s=s.replace('<meta name="description" content=<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers.">', '<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers."/>')
+          s=s.replace('</style> .seo-section {', '.seo-section {')
+          marker='</head>'
+          assert marker in s
+          s=s.replace(marker, '</style>\n</head>', 1)
+          p.write_text(s)
+          PY
+
+          cp ats-checker.html resume-builder.html cloudflare-upload/
+          cp about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg cloudflare-upload/
+          [ -f egg.png ] && cp egg.png cloudflare-upload/ || true
+          cp site_editor-1/blog.html cloudflare-upload/blog.html
+          cp -R site_editor-1/blog/. cloudflare-upload/blog/
+
+          for f in compress crop delete-pages excel-to-pdf jpg-to-pdf merge page-numbers pdf-to-excel pdf-to-jpg pdf-to-png pdf-to-ppt pdf-to-text pdf-to-word png-to-pdf ppt-to-pdf protect rotate split unlock watermark word-to-pdf; do
+            test -f "$f.html"
+            cp "$f.html" "cloudflare-upload/tools/$f.html"
+          done
+
+          if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html cloudflare-upload/tools/qr-code.html; fi
+
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('cloudflare-upload/index.html').read_text()
+          assert s.count('<title>') == 1
+          assert 'content=<meta' not in s
+          assert '</style> .seo-section' not in s
+          assert '.seo-section {' in s
+          assert s.find('.seo-section {') < s.find('</style>')
+          assert Path('cloudflare-upload/ats-checker.html').exists()
+          required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
+          missing=[x for x in required if not Path(f'cloudflare-upload/tools/{x}.html').exists()]
+          assert not missing, missing
+          assert not Path('cloudflare-upload/tools/edit-pdf.html').exists()
+          print('VALIDATION PASSED: homepage CSS/head, ATS page, and 21 production PDF tool pages')
+          PY
+
+      - name: Upload validated package
+        uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Cloudflare-Day2-V3
+          path: cloudflare-upload/
+          if-no-files-found: error
+          retention-days: 3
