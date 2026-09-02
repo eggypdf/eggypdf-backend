@@ -1,9 +1,11 @@
 import io
+import os
 import unittest
+from unittest.mock import patch
 
 from flask import Flask
 
-from career_routes import career_bp
+from career_routes import career_bp, DODO_PRODUCT_ID
 
 
 RESUME = """Jane Doe
@@ -77,6 +79,72 @@ class CareerRouteTests(unittest.TestCase):
 
     def test_job_match_requires_job_description(self):
         response = self.client.post("/api/career/job-match", json={"resume_text": RESUME})
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.get_json()["success"])
+
+    @patch("career_routes._dodo_request")
+    def test_checkout_uses_career_pro_product(self, dodo_request):
+        dodo_request.return_value = {
+            "checkout_url": "https://checkout.example/session",
+            "session_id": "cks_test_123",
+        }
+        response = self.client.post("/api/career/checkout")
+        body = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(body["success"])
+        args, kwargs = dodo_request.call_args
+        self.assertEqual(args[:2], ("POST", "/checkouts"))
+        cart = kwargs["json"]["product_cart"]
+        self.assertEqual(cart, [{"product_id": DODO_PRODUCT_ID, "quantity": 1}])
+        self.assertNotIn("api_key", str(body).lower())
+        self.assertNotIn("authorization", str(body).lower())
+
+    @patch("career_routes._dodo_request")
+    def test_checkout_fails_safely_when_dodo_fails(self, dodo_request):
+        dodo_request.side_effect = RuntimeError("Payment service is temporarily unavailable.")
+        response = self.client.post("/api/career/checkout")
+        body = response.get_json()
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(body["success"])
+        self.assertNotIn(os.getenv("DODO_PAYMENTS_API_KEY", "never-expose-this"), str(body))
+
+    @patch("career_routes._dodo_request")
+    def test_unpaid_checkout_does_not_unlock_pro(self, dodo_request):
+        dodo_request.return_value = {
+            "payment_status": "pending",
+            "metadata": {"product": "career_pro"},
+        }
+        response = self.client.get("/api/career/checkout/cks_test_123")
+        body = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(body["paid"])
+        self.assertIsNone(body["feature_id"])
+
+    @patch("career_routes._dodo_request")
+    def test_successful_verified_checkout_unlocks_career_pro(self, dodo_request):
+        dodo_request.return_value = {
+            "payment_status": "succeeded",
+            "metadata": {"product": "career_pro"},
+        }
+        response = self.client.get("/api/career/checkout/cks_test_123")
+        body = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(body["paid"])
+        self.assertEqual(body["feature_id"], "career_pro")
+
+    @patch("career_routes._dodo_request")
+    def test_wrong_product_metadata_does_not_unlock_pro(self, dodo_request):
+        dodo_request.return_value = {
+            "payment_status": "succeeded",
+            "metadata": {"product": "something_else"},
+        }
+        response = self.client.get("/api/career/checkout/cks_test_123")
+        body = response.get_json()
+        self.assertFalse(body["paid"])
+        self.assertIsNone(body["feature_id"])
+
+    def test_invalid_checkout_session_is_rejected(self):
+        response = self.client.get("/api/career/checkout/not%20valid!")
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.get_json()["success"])
 
