@@ -1,13 +1,15 @@
 """EggyPDF Career Pro API routes.
 
-Kept in a Blueprint so the existing PDF API can remain stable while Career Pro
-is developed independently. No database or payment dependency is required for
-this first MVP.
+Career features live in a Blueprint so the existing PDF API remains stable.
+Payment checkout is created and verified server-side; Dodo API credentials are
+never exposed to the browser.
 """
 from __future__ import annotations
 
 import io
 import os
+
+import requests
 from flask import Blueprint, jsonify, request
 from werkzeug.utils import secure_filename
 
@@ -17,6 +19,11 @@ career_bp = Blueprint("career", __name__, url_prefix="/api/career")
 
 MAX_TEXT_LENGTH = 100_000
 ALLOWED_RESUME_EXTENSIONS = {"pdf", "txt"}
+DODO_PRODUCT_ID = "pdt_0Nmk7wwSsTDKzOvbI7z9n"
+DODO_API_BASE = os.getenv("DODO_API_BASE", "https://live.dodopayments.com").rstrip("/")
+CAREER_PRO_RETURN_URL = os.getenv(
+    "CAREER_PRO_RETURN_URL", "https://eggypdf.com/ats-checker.html?career_pro=return"
+)
 
 
 def _extract_pdf_text(file_storage):
@@ -36,8 +43,7 @@ def _get_resume_text():
     """Accept JSON text or a PDF/TXT upload without persisting user files."""
     if request.is_json:
         data = request.get_json(silent=True) or {}
-        text = (data.get("resume_text") or "").strip()
-        return text
+        return (data.get("resume_text") or "").strip()
 
     uploaded = request.files.get("resume") or request.files.get("file")
     if not uploaded or not uploaded.filename:
@@ -67,13 +73,86 @@ def _validate_text(text, label):
         raise ValueError(f"{label} is too long. Please keep it under {MAX_TEXT_LENGTH:,} characters.")
 
 
+def _dodo_headers():
+    api_key = os.getenv("DODO_PAYMENTS_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Dodo Payments is not configured.")
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+
+def _dodo_request(method, path, **kwargs):
+    try:
+        response = requests.request(
+            method,
+            f"{DODO_API_BASE}{path}",
+            headers=_dodo_headers(),
+            timeout=20,
+            **kwargs,
+        )
+    except requests.RequestException as exc:
+        raise RuntimeError("Payment service is temporarily unavailable.") from exc
+
+    if not response.ok:
+        raise RuntimeError("Payment service rejected the request.")
+    return response.json()
+
+
 @career_bp.get("/health")
 def career_health():
     return jsonify({
         "status": "ok",
         "service": "EggyPDF Career Pro",
-        "features": ["ats-analysis", "job-matching"],
+        "features": ["ats-analysis", "job-matching", "career-pro-checkout"],
+        "payments_configured": bool(os.getenv("DODO_PAYMENTS_API_KEY", "").strip()),
     })
+
+
+@career_bp.post("/checkout")
+def create_career_pro_checkout():
+    """Create a hosted Dodo checkout without exposing the API key to clients."""
+    try:
+        payload = {
+            "product_cart": [{"product_id": DODO_PRODUCT_ID, "quantity": 1}],
+            "return_url": CAREER_PRO_RETURN_URL,
+            "metadata": {"product": "career_pro", "source": "eggypdf"},
+        }
+        checkout = _dodo_request("POST", "/checkouts", json=payload)
+        checkout_url = checkout.get("checkout_url")
+        session_id = checkout.get("session_id")
+        if not checkout_url or not session_id:
+            raise RuntimeError("Payment service returned an incomplete checkout session.")
+        return jsonify({
+            "success": True,
+            "checkout_url": checkout_url,
+            "session_id": session_id,
+        })
+    except RuntimeError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 503
+
+
+@career_bp.get("/checkout/<session_id>")
+def verify_career_pro_checkout(session_id):
+    """Verify a checkout directly with Dodo before granting paid access."""
+    if not session_id or len(session_id) > 200 or not all(c.isalnum() or c in "_-" for c in session_id):
+        return jsonify({"success": False, "error": "Invalid checkout session."}), 400
+
+    try:
+        checkout = _dodo_request("GET", f"/checkouts/{session_id}")
+        payment_status = checkout.get("payment_status") or checkout.get("status")
+        metadata = checkout.get("metadata") or {}
+        paid = payment_status == "succeeded" and metadata.get("product") == "career_pro"
+        return jsonify({
+            "success": True,
+            "paid": paid,
+            "payment_status": payment_status,
+            "feature_id": "career_pro" if paid else None,
+        })
+    except RuntimeError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 503
 
 
 @career_bp.post("/ats/analyze")

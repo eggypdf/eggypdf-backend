@@ -4,7 +4,9 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [dev/career-pro-foundation]
+    branches:
+      - dev/career-pro-foundation
+      - dev/dodo-career-pro-checkout
 
 jobs:
   test:
@@ -17,6 +19,6 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install minimal test dependencies
-        run: pip install Flask Werkzeug pypdf
+        run: pip install Flask Werkzeug pypdf requests
       - name: Run Career Pro tests
         run: python -m unittest -v test_career_engine.py test_career_routes.py
