@@ -20,7 +20,8 @@ career_bp = Blueprint("career", __name__, url_prefix="/api/career")
 
 MAX_TEXT_LENGTH = 100_000
 ALLOWED_RESUME_EXTENSIONS = {"pdf", "txt"}
-DODO_PRODUCT_ID = "pdt_0Nmk7wwSsTDKzOvbI7z9n"
+DEFAULT_DODO_PRODUCT_ID = "pdt_0Nmk7wwSsTDKzOvbI7z9n"
+DODO_PRODUCT_ID = os.getenv("DODO_PRODUCT_ID", DEFAULT_DODO_PRODUCT_ID).strip()
 DODO_API_BASE = os.getenv("DODO_API_BASE", "https://live.dodopayments.com").rstrip("/")
 CAREER_PRO_RETURN_URL = os.getenv(
     "CAREER_PRO_RETURN_URL", "https://eggypdf.com/ats-checker.html?career_pro=return"
@@ -70,13 +71,25 @@ def _dodo_headers():
     return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "Accept": "application/json"}
 
 
+def _payment_error_message(status_code):
+    if status_code in (401, 403):
+        return "Dodo authentication failed. Check that the API key matches the selected live/test environment."
+    if status_code == 404:
+        return "Dodo could not find the requested checkout resource or product. Check the Career Pro product ID and environment."
+    if status_code in (400, 422):
+        return "Dodo rejected the checkout configuration. Check the product, return URL, and account environment."
+    if status_code == 429:
+        return "Dodo is temporarily rate-limiting checkout requests. Please try again shortly."
+    return "Payment service rejected the request."
+
+
 def _dodo_request(method, path, **kwargs):
     try:
         response = requests.request(method, f"{DODO_API_BASE}{path}", headers=_dodo_headers(), timeout=20, **kwargs)
     except requests.RequestException as exc:
         raise RuntimeError("Payment service is temporarily unavailable.") from exc
     if not response.ok:
-        raise RuntimeError("Payment service rejected the request.")
+        raise RuntimeError(_payment_error_message(response.status_code))
     return response.json()
 
 
@@ -96,10 +109,6 @@ def _require_pro(data):
         raise PermissionError("Career Pro purchase could not be verified.")
 
 
-def _clean_lines(text):
-    return [re.sub(r"^[\s•*\-]+", "", x).strip() for x in text.splitlines() if x.strip()]
-
-
 def _tailoring_plan(resume_text, job_text):
     analysis = analyze_resume(resume_text, job_text)
     missing = analysis["keyword_analysis"]["missing"][:12]
@@ -110,9 +119,7 @@ def _tailoring_plan(resume_text, job_text):
         "priority_keywords": missing,
         "matched_keywords": matched,
         "skills_detected": skills,
-        "actions": [
-            f"Use '{kw}' naturally where it truthfully matches your experience." for kw in missing[:6]
-        ] or ["Your keyword alignment is already strong. Focus on evidence, clarity, and measurable outcomes."],
+        "actions": [f"Use '{kw}' naturally where it truthfully matches your experience." for kw in missing[:6]] or ["Your keyword alignment is already strong. Focus on evidence, clarity, and measurable outcomes."],
         "summary_guidance": "Lead with the target role, strongest relevant skills, and 1–2 outcomes you can defend in an interview.",
         "bullet_guidance": "Start experience bullets with strong action verbs, keep only relevant responsibilities, and quantify outcomes when you have real numbers.",
         "integrity_note": "Only add keywords, skills, metrics, and claims that are true. EggyPDF will not invent experience for you.",
@@ -141,12 +148,22 @@ def _cover_letter_draft(resume_text, job_text, applicant_name="", company="", ro
 
 @career_bp.get("/health")
 def career_health():
-    return jsonify({"status": "ok", "service": "EggyPDF Career Pro", "features": ["ats-analysis", "job-matching", "career-pro-checkout", "resume-tailoring", "cover-letter"], "payments_configured": bool(os.getenv("DODO_PAYMENTS_API_KEY", "").strip())})
+    mode = "test" if "test" in DODO_API_BASE.lower() else "live" if "live" in DODO_API_BASE.lower() else "custom"
+    return jsonify({
+        "status": "ok",
+        "service": "EggyPDF Career Pro",
+        "features": ["ats-analysis", "job-matching", "career-pro-checkout", "resume-tailoring", "cover-letter"],
+        "payments_configured": bool(os.getenv("DODO_PAYMENTS_API_KEY", "").strip()),
+        "payment_environment": mode,
+        "career_pro_product_configured": bool(DODO_PRODUCT_ID),
+    })
 
 
 @career_bp.post("/checkout")
 def create_career_pro_checkout():
     try:
+        if not DODO_PRODUCT_ID:
+            raise RuntimeError("Career Pro product is not configured.")
         payload = {"product_cart": [{"product_id": DODO_PRODUCT_ID, "quantity": 1}], "return_url": CAREER_PRO_RETURN_URL, "metadata": {"product": "career_pro", "source": "eggypdf"}}
         checkout = _dodo_request("POST", "/checkouts", json=payload)
         checkout_url, session_id = checkout.get("checkout_url"), checkout.get("session_id")
