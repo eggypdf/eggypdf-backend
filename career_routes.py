@@ -76,11 +76,11 @@ def _payment_error_message(status_code):
         return "Dodo authentication failed. Check that the API key matches the selected live/test environment."
     if status_code == 404:
         return "Dodo could not find the requested checkout resource or product. Check the Career Pro product ID and environment."
-    if status_code in (400, 422):
+    if status_code in (400, 409, 422):
         return "Dodo rejected the checkout configuration. Check the product, return URL, and account environment."
     if status_code == 429:
         return "Dodo is temporarily rate-limiting checkout requests. Please try again shortly."
-    return "Payment service rejected the request."
+    return f"Payment service rejected the request (HTTP {status_code})."
 
 
 def _dodo_request(method, path, **kwargs):
@@ -93,18 +93,61 @@ def _dodo_request(method, path, **kwargs):
     return response.json()
 
 
-def _verify_paid_session(session_id):
-    if not session_id or len(session_id) > 200 or not all(c.isalnum() or c in "_-" for c in session_id):
-        raise ValueError("Invalid checkout session.")
-    checkout = _dodo_request("GET", f"/checkouts/{session_id}")
+def _valid_dodo_id(value, prefix):
+    return bool(value and value.startswith(prefix) and len(value) <= 200 and all(c.isalnum() or c in "_-" for c in value))
+
+
+def _payment_is_career_pro(payment, checkout_session_id=None):
+    if payment.get("status") != "succeeded":
+        return False
+    if checkout_session_id and payment.get("checkout_session_id") != checkout_session_id:
+        return False
+    cart = payment.get("product_cart") or []
+    return any(item.get("product_id") == DODO_PRODUCT_ID and int(item.get("quantity") or 0) >= 1 for item in cart)
+
+
+def _verify_paid_session(identifier):
+    """Verify a Career Pro entitlement against Dodo, never against browser status.
+
+    New return flows may provide a pay_* ID. Existing clients store the original
+    cks_* checkout ID, so for those we reconcile recent succeeded payments and
+    confirm the payment detail points back to that exact checkout session.
+    """
+    if _valid_dodo_id(identifier, "pay_"):
+        payment = _dodo_request("GET", f"/payments/{identifier}")
+        return _payment_is_career_pro(payment), payment.get("status")
+
+    if not _valid_dodo_id(identifier, "cks_"):
+        raise ValueError("Invalid checkout or payment identifier.")
+
+    checkout = _dodo_request("GET", f"/checkouts/{identifier}")
     status = checkout.get("payment_status") or checkout.get("status")
     metadata = checkout.get("metadata") or {}
-    return status == "succeeded" and metadata.get("product") == "career_pro", status
+    if status == "succeeded" and metadata.get("product") == "career_pro":
+        return True, status
+
+    # Dodo's hosted checkout redirects one-time purchases with payment_id. Some
+    # checkout-detail responses do not surface the completed payment metadata,
+    # so reconcile recent succeeded payments for this product and verify the
+    # exact checkout_session_id on each payment detail.
+    payment_list = _dodo_request(
+        "GET",
+        "/payments",
+        params={"product_id": DODO_PRODUCT_ID, "status": "succeeded", "page_size": 50, "page_number": 0},
+    )
+    for summary in payment_list.get("items") or []:
+        payment_id = summary.get("payment_id")
+        if not _valid_dodo_id(payment_id, "pay_"):
+            continue
+        payment = _dodo_request("GET", f"/payments/{payment_id}")
+        if _payment_is_career_pro(payment, checkout_session_id=identifier):
+            return True, payment.get("status")
+    return False, status
 
 
 def _require_pro(data):
-    session_id = (data.get("session_id") or "").strip()
-    paid, _ = _verify_paid_session(session_id)
+    identifier = (data.get("session_id") or data.get("payment_id") or "").strip()
+    paid, _ = _verify_paid_session(identifier)
     if not paid:
         raise PermissionError("Career Pro purchase could not be verified.")
 
@@ -174,10 +217,10 @@ def create_career_pro_checkout():
         return jsonify({"success": False, "error": str(exc)}), 503
 
 
-@career_bp.get("/checkout/<session_id>")
-def verify_career_pro_checkout(session_id):
+@career_bp.get("/checkout/<identifier>")
+def verify_career_pro_checkout(identifier):
     try:
-        paid, status = _verify_paid_session(session_id)
+        paid, status = _verify_paid_session(identifier)
         return jsonify({"success": True, "paid": paid, "payment_status": status, "feature_id": "career_pro" if paid else None})
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
