@@ -43,6 +43,11 @@ ACTION_VERBS = {
     "negotiated", "executed", "coordinated", "produced", "decreased",
 }
 
+DEGREE_TERMS = {
+    "bachelor", "master", "mba", "bba", "bsc", "msc", "phd", "diploma", "certificate",
+    "certification", "university", "college", "school", "degree",
+}
+
 
 def normalize(text: str) -> str:
     text = (text or "").lower().replace("&", " and ")
@@ -50,10 +55,6 @@ def normalize(text: str) -> str:
 
 
 def tokenize(text: str) -> List[str]:
-    """Return clean keyword tokens without sentence punctuation.
-
-    Dots are retained only inside tokens such as node.js, not at sentence endings.
-    """
     return re.findall(r"[a-z][a-z0-9+#]*(?:\.[a-z0-9+#]+)?", normalize(text))
 
 
@@ -82,7 +83,6 @@ def keyword_overlap(resume: str, job: str) -> Tuple[List[str], List[str], float]
 
 
 def contact_signals(text: str) -> Dict[str, bool]:
-    """Detect actual contact values rather than merely section labels."""
     return {
         "email": bool(re.search(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", text, re.I)),
         "phone": bool(re.search(r"(?:\+?\d[\d\s().-]{7,}\d)", text)),
@@ -101,6 +101,20 @@ def section_signals(text: str) -> Dict[str, bool]:
     return {section: any(a in n for a in terms) for section, terms in aliases.items()}
 
 
+def _section_body_word_count(text: str, heading_terms: List[str]) -> int:
+    lines = [x.strip() for x in text.splitlines()]
+    for i, line in enumerate(lines):
+        n = normalize(line)
+        if any(n == term or n.startswith(term + ":") for term in heading_terms):
+            body = []
+            for candidate in lines[i + 1:i + 6]:
+                if re.fullmatch(r"[A-Z][A-Z /&-]{2,}", candidate or ""):
+                    break
+                body.append(candidate)
+            return len(tokenize(" ".join(body)))
+    return 0
+
+
 def analyze_resume(resume_text: str, job_text: str = "") -> Dict:
     resume_text = resume_text or ""
     job_text = job_text or ""
@@ -111,31 +125,79 @@ def analyze_resume(resume_text: str, job_text: str = "") -> Dict:
 
     lines = [x.strip() for x in resume_text.splitlines() if x.strip()]
     bullets = [x for x in lines if re.match(r"^[•●▪◦*-]\s+", x)]
-    action_bullets = [
-        x for x in bullets
-        if any(re.search(r"\b" + re.escape(v) + r"\b", x.lower()) for v in ACTION_VERBS)
-    ]
-    quantified = [
-        x for x in bullets
-        if re.search(r"\b\d+(?:\.\d+)?\s*(?:%|k|m|million|billion|hours|days|people|clients|customers|projects)?\b", x.lower())
-    ]
+    action_bullets = [x for x in bullets if any(re.search(r"\b" + re.escape(v) + r"\b", x.lower()) for v in ACTION_VERBS)]
+    quantified = [x for x in bullets if re.search(r"(?:\b\d+(?:\.\d+)?\s*(?:%|k|m|million|billion|hours|days|people|clients|customers|projects|sales|users)\b|[$€£]\s?\d+)", x.lower())]
+
+    words = tokenize(resume_text)
+    word_count = len(words)
+    heading_count = sum(1 for present in sections.values() if present)
+    date_signals = len(re.findall(r"\b(?:19|20)\d{2}\b", resume_text))
+    long_lines = [x for x in lines if len(x) > 180]
+    summary_words = _section_body_word_count(resume_text, ["summary", "professional summary", "profile", "objective"])
+    degree_signal = any(term in normalize(resume_text) for term in DEGREE_TERMS)
 
     checks = []
 
-    def check(name, passed, detail, weight):
-        checks.append({"name": name, "passed": bool(passed), "detail": detail, "weight": weight})
+    def add_check(name: str, points: float, weight: int, detail: str):
+        points = max(0.0, min(float(weight), float(points)))
+        passed = points >= weight * 0.7
+        checks.append({
+            "name": name,
+            "passed": passed,
+            "detail": detail,
+            "weight": weight,
+            "points": round(points, 1),
+        })
 
-    contact_ok = contacts["email"] and contacts["phone"]
-    check("Contact information", contact_ok, "Include a valid email address and phone number. LinkedIn is recommended.", 10)
-    check("Professional summary", sections["summary"], "Add a concise summary aligned to the target role.", 10)
-    check("Work experience", sections["experience"], "Use a clear employment/experience section with dates and outcomes.", 15)
-    check("Education", sections["education"], "Include education or relevant training where appropriate.", 10)
-    check("Skills section", sections["skills"], "Add a dedicated skills/competencies section.", 10)
-    check("Action-oriented bullets", bool(action_bullets), "Start experience bullets with strong action verbs.", 15)
-    check("Quantified achievements", bool(quantified), "Add measurable outcomes such as %, revenue, volume, time, or team size.", 15)
-    check("Job keyword alignment", keyword_score >= 60 if job_text.strip() else True, "Match relevant terminology from the target job description without keyword stuffing.", 15)
+    contact_points = (5 if contacts["email"] else 0) + (5 if contacts["phone"] else 0)
+    add_check("Contact information", contact_points, 10, "Include a valid email address and phone number. LinkedIn is recommended.")
 
-    score = round(sum(c["weight"] for c in checks if c["passed"]))
+    summary_points = (3 if sections["summary"] else 0) + (7 if 20 <= summary_words <= 100 else 3 if 10 <= summary_words < 20 else 0)
+    add_check("Professional summary", summary_points, 10, "Use a clear summary of roughly 20–100 words focused on the target role and your strongest evidence.")
+
+    experience_points = 0
+    if sections["experience"]:
+        experience_points += 4
+    if date_signals >= 2:
+        experience_points += 4
+    if len(bullets) >= 2:
+        experience_points += 5
+    if len(action_bullets) >= 1:
+        experience_points += 5
+    add_check("Work experience", experience_points, 18, "Use a clear experience section with dates and at least 2 achievement-focused bullets.")
+
+    education_points = (4 if sections["education"] else 0) + (4 if degree_signal or date_signals >= 1 else 0)
+    add_check("Education / training", education_points, 8, "Include education, training, or relevant certifications with enough detail to verify them.")
+
+    skills_points = (3 if sections["skills"] else 0) + min(5, len(skills) * 1.25)
+    add_check("Skills section", skills_points, 8, "Use a dedicated skills section with several role-relevant skills rather than a vague list.")
+
+    action_ratio = (len(action_bullets) / len(bullets)) if bullets else 0
+    add_check("Action-oriented bullets", 12 * action_ratio, 12, "Most experience bullets should start with strong action language and describe what you actually did.")
+
+    quantified_ratio = (len(quantified) / len(bullets)) if bullets else 0
+    add_check("Quantified achievements", min(12, quantified_ratio * 24), 12, "Quantify meaningful outcomes where you have real numbers: %, revenue, time, volume, customers, projects, or team size.")
+
+    keyword_points = (15 * keyword_score / 100) if job_text.strip() else 7.5
+    add_check("Job keyword alignment", keyword_points, 15, "Use genuinely relevant terminology from the target job description; do not keyword-stuff or claim skills you do not have.")
+
+    structure_points = 0
+    if 200 <= word_count <= 1200:
+        structure_points += 3
+    elif 120 <= word_count < 200 or 1200 < word_count <= 1500:
+        structure_points += 1.5
+    if heading_count >= 3:
+        structure_points += 2
+    elif heading_count == 2:
+        structure_points += 1
+    if not long_lines:
+        structure_points += 2
+    elif len(long_lines) <= 2:
+        structure_points += 1
+    add_check("Structure & readability", structure_points, 7, "Keep the resume concise, clearly sectioned, and readable. Very short, very long, or dense unstructured resumes score lower.")
+
+    score = round(sum(c["points"] for c in checks))
+    score = max(0, min(100, score))
     recommendations = [c["detail"] for c in checks if not c["passed"]]
     if job_text.strip() and missing:
         recommendations.insert(0, "Consider adding genuinely relevant missing keywords: " + ", ".join(missing[:10]) + ".")
@@ -155,6 +217,14 @@ def analyze_resume(resume_text: str, job_text: str = "") -> Dict:
             "total_bullets": len(bullets),
             "action_bullets": len(action_bullets),
             "quantified_bullets": len(quantified),
+        },
+        "format_analysis": {
+            "word_count": word_count,
+            "section_count": heading_count,
+            "date_signals": date_signals,
+            "long_line_count": len(long_lines),
+            "visual_layout_checked": False,
+            "note": "EggyPDF evaluates text structure and ATS-readiness signals. It cannot fully judge visual design, columns, fonts, spacing, or graphics from extracted PDF text alone.",
         },
         "recommendations": recommendations[:12],
     }
