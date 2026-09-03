@@ -142,7 +142,7 @@ def _points_for_ratio(count: int, total: int, weight: int, min_full_count: int =
 def _genuine_metric_bullet(line: str) -> bool:
     # Require a real measurable signal. Bare years such as 2024 do not count.
     metric_patterns = [
-        r"\b\d+(?:\.\d+)?\s*%\b?",
+        r"\b\d+(?:\.\d+)?\s*%",
         r"(?:[$€£]|aed\s*|usd\s*|sar\s*|qar\s*)\d[\d,.]*",
         r"\b\d+(?:\.\d+)?\s*(?:k|m|million|billion|hours?|days?|weeks?|months?|people|employees|clients?|customers?|projects?|tickets?|leads?|sales|orders|users)\b",
         r"\b(?:increased|reduced|grew|improved|saved|generated|managed|served|supported)\b[^\n]{0,45}\b\d+(?!\s*(?:-|–|to)\s*\d{2,4}\b)",
