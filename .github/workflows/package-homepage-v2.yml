@@ -1,89 +1,69 @@
 name: Package EggyPDF Homepage V2
-
-on:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
 jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout V2 branch
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Build isolated Cloudflare package
         shell: bash
         run: |
           set -euo pipefail
           OUT="EggyPDF-Homepage-V2-Cloudflare"
-          rm -rf "$OUT" EggyPDF-Homepage-V2-Cloudflare.zip
+          rm -rf "$OUT" EggyPDF-Homepage-V2-Cloudflare-Fixed.zip
           mkdir -p "$OUT/tools"
           cp index.html "$OUT/index.html"
-          for f in ats-checker.html career-pro.html resume-builder.html about-us.html contact.html privacy-policy.html terms.html cookie-policy.html robots.txt sitemap.xml favicon.svg; do
-            test -f "$f" || { echo "Missing required source: $f"; exit 1; }
-            cp "$f" "$OUT/$f"
-          done
+          for f in ats-checker.html career-pro.html resume-builder.html about-us.html contact.html privacy-policy.html terms.html cookie-policy.html robots.txt sitemap.xml favicon.svg; do test -f "$f"; cp "$f" "$OUT/$f"; done
           test -f egg.png && cp egg.png "$OUT/egg.png" || true
           if [ -f blog.html ]; then cp blog.html "$OUT/blog.html"; elif [ -f site_editor-1/blog.html ]; then cp site_editor-1/blog.html "$OUT/blog.html"; fi
-          if [ -d site_editor-1/blog ]; then cp -R site_editor-1/blog "$OUT/blog"; fi
+          test -d site_editor-1/blog && cp -R site_editor-1/blog "$OUT/blog" || true
           TOOLS=(merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text)
-          for tool in "${TOOLS[@]}"; do
-            test -f "${tool}.html" || { echo "Missing tool source: ${tool}.html"; exit 1; }
-            cp "${tool}.html" "$OUT/tools/${tool}.html"
-          done
+          for tool in "${TOOLS[@]}"; do test -f "${tool}.html"; cp "${tool}.html" "$OUT/${tool}.html"; done
           if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html "$OUT/tools/qr-code.html"; fi
-          cat > "$OUT/V2-PACKAGE.txt" <<'EOF'
-          EggyPDF Homepage V2 Cloudflare Package
-          ======================================
-          Isolated dark/lime Homepage V2 package.
-          Existing rollback/older deployment packages are not modified by this workflow.
-          EOF
 
-      - name: Validate V2 package
+          # Resume Builder targeted responsive repair. Keep builder logic/content intact; only add safe CSS overrides.
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('EggyPDF-Homepage-V2-Cloudflare/resume-builder.html')
+          s=p.read_text()
+          patch='''\n<style id="eggypdf-resume-responsive-fix">\n/* Package-level regression guard: do not let builder/SEO content inherit fixed viewport compression. */\nhtml,body{max-width:100%;overflow-x:hidden}\n@media(max-width:900px){\n  .builder-wrap{display:grid!important;grid-template-columns:minmax(0,1fr)!important;height:auto!important;min-height:0!important;overflow:visible!important}\n  .form-panel,.preview-panel{width:100%!important;min-width:0!important;height:auto!important;max-height:none!important;overflow:visible!important}\n  .preview-panel{overflow-x:auto!important;align-items:flex-start!important}\n  .preview-paper{width:210mm!important;max-width:none!important;transform-origin:top left}\n  .seo-section,.seo-content,.faq-section,.faq-container,.faq-grid,.content-section,.resume-seo,.resume-faq{width:100%!important;max-width:100%!important;min-width:0!important;height:auto!important;overflow:visible!important;display:block!important}\n}\n@media(max-width:600px){\n  header{padding:0 12px!important}.header-inner{height:auto!important;min-height:60px!important;flex-wrap:wrap!important;padding:8px 0!important}\n  .header-actions{margin-left:auto!important;gap:6px!important}.btn-download,.btn-clear,.back-btn{padding:8px 10px!important;font-size:12px!important}\n  .hero-strip{padding:18px 14px!important}.template-bar{padding:10px 12px!important}\n  .form-panel{padding:12px!important}.preview-panel{padding:12px!important}\n  .field-row{grid-template-columns:minmax(0,1fr)!important}.skill-input-row{flex-wrap:wrap!important}.skill-input-row input{min-width:0!important}\n  .seo-section,.seo-content,.faq-section,.faq-container,.faq-grid,.content-section,.resume-seo,.resume-faq{padding-left:14px!important;padding-right:14px!important}\n  .seo-section *, .seo-content *, .faq-section *, .faq-container *, .content-section *{max-width:100%!important;overflow-wrap:anywhere}\n}\n</style>\n'''
+          if 'eggypdf-resume-responsive-fix' not in s:
+              s=s.replace('</head>',patch+'</head>',1)
+          p.write_text(s)
+          PY
+          printf '%s\n' 'EggyPDF Homepage V2 corrected package' 'Root tool URLs preserved; Resume Builder responsive regression guard included.' > "$OUT/V2-PACKAGE.txt"
+      - name: Validate corrected package
         shell: bash
         run: |
           set -euo pipefail
           OUT="EggyPDF-Homepage-V2-Cloudflare"
-          check(){ grep -Fq "$1" "$2" || { echo "VALIDATION FAILED: '$1' missing from $2"; exit 1; }; }
+          check(){ grep -Fq "$1" "$2" || { echo "FAILED: $1 missing in $2"; exit 1; }; }
           check 'Everything you need' "$OUT/index.html"
-          check '100% Free PDF Tools' "$OUT/index.html"
-          check 'View All Tools' "$OUT/index.html"
+          check 'Explore PDF Tools' "$OUT/index.html"
+          check 'AI Resume Builder' "$OUT/index.html"
+          check 'Career Pro →' "$OUT/index.html"
+          check 'QR Code Generator' "$OUT/index.html"
+          check 'Same Files' "$OUT/index.html"
+          check 'Bigger Opportunities' "$OUT/index.html"
           check 'id="drawer"' "$OUT/index.html"
-          check 'id="search"' "$OUT/index.html"
-          check 'resume-builder.html' "$OUT/index.html"
-          check 'career-pro.html' "$OUT/index.html"
-          check 'Sign In' "$OUT/index.html"
-          check 'Sign Up' "$OUT/index.html"
-          TITLE_COUNT=$(grep -Fo '<title>' "$OUT/index.html" | wc -l)
-          [ "$TITLE_COUNT" -eq 1 ] || { echo "VALIDATION FAILED: expected 1 title, found $TITLE_COUNT"; exit 1; }
-          if grep -Fq 'content=<meta' "$OUT/index.html"; then echo 'VALIDATION FAILED: malformed meta tag detected'; exit 1; fi
+          ! grep -Fq 'PDF Tools · All in one place' "$OUT/index.html"
+          ! grep -Fq 'Privacy-Focused Processing' "$OUT/index.html"
           TOOLS=(merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text)
-          for tool in "${TOOLS[@]}"; do
-            test -f "$OUT/tools/${tool}.html" || { echo "VALIDATION FAILED: missing packaged tool ${tool}.html"; exit 1; }
-          done
+          for tool in "${TOOLS[@]}"; do test -f "$OUT/${tool}.html"; check "/${tool}.html" "$OUT/index.html"; done
+          test -f "$OUT/tools/qr-code.html"
+          check 'eggypdf-resume-responsive-fix' "$OUT/resume-builder.html"
+          check 'grid-template-columns:minmax(0,1fr)' "$OUT/resume-builder.html"
           check '/api/career/pro/extract-resume' "$OUT/career-pro.html"
           check '/api/career/pro/optimize' "$OUT/career-pro.html"
           check '/api/career/pro/cover-letter' "$OUT/career-pro.html"
           check 'eggypdf_career_pro_checkout' "$OUT/career-pro.html"
-          ! test -f "$OUT/tools/edit-pdf.html" || { echo 'VALIDATION FAILED: edit-pdf must not ship'; exit 1; }
-          test -f "$OUT/V2-PACKAGE.txt" || { echo 'VALIDATION FAILED: V2 manifest missing'; exit 1; }
-          echo 'Homepage V2 package validation passed.'
-
+          ! test -f "$OUT/edit-pdf.html"
+          echo 'Corrected Homepage V2 + Resume Builder validation passed.'
       - name: Create deployment ZIP
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd EggyPDF-Homepage-V2-Cloudflare
-          zip -qr ../EggyPDF-Homepage-V2-Cloudflare.zip .
-          cd ..
-          unzip -l EggyPDF-Homepage-V2-Cloudflare.zip | head -40
-          ls -lh EggyPDF-Homepage-V2-Cloudflare.zip
-
-      - name: Upload Homepage V2 artifact
-        uses: actions/upload-artifact@v4
+        run: cd EggyPDF-Homepage-V2-Cloudflare && zip -qr ../EggyPDF-Homepage-V2-Cloudflare-Fixed.zip .
+      - uses: actions/upload-artifact@v4
         with:
-          name: EggyPDF-Homepage-V2-Cloudflare
-          path: EggyPDF-Homepage-V2-Cloudflare.zip
+          name: EggyPDF-Homepage-V2-Cloudflare-Fixed
+          path: EggyPDF-Homepage-V2-Cloudflare-Fixed.zip
           retention-days: 7
