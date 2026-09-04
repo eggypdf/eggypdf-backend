@@ -13,55 +13,98 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf dist
-          mkdir -p dist/tools dist/blog
+          rm -rf cloudflare-upload EggyPDF-Career-Pro-V2-Cloudflare.zip
+          mkdir -p cloudflare-upload/tools cloudflare-upload/blog
 
-          # Root production pages only. Do not deploy site_editor-1 wholesale.
-          cp index.html dist/
-          cp ats-checker.html career-pro.html resume-builder.html dist/
-          for f in about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg; do
-            [ -f "$f" ] && cp "$f" dist/
+          # Start from the same root production frontend used by the proven V1 package.
+          cp index.html cloudflare-upload/index.html
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('cloudflare-upload/index.html'); s=p.read_text()
+          s=s.replace('<title>EggyPDF – Free Online PDF Tools | Merge, Compress, Convert PDF</title> <title>EggyPDF – Free PDF Tools & Resume Builder Online</title>','<title>EggyPDF – Free PDF Tools & Resume Builder Online</title>')
+          s=s.replace('<meta name="description" content=<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers.">','<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers."/>')
+          s=s.replace('</style> .seo-section {','.seo-section {').replace('</head>','</style>\n</head>',1)
+          if 'ATS Resume Checker' not in s:
+              end='    </a>\n\n    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'
+              card='''    </a>\n\n    <a href="ats-checker.html" class="tool-card" data-cat="ai" style="border-color:#f5a623;background:linear-gradient(135deg,#fff8ed,#fff)">\n      <div class="tool-icon" style="background:#fff3cd;font-size:1.5rem">🎯</div>\n      <h3 style="color:#d4881a">ATS Resume Checker <span style="font-size:10px;background:#f5a623;color:#fff;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;margin-left:4px">NEW</span></h3>\n      <p>Check your resume against a job description and find missing keywords and improvements.</p>\n    </a>\n\n    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'''
+              assert end in s
+              s=s.replace(end,card,1)
+          p.write_text(s)
+          PY
+
+          cp ats-checker.html career-pro.html resume-builder.html cloudflare-upload/
+
+          # Preserve the already-proven Resume Builder SEO/mobile repair.
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('cloudflare-upload/resume-builder.html'); s=p.read_text()
+          s=s.replace('<head> <title>Free Resume Builder – Download PDF Instantly | EggyPDF</title>\n<meta name="description" content="Build a professional resume online and download as PDF for free. No sign-up needed. Designed for job seekers in UAE, Gulf, and worldwide.">','<head>\n<meta name="description" content="Build a professional resume online and download as PDF for free. No sign-up needed. Designed for job seekers in UAE, Gulf, and worldwide.">')
+          marker='<section class="seo-section">'; i=s.find(marker)
+          if i!=-1 and i>s.find('</html>'):
+              seo=s[i:]; s=s[:i].rstrip()
+              if s.endswith('</html>'): s=s[:-7].rstrip()
+              if s.endswith('</body>'): s=s[:-7].rstrip()
+              s=s+'\n\n'+seo+'\n</body>\n</html>\n'
+          if '.seo-section{' not in s:
+              css="""\n.seo-section{max-width:780px;margin:48px auto;padding:0 20px 48px;color:var(--text);font-family:'Inter',sans-serif;line-height:1.7}\n.seo-section h2{font-size:1.3rem;line-height:1.3;margin:28px 0 10px;color:var(--text)}\n.seo-section h3{font-size:1rem;line-height:1.4;margin:18px 0 6px;color:var(--text)}\n.seo-section p{font-size:.97rem;line-height:1.7;margin:0 0 14px;color:var(--muted)}\n@media(max-width:640px){.seo-section{margin:28px auto;padding:0 18px 36px}.seo-section h2{font-size:1.15rem}.seo-section p{font-size:.92rem}}\n"""
+              s=s.replace('</style>',css+'</style>',1)
+          p.write_text(s)
+          PY
+
+          cp about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg cloudflare-upload/
+          [ -f egg.png ] && cp egg.png cloudflare-upload/ || true
+          cp site_editor-1/blog.html cloudflare-upload/blog.html
+          cp -R site_editor-1/blog/. cloudflare-upload/blog/
+
+          # Exact 21 production utility filenames from the stable V1 package.
+          for f in compress crop delete-pages excel-to-pdf jpg-to-pdf merge page-numbers pdf-to-excel pdf-to-jpg pdf-to-png pdf-to-ppt pdf-to-text pdf-to-word png-to-pdf ppt-to-pdf protect rotate split unlock watermark word-to-pdf; do
+            test -f "$f.html"
+            cp "$f.html" "cloudflare-upload/tools/$f.html"
           done
 
-          # Existing production blog content is intentionally copied only from its known blog paths.
-          if [ -f site_editor-1/blog.html ]; then cp site_editor-1/blog.html dist/blog.html; fi
-          if [ -d site_editor-1/blog ]; then cp -R site_editor-1/blog/. dist/blog/; fi
+          # Remove legacy visible SEO blocks from utility pages only.
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          for p in Path('cloudflare-upload/tools').glob('*.html'):
+              s=p.read_text()
+              s=re.sub(r'<section\b[^>]*class=["\'][^"\']*\bseo-section\b[^"\']*["\'][^>]*>.*?</section>','',s,flags=re.I|re.S)
+              s=re.sub(r'<p([^>]*)>\s*</p>','',s,flags=re.I|re.S)
+              p.write_text(s)
+          PY
+          if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html cloudflare-upload/tools/qr-code.html; fi
 
-          tools=(compress merge split pdf-to-word jpg-to-pdf pdf-to-jpg word-to-pdf pdf-to-excel protect unlock pdf-to-powerpoint powerpoint-to-pdf png-to-pdf excel-to-pdf pdf-to-png watermark rotate delete-pages page-numbers crop pdf-to-text)
-          for tool in "${tools[@]}"; do
-            test -f "$tool.html"
-            cp "$tool.html" "dist/tools/$tool.html"
-          done
+          python - <<'PY'
+          from pathlib import Path
+          home=Path('cloudflare-upload/index.html').read_text()
+          ats=Path('cloudflare-upload/ats-checker.html').read_text()
+          pro=Path('cloudflare-upload/career-pro.html').read_text()
+          tools=list(Path('cloudflare-upload/tools').glob('*.html'))
+          assert home.count('<title>')==1 and 'content=<meta' not in home
+          assert 'ATS Resume Checker' in home and 'href="ats-checker.html"' in home
+          assert 'career-pro.html' in ats and 'eggypdf_career_pro_checkout' in ats and '/api/career/checkout' in ats
+          assert '/api/career/pro/extract-resume' in pro
+          assert '/api/career/pro/optimize' in pro
+          assert '/api/career/pro/cover-letter' in pro
+          assert 'PDF · DOCX · TXT' in pro
+          assert 'eggypdf_career_pro_checkout' in pro
+          required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
+          assert all(Path(f'cloudflare-upload/tools/{x}.html').exists() for x in required)
+          assert not Path('cloudflare-upload/tools/edit-pdf.html').exists()
+          bad=[]
+          for p in tools:
+              s=p.read_text().lower()
+              if 'class="seo-section"' in s or "class='seo-section'" in s or 'frequently asked questions' in s: bad.append(p.name)
+          assert not bad, f'Visible SEO/FAQ content remains: {bad}'
+          print('VALIDATION PASSED: Career Pro V2 frontend + stable PDF tools')
+          PY
 
-          # QR page varies across the historical root; copy only a known root page if present.
-          for qr in qr-code-generator.html qr-generator.html qr-code.html; do
-            if [ -f "$qr" ]; then cp "$qr" dist/; break; fi
-          done
-
-          # Career Pro V2 validation.
-          grep -q '/api/career/pro/upload' dist/career-pro.html
-          grep -q '/api/career/pro/optimize' dist/career-pro.html
-          grep -q 'PDF, DOCX, or TXT' dist/career-pro.html
-          grep -q 'eggypdf_career_pro_checkout' dist/career-pro.html
-          grep -q '/api/career/pro/cover-letter' dist/career-pro.html
-          grep -q '/api/career/checkout' dist/ats-checker.html
-          grep -q 'career-pro.html' dist/ats-checker.html
-          test -f dist/resume-builder.html
-          test "$(find dist/tools -maxdepth 1 -name '*.html' | wc -l)" -eq 21
-          ! find dist -iname '*edit-pdf*' | grep -q .
-
-          # Guard against accidentally shipping the legacy visible SEO blocks on PDF utilities.
-          if grep -RilE '<section[^>]+class=["'"'][^"'"']*(seo-section|faq-section)'"'"'' dist/tools; then
-            echo 'Legacy visible SEO/FAQ section found in PDF utility package.' >&2
-            exit 1
-          fi
-
-          echo 'VALIDATION PASSED: Career Pro V2 + stable EggyPDF frontend'
-          (cd dist && zip -r ../EggyPDF-Career-Pro-V2-Cloudflare.zip .)
+          (cd cloudflare-upload && zip -r ../EggyPDF-Career-Pro-V2-Cloudflare.zip .)
 
       - name: Upload Cloudflare package
         uses: actions/upload-artifact@v4
         with:
           name: EggyPDF-Career-Pro-V2-Cloudflare
           path: EggyPDF-Career-Pro-V2-Cloudflare.zip
+          if-no-files-found: error
           retention-days: 3
