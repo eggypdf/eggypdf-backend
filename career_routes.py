@@ -1,300 +1,117 @@
-"""EggyPDF Career Pro API routes.
-
-Career features live in a Blueprint so the existing PDF API remains stable.
-Payment checkout is created and verified server-side; Dodo API credentials are
-never exposed to the browser.
-"""
+"""EggyPDF Career Pro API routes."""
 from __future__ import annotations
-
-import io
-import os
-import re
-
-import requests
-from flask import Blueprint, jsonify, request
+import io,os,requests
+from flask import Blueprint,jsonify,request
 from werkzeug.utils import secure_filename
+from career_engine import analyze_resume,extract_keywords,extract_skills
+from career_v2 import extract_resume_upload,optimize_with_gemini
+career_bp=Blueprint('career',__name__,url_prefix='/api/career');MAX_TEXT_LENGTH=100_000
+DEFAULT_DODO_PRODUCT_ID='pdt_0Nmk7wwSsTDKzOvbI7z9n';DODO_PRODUCT_ID=os.getenv('DODO_PRODUCT_ID',DEFAULT_DODO_PRODUCT_ID).strip();DODO_API_BASE=os.getenv('DODO_API_BASE','https://live.dodopayments.com').rstrip('/');CAREER_PRO_RETURN_URL=os.getenv('CAREER_PRO_RETURN_URL','https://eggypdf.com/ats-checker.html?career_pro=return')
+def _validate_text(t,label):
+ if not t:raise ValueError(f'{label} is required.')
+ if len(t)>MAX_TEXT_LENGTH:raise ValueError(f'{label} is too long. Please keep it under {MAX_TEXT_LENGTH:,} characters.')
+def _headers():
+ k=os.getenv('DODO_PAYMENTS_API_KEY','').strip()
+ if not k:raise RuntimeError('Dodo Payments is not configured.')
+ return {'Authorization':f'Bearer {k}','Content-Type':'application/json','Accept':'application/json'}
+def _payerr(s):
+ if s in(401,403):return 'Dodo authentication failed. Check that the API key matches the selected live/test environment.'
+ if s==404:return 'Dodo could not find the requested checkout resource or product. Check the Career Pro product ID and environment.'
+ if s in(400,409,422):return 'Dodo rejected the checkout configuration. Check the product, return URL, and account environment.'
+ if s==429:return 'Dodo is temporarily rate-limiting checkout requests. Please try again shortly.'
+ return f'Payment service rejected the request (HTTP {s}).'
+def _dodo(method,path,**kw):
+ try:r=requests.request(method,f'{DODO_API_BASE}{path}',headers=_headers(),timeout=20,**kw)
+ except requests.RequestException as e:raise RuntimeError('Payment service is temporarily unavailable.') from e
+ if not r.ok:raise RuntimeError(_payerr(r.status_code))
+ return r.json()
+def _valid(v,p):return bool(v and v.startswith(p) and len(v)<=200 and all(c.isalnum() or c in '_-' for c in v))
+def _ispro(p,cks=None):
+ if p.get('status')!='succeeded' or (cks and p.get('checkout_session_id')!=cks):return False
+ return any(x.get('product_id')==DODO_PRODUCT_ID and int(x.get('quantity') or 0)>=1 for x in(p.get('product_cart') or []))
+def _verify(i):
+ if _valid(i,'pay_'):
+  p=_dodo('GET',f'/payments/{i}');return _ispro(p),p.get('status')
+ if not _valid(i,'cks_'):raise ValueError('Invalid checkout or payment identifier.')
+ c=_dodo('GET',f'/checkouts/{i}');s=c.get('payment_status') or c.get('status');m=c.get('metadata') or {}
+ if s=='succeeded' and m.get('product')=='career_pro':return True,s
+ ps=_dodo('GET','/payments',params={'product_id':DODO_PRODUCT_ID,'status':'succeeded','page_size':50,'page_number':0})
+ for x in ps.get('items') or []:
+  pid=x.get('payment_id')
+  if _valid(pid,'pay_'):
+   p=_dodo('GET',f'/payments/{pid}')
+   if _ispro(p,i):return True,p.get('status')
+ return False,s
+def _require(d):
+ paid,_=_verify((d.get('session_id') or d.get('payment_id') or '').strip())
+ if not paid:raise PermissionError('Career Pro purchase could not be verified.')
+def _draft(resume,job,name='',company='',role=''):
+ a=analyze_resume(resume,job);ev=a['keyword_analysis']['matched'][:5] or a.get('skills_detected',[])[:5];e=', '.join(ev) if ev else 'relevant experience and transferable skills';n=name or 'Your Name';co=company or 'the hiring team';ro=role or 'this role'
+ return f'Dear {co},\n\nI am applying for {ro}. My background includes {e}, which aligns with several priorities in your job description. I am interested in bringing this experience to your team.\n\nMy previous work has developed practical experience relevant to this position. I would welcome the opportunity to discuss the results, projects, and examples from my background that best match your needs.\n\nThank you for considering my application.\n\nSincerely,\n{n}'
+@career_bp.get('/health')
+def health():return jsonify({'status':'ok','service':'EggyPDF Career Pro','features':['ats-analysis','job-matching','career-pro-checkout','resume-upload','resume-optimizer','cover-letter'],'payments_configured':bool(os.getenv('DODO_PAYMENTS_API_KEY','').strip()),'payment_environment':'test' if 'test' in DODO_API_BASE.lower() else 'live','career_pro_product_configured':bool(DODO_PRODUCT_ID),'ai_optimizer_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip())})
+@career_bp.post('/checkout')
+def checkout():
+ try:
+  c=_dodo('POST','/checkouts',json={'product_cart':[{'product_id':DODO_PRODUCT_ID,'quantity':1}],'return_url':CAREER_PRO_RETURN_URL,'metadata':{'product':'career_pro','source':'eggypdf'}});u,i=c.get('checkout_url'),c.get('session_id')
+  if not u or not i:raise RuntimeError('Payment service returned an incomplete checkout session.')
+  return jsonify({'success':True,'checkout_url':u,'session_id':i})
+ except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
+@career_bp.get('/checkout/<identifier>')
+def verify(identifier):
+ try:p,s=_verify(identifier);return jsonify({'success':True,'paid':p,'payment_status':s,'feature_id':'career_pro' if p else None})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+ except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
+@career_bp.post('/pro/extract-resume')
+def pro_extract():
+ try:
+  sid=(request.form.get('session_id') or '').strip();_require({'session_id':sid});f=request.files.get('resume') or request.files.get('file')
+  if not f:raise ValueError('Choose a resume file first.')
+  text=extract_resume_upload(f);_validate_text(text,'Resume text');return jsonify({'success':True,'resume_text':text,'filename':secure_filename(f.filename),'characters':len(text)})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+ except PermissionError as e:return jsonify({'success':False,'error':str(e)}),403
+ except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
+ except Exception:return jsonify({'success':False,'error':'We could not read this resume. Try a text-based PDF, DOCX, or TXT file.'}),500
+@career_bp.post('/pro/optimize')
+def pro_optimize():
+ try:
+  d=request.get_json(silent=True) or {};_require(d);resume=(d.get('resume_text') or '').strip();job=(d.get('job_description') or '').strip();_validate_text(resume,'Resume text');_validate_text(job,'Job description');return jsonify({'success':True,'optimization':optimize_with_gemini(resume,job)})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+ except PermissionError as e:return jsonify({'success':False,'error':str(e)}),403
+ except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
+@career_bp.post('/pro/tailor')
+def tailor():
+ try:
+  d=request.get_json(silent=True) or {};_require(d);r=(d.get('resume_text') or '').strip();j=(d.get('job_description') or '').strip();_validate_text(r,'Resume text');_validate_text(j,'Job description');return jsonify({'success':True,'tailoring':optimize_with_gemini(r,j)})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+ except PermissionError as e:return jsonify({'success':False,'error':str(e)}),403
+ except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
+@career_bp.post('/pro/cover-letter')
+def letter():
+ try:
+  d=request.get_json(silent=True) or {};_require(d);r=(d.get('resume_text') or '').strip();j=(d.get('job_description') or '').strip();_validate_text(r,'Resume text');_validate_text(j,'Job description');return jsonify({'success':True,'cover_letter':_draft(r,j,(d.get('applicant_name') or '').strip(),(d.get('company') or '').strip(),(d.get('role') or '').strip()),'integrity_note':'Review and personalize this draft before sending. Keep every claim accurate.'})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+ except PermissionError as e:return jsonify({'success':False,'error':str(e)}),403
+ except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
 
-from career_engine import analyze_resume, extract_keywords, extract_skills
-
-career_bp = Blueprint("career", __name__, url_prefix="/api/career")
-
-MAX_TEXT_LENGTH = 100_000
-ALLOWED_RESUME_EXTENSIONS = {"pdf", "txt"}
-DEFAULT_DODO_PRODUCT_ID = "pdt_0Nmk7wwSsTDKzOvbI7z9n"
-DODO_PRODUCT_ID = os.getenv("DODO_PRODUCT_ID", DEFAULT_DODO_PRODUCT_ID).strip()
-DODO_API_BASE = os.getenv("DODO_API_BASE", "https://live.dodopayments.com").rstrip("/")
-CAREER_PRO_RETURN_URL = os.getenv(
-    "CAREER_PRO_RETURN_URL", "https://eggypdf.com/ats-checker.html?career_pro=return"
-)
-
-
-def _extract_pdf_text(file_storage):
-    from pypdf import PdfReader
-    raw = file_storage.read()
-    if not raw:
-        raise ValueError("The uploaded resume is empty.")
-    reader = PdfReader(io.BytesIO(raw))
-    return "\n\n".join((page.extract_text() or "") for page in reader.pages).strip()
-
-
-def _get_resume_text():
-    if request.is_json:
-        return ((request.get_json(silent=True) or {}).get("resume_text") or "").strip()
-    uploaded = request.files.get("resume") or request.files.get("file")
-    if not uploaded or not uploaded.filename:
-        return ""
-    filename = secure_filename(uploaded.filename)
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in ALLOWED_RESUME_EXTENSIONS:
-        raise ValueError("Please upload a PDF or TXT resume.")
-    return _extract_pdf_text(uploaded) if ext == "pdf" else uploaded.read().decode("utf-8", errors="replace").strip()
-
-
-def _job_text():
-    if request.is_json:
-        data = request.get_json(silent=True) or {}
-        return (data.get("job_description") or data.get("job_text") or "").strip()
-    return (request.form.get("job_description") or request.form.get("job_text") or "").strip()
-
-
-def _validate_text(text, label):
-    if not text:
-        raise ValueError(f"{label} is required.")
-    if len(text) > MAX_TEXT_LENGTH:
-        raise ValueError(f"{label} is too long. Please keep it under {MAX_TEXT_LENGTH:,} characters.")
-
-
-def _dodo_headers():
-    api_key = os.getenv("DODO_PAYMENTS_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("Dodo Payments is not configured.")
-    return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "Accept": "application/json"}
-
-
-def _payment_error_message(status_code):
-    if status_code in (401, 403):
-        return "Dodo authentication failed. Check that the API key matches the selected live/test environment."
-    if status_code == 404:
-        return "Dodo could not find the requested checkout resource or product. Check the Career Pro product ID and environment."
-    if status_code in (400, 409, 422):
-        return "Dodo rejected the checkout configuration. Check the product, return URL, and account environment."
-    if status_code == 429:
-        return "Dodo is temporarily rate-limiting checkout requests. Please try again shortly."
-    return f"Payment service rejected the request (HTTP {status_code})."
-
-
-def _dodo_request(method, path, **kwargs):
-    try:
-        response = requests.request(method, f"{DODO_API_BASE}{path}", headers=_dodo_headers(), timeout=20, **kwargs)
-    except requests.RequestException as exc:
-        raise RuntimeError("Payment service is temporarily unavailable.") from exc
-    if not response.ok:
-        raise RuntimeError(_payment_error_message(response.status_code))
-    return response.json()
-
-
-def _valid_dodo_id(value, prefix):
-    return bool(value and value.startswith(prefix) and len(value) <= 200 and all(c.isalnum() or c in "_-" for c in value))
-
-
-def _payment_is_career_pro(payment, checkout_session_id=None):
-    if payment.get("status") != "succeeded":
-        return False
-    if checkout_session_id and payment.get("checkout_session_id") != checkout_session_id:
-        return False
-    cart = payment.get("product_cart") or []
-    return any(item.get("product_id") == DODO_PRODUCT_ID and int(item.get("quantity") or 0) >= 1 for item in cart)
-
-
-def _verify_paid_session(identifier):
-    """Verify a Career Pro entitlement against Dodo, never against browser status.
-
-    New return flows may provide a pay_* ID. Existing clients store the original
-    cks_* checkout ID, so for those we reconcile recent succeeded payments and
-    confirm the payment detail points back to that exact checkout session.
-    """
-    if _valid_dodo_id(identifier, "pay_"):
-        payment = _dodo_request("GET", f"/payments/{identifier}")
-        return _payment_is_career_pro(payment), payment.get("status")
-
-    if not _valid_dodo_id(identifier, "cks_"):
-        raise ValueError("Invalid checkout or payment identifier.")
-
-    checkout = _dodo_request("GET", f"/checkouts/{identifier}")
-    status = checkout.get("payment_status") or checkout.get("status")
-    metadata = checkout.get("metadata") or {}
-    if status == "succeeded" and metadata.get("product") == "career_pro":
-        return True, status
-
-    # Dodo's hosted checkout redirects one-time purchases with payment_id. Some
-    # checkout-detail responses do not surface the completed payment metadata,
-    # so reconcile recent succeeded payments for this product and verify the
-    # exact checkout_session_id on each payment detail.
-    payment_list = _dodo_request(
-        "GET",
-        "/payments",
-        params={"product_id": DODO_PRODUCT_ID, "status": "succeeded", "page_size": 50, "page_number": 0},
-    )
-    for summary in payment_list.get("items") or []:
-        payment_id = summary.get("payment_id")
-        if not _valid_dodo_id(payment_id, "pay_"):
-            continue
-        payment = _dodo_request("GET", f"/payments/{payment_id}")
-        if _payment_is_career_pro(payment, checkout_session_id=identifier):
-            return True, payment.get("status")
-    return False, status
-
-
-def _require_pro(data):
-    identifier = (data.get("session_id") or data.get("payment_id") or "").strip()
-    paid, _ = _verify_paid_session(identifier)
-    if not paid:
-        raise PermissionError("Career Pro purchase could not be verified.")
-
-
-def _tailoring_plan(resume_text, job_text):
-    analysis = analyze_resume(resume_text, job_text)
-    missing = analysis["keyword_analysis"]["missing"][:12]
-    matched = analysis["keyword_analysis"]["matched"][:12]
-    skills = analysis.get("skills_detected", [])[:12]
-    return {
-        "match_score": analysis["keyword_analysis"]["match_percentage"],
-        "priority_keywords": missing,
-        "matched_keywords": matched,
-        "skills_detected": skills,
-        "actions": [f"Use '{kw}' naturally where it truthfully matches your experience." for kw in missing[:6]] or ["Your keyword alignment is already strong. Focus on evidence, clarity, and measurable outcomes."],
-        "summary_guidance": "Lead with the target role, strongest relevant skills, and 1–2 outcomes you can defend in an interview.",
-        "bullet_guidance": "Start experience bullets with strong action verbs, keep only relevant responsibilities, and quantify outcomes when you have real numbers.",
-        "integrity_note": "Only add keywords, skills, metrics, and claims that are true. EggyPDF will not invent experience for you.",
-    }
-
-
-def _cover_letter_draft(resume_text, job_text, applicant_name="", company="", role=""):
-    analysis = analyze_resume(resume_text, job_text)
-    matched = analysis["keyword_analysis"]["matched"][:5]
-    skills = analysis.get("skills_detected", [])[:5]
-    evidence = matched or skills
-    name = applicant_name or "Your Name"
-    company_name = company or "the hiring team"
-    role_name = role or "this role"
-    evidence_text = ", ".join(evidence) if evidence else "relevant experience and transferable skills"
-    return (
-        f"Dear {company_name},\n\n"
-        f"I am applying for {role_name}. My background includes {evidence_text}, which aligns with several of the priorities in your job description. "
-        "I am particularly interested in bringing this experience to a role where I can contribute quickly while continuing to grow.\n\n"
-        "In my previous work, I have developed practical experience that relates to the responsibilities described for this position. "
-        "I would welcome the opportunity to discuss the specific results, projects, and examples from my background that are most relevant to your team.\n\n"
-        f"Thank you for considering my application. I would be glad to discuss how my experience could support {company_name}.\n\n"
-        f"Sincerely,\n{name}"
-    )
-
-
-@career_bp.get("/health")
-def career_health():
-    mode = "test" if "test" in DODO_API_BASE.lower() else "live" if "live" in DODO_API_BASE.lower() else "custom"
-    return jsonify({
-        "status": "ok",
-        "service": "EggyPDF Career Pro",
-        "features": ["ats-analysis", "job-matching", "career-pro-checkout", "resume-tailoring", "cover-letter"],
-        "payments_configured": bool(os.getenv("DODO_PAYMENTS_API_KEY", "").strip()),
-        "payment_environment": mode,
-        "career_pro_product_configured": bool(DODO_PRODUCT_ID),
-    })
-
-
-@career_bp.post("/checkout")
-def create_career_pro_checkout():
-    try:
-        if not DODO_PRODUCT_ID:
-            raise RuntimeError("Career Pro product is not configured.")
-        payload = {"product_cart": [{"product_id": DODO_PRODUCT_ID, "quantity": 1}], "return_url": CAREER_PRO_RETURN_URL, "metadata": {"product": "career_pro", "source": "eggypdf"}}
-        checkout = _dodo_request("POST", "/checkouts", json=payload)
-        checkout_url, session_id = checkout.get("checkout_url"), checkout.get("session_id")
-        if not checkout_url or not session_id:
-            raise RuntimeError("Payment service returned an incomplete checkout session.")
-        return jsonify({"success": True, "checkout_url": checkout_url, "session_id": session_id})
-    except RuntimeError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 503
-
-
-@career_bp.get("/checkout/<identifier>")
-def verify_career_pro_checkout(identifier):
-    try:
-        paid, status = _verify_paid_session(identifier)
-        return jsonify({"success": True, "paid": paid, "payment_status": status, "feature_id": "career_pro" if paid else None})
-    except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
-    except RuntimeError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 503
-
-
-@career_bp.post("/pro/tailor")
-def career_pro_tailor():
-    try:
-        data = request.get_json(silent=True) or {}
-        _require_pro(data)
-        resume_text = (data.get("resume_text") or "").strip()
-        job_text = (data.get("job_description") or "").strip()
-        _validate_text(resume_text, "Resume text")
-        _validate_text(job_text, "Job description")
-        return jsonify({"success": True, "tailoring": _tailoring_plan(resume_text, job_text)})
-    except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
-    except PermissionError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 403
-    except RuntimeError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 503
-
-
-@career_bp.post("/pro/cover-letter")
-def career_pro_cover_letter():
-    try:
-        data = request.get_json(silent=True) or {}
-        _require_pro(data)
-        resume_text = (data.get("resume_text") or "").strip()
-        job_text = (data.get("job_description") or "").strip()
-        _validate_text(resume_text, "Resume text")
-        _validate_text(job_text, "Job description")
-        draft = _cover_letter_draft(resume_text, job_text, (data.get("applicant_name") or "").strip(), (data.get("company") or "").strip(), (data.get("role") or "").strip())
-        return jsonify({"success": True, "cover_letter": draft, "integrity_note": "Review and personalize this draft before sending. Keep every claim accurate."})
-    except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
-    except PermissionError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 403
-    except RuntimeError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 503
-
-
-@career_bp.post("/ats/analyze")
-def ats_analyze():
-    try:
-        resume_text = _get_resume_text(); job_text = _job_text(); _validate_text(resume_text, "Resume text")
-        if job_text: _validate_text(job_text, "Job description")
-        return jsonify({"success": True, "analysis": analyze_resume(resume_text, job_text)})
-    except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
-    except Exception:
-        return jsonify({"success": False, "error": "We could not analyze this resume. Please try another file."}), 500
-
-
-@career_bp.post("/job-match")
-def job_match():
-    try:
-        resume_text = _get_resume_text(); job_text = _job_text(); _validate_text(resume_text, "Resume text"); _validate_text(job_text, "Job description")
-        result = analyze_resume(resume_text, job_text)
-        return jsonify({"success": True, "match": {"score": result["keyword_analysis"]["match_percentage"], "matched_keywords": result["keyword_analysis"]["matched"], "missing_keywords": result["keyword_analysis"]["missing"], "skills_detected": result["skills_detected"], "recommendations": result["recommendations"]}})
-    except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
-    except Exception:
-        return jsonify({"success": False, "error": "We could not compare this resume with the job description."}), 500
-
-
-@career_bp.post("/keywords")
-def career_keywords():
-    try:
-        data = request.get_json(silent=True) or {} if request.is_json else {}
-        text = (data.get("text") or "").strip() if request.is_json else (request.form.get("text") or "").strip()
-        _validate_text(text, "Text")
-        return jsonify({"success": True, "keywords": extract_keywords(text), "skills": extract_skills(text)})
-    except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
+def _gettext():
+ if request.is_json:return((request.get_json(silent=True) or {}).get('resume_text') or '').strip()
+ f=request.files.get('resume') or request.files.get('file')
+ if not f:return''
+ return extract_resume_upload(f)
+def _job():
+ if request.is_json:d=request.get_json(silent=True) or {};return(d.get('job_description') or d.get('job_text') or '').strip()
+ return(request.form.get('job_description') or request.form.get('job_text') or '').strip()
+@career_bp.post('/ats/analyze')
+def ats():
+ try:r=_gettext();j=_job();_validate_text(r,'Resume text');return jsonify({'success':True,'analysis':analyze_resume(r,j)})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+ except Exception:return jsonify({'success':False,'error':'We could not analyze this resume. Please try another file.'}),500
+@career_bp.post('/job-match')
+def match():
+ try:r=_gettext();j=_job();_validate_text(r,'Resume text');_validate_text(j,'Job description');a=analyze_resume(r,j);return jsonify({'success':True,'match':{'score':a['keyword_analysis']['match_percentage'],'matched_keywords':a['keyword_analysis']['matched'],'missing_keywords':a['keyword_analysis']['missing'],'skills_detected':a['skills_detected'],'recommendations':a['recommendations']}})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+@career_bp.post('/keywords')
+def keywords():
+ try:d=request.get_json(silent=True) or {};t=(d.get('text') or '').strip();_validate_text(t,'Text');return jsonify({'success':True,'keywords':extract_keywords(t),'skills':extract_skills(t)})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
