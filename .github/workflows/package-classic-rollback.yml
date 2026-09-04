@@ -1,0 +1,112 @@
+name: Package EggyPDF Classic Rollback
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout last known-good classic frontend
+        uses: actions/checkout@v4
+        with:
+          ref: 00a6c26029150684d6c61dbd106b8295b40a3bcc
+
+      - name: Build rollback Cloudflare package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf cloudflare-rollback EggyPDF-Classic-Rollback-Cloudflare.zip
+          mkdir -p cloudflare-rollback/tools cloudflare-rollback/blog
+
+          cp index.html cloudflare-rollback/index.html
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('cloudflare-rollback/index.html'); s=p.read_text()
+          s=s.replace('<title>EggyPDF – Free Online PDF Tools | Merge, Compress, Convert PDF</title> <title>EggyPDF – Free PDF Tools & Resume Builder Online</title>','<title>EggyPDF – Free PDF Tools & Resume Builder Online</title>')
+          s=s.replace('<meta name="description" content=<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers.">','<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers."/>')
+          s=s.replace('</style> .seo-section {','.seo-section {').replace('</head>','</style>\n</head>',1)
+          if 'ATS Resume Checker' not in s:
+              end='    </a>\n\n    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'
+              card='''    </a>\n\n    <a href="ats-checker.html" class="tool-card" data-cat="ai" style="border-color:#f5a623;background:linear-gradient(135deg,#fff8ed,#fff)">\n      <div class="tool-icon" style="background:#fff3cd;font-size:1.5rem">🎯</div>\n      <h3 style="color:#d4881a">ATS Resume Checker <span style="font-size:10px;background:#f5a623;color:#fff;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;margin-left:4px">NEW</span></h3>\n      <p>Check your resume against a job description and find missing keywords and improvements.</p>\n    </a>\n\n    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'''
+              if end in s: s=s.replace(end,card,1)
+          p.write_text(s)
+          PY
+
+          cp ats-checker.html career-pro.html resume-builder.html cloudflare-rollback/
+
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('cloudflare-rollback/resume-builder.html'); s=p.read_text()
+          s=s.replace('<head> <title>Free Resume Builder – Download PDF Instantly | EggyPDF</title>\n<meta name="description" content="Build a professional resume online and download as PDF for free. No sign-up needed. Designed for job seekers in UAE, Gulf, and worldwide.">','<head>\n<meta name="description" content="Build a professional resume online and download as PDF for free. No sign-up needed. Designed for job seekers in UAE, Gulf, and worldwide.">')
+          marker='<section class="seo-section">'; i=s.find(marker)
+          if i!=-1 and i>s.find('</html>'):
+              seo=s[i:]; s=s[:i].rstrip()
+              if s.endswith('</html>'): s=s[:-7].rstrip()
+              if s.endswith('</body>'): s=s[:-7].rstrip()
+              s=s+'\n\n'+seo+'\n</body>\n</html>\n'
+          if '.seo-section{' not in s:
+              css="""\n.seo-section{max-width:780px;margin:48px auto;padding:0 20px 48px;color:var(--text);font-family:'Inter',sans-serif;line-height:1.7}\n.seo-section h2{font-size:1.3rem;line-height:1.3;margin:28px 0 10px;color:var(--text)}\n.seo-section h3{font-size:1rem;line-height:1.4;margin:18px 0 6px;color:var(--text)}\n.seo-section p{font-size:.97rem;line-height:1.7;margin:0 0 14px;color:var(--muted)}\n@media(max-width:640px){.seo-section{margin:28px auto;padding:0 18px 36px}.seo-section h2{font-size:1.15rem}.seo-section p{font-size:.92rem}}\n"""
+              s=s.replace('</style>',css+'</style>',1)
+          p.write_text(s)
+          PY
+
+          cp about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg cloudflare-rollback/
+          [ -f egg.png ] && cp egg.png cloudflare-rollback/ || true
+          cp site_editor-1/blog.html cloudflare-rollback/blog.html
+          cp -R site_editor-1/blog/. cloudflare-rollback/blog/
+
+          for f in compress crop delete-pages excel-to-pdf jpg-to-pdf merge page-numbers pdf-to-excel pdf-to-jpg pdf-to-png pdf-to-ppt pdf-to-text pdf-to-word png-to-pdf ppt-to-pdf protect rotate split unlock watermark word-to-pdf; do
+            test -f "$f.html"
+            cp "$f.html" "cloudflare-rollback/tools/$f.html"
+          done
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          for p in Path('cloudflare-rollback/tools').glob('*.html'):
+              s=p.read_text()
+              s=re.sub(r'<section\b[^>]*class=["\'][^"\']*\bseo-section\b[^"\']*["\'][^>]*>.*?</section>','',s,flags=re.I|re.S)
+              s=re.sub(r'<p([^>]*)>\s*</p>','',s,flags=re.I|re.S)
+              p.write_text(s)
+          PY
+          if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html cloudflare-rollback/tools/qr-code.html; fi
+
+          cat > cloudflare-rollback/ROLLBACK-PACKAGE.txt <<'EOF'
+          EggyPDF Classic Rollback Package
+          Source frontend snapshot: 00a6c26029150684d6c61dbd106b8295b40a3bcc
+          Restores the pre-dark-redesign EggyPDF frontend while leaving the Render backend untouched.
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+          home=Path('cloudflare-rollback/index.html').read_text()
+          ats=Path('cloudflare-rollback/ats-checker.html').read_text()
+          pro=Path('cloudflare-rollback/career-pro.html').read_text()
+          assert home.count('<title>')==1 and 'content=<meta' not in home
+          assert '#f5a623' in home
+          assert 'Everything you need' not in home
+          assert 'ATS Resume Checker' in home
+          assert 'career-pro.html' in ats and 'eggypdf_career_pro_checkout' in ats
+          assert '/api/career/pro/extract-resume' in pro
+          assert '/api/career/pro/optimize' in pro
+          assert '/api/career/pro/cover-letter' in pro
+          assert 'eggypdf_career_pro_checkout' in pro
+          required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
+          assert all(Path(f'cloudflare-rollback/tools/{x}.html').exists() for x in required)
+          assert Path('cloudflare-rollback/tools/qr-code.html').exists()
+          print('ROLLBACK VALIDATION PASSED')
+          PY
+
+          (cd cloudflare-rollback && zip -qr ../EggyPDF-Classic-Rollback-Cloudflare.zip .)
+
+      - name: Upload rollback package
+        uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Classic-Rollback-Cloudflare
+          path: EggyPDF-Classic-Rollback-Cloudflare.zip
+          if-no-files-found: error
+          retention-days: 7
