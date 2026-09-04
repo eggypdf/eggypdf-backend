@@ -22,7 +22,7 @@ jobs:
           mkdir -p "$OUT/tools"
           cp index.html "$OUT/index.html"
           for f in ats-checker.html career-pro.html resume-builder.html about-us.html contact.html privacy-policy.html terms.html cookie-policy.html robots.txt sitemap.xml favicon.svg; do
-            test -f "$f"
+            test -f "$f" || { echo "Missing required source: $f"; exit 1; }
             cp "$f" "$OUT/$f"
           done
           test -f egg.png && cp egg.png "$OUT/egg.png" || true
@@ -30,7 +30,7 @@ jobs:
           if [ -d site_editor-1/blog ]; then cp -R site_editor-1/blog "$OUT/blog"; fi
           TOOLS=(merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text)
           for tool in "${TOOLS[@]}"; do
-            test -f "${tool}.html"
+            test -f "${tool}.html" || { echo "Missing tool source: ${tool}.html"; exit 1; }
             cp "${tool}.html" "$OUT/tools/${tool}.html"
           done
           if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html "$OUT/tools/qr-code.html"; fi
@@ -38,7 +38,7 @@ jobs:
           EggyPDF Homepage V2 Cloudflare Package
           ======================================
           Isolated dark/lime Homepage V2 package.
-          Deploy manually to Cloudflare Pages after validation.
+          Existing rollback/older deployment packages are not modified by this workflow.
           EOF
 
       - name: Validate V2 package
@@ -46,34 +46,39 @@ jobs:
         run: |
           set -euo pipefail
           OUT="EggyPDF-Homepage-V2-Cloudflare"
-          grep -q 'Everything you need' "$OUT/index.html"
-          grep -q '100% Free PDF Tools' "$OUT/index.html"
-          grep -q 'View All Tools' "$OUT/index.html"
-          grep -q 'id="drawer"' "$OUT/index.html"
-          grep -q 'id="search"' "$OUT/index.html"
-          grep -q 'resume-builder.html' "$OUT/index.html"
-          grep -q 'career-pro.html' "$OUT/index.html"
-          grep -q 'Sign In' "$OUT/index.html"
-          grep -q 'Sign Up' "$OUT/index.html"
-          test "$(grep -o '<title>' "$OUT/index.html" | wc -l)" -eq 1
-          ! grep -q 'content=<meta' "$OUT/index.html"
+          check(){ grep -Fq "$1" "$2" || { echo "VALIDATION FAILED: '$1' missing from $2"; exit 1; }; }
+          check 'Everything you need' "$OUT/index.html"
+          check '100% Free PDF Tools' "$OUT/index.html"
+          check 'View All Tools' "$OUT/index.html"
+          check 'id="drawer"' "$OUT/index.html"
+          check 'id="search"' "$OUT/index.html"
+          check 'resume-builder.html' "$OUT/index.html"
+          check 'career-pro.html' "$OUT/index.html"
+          check 'Sign In' "$OUT/index.html"
+          check 'Sign Up' "$OUT/index.html"
+          TITLE_COUNT=$(grep -Fo '<title>' "$OUT/index.html" | wc -l)
+          [ "$TITLE_COUNT" -eq 1 ] || { echo "VALIDATION FAILED: expected 1 title, found $TITLE_COUNT"; exit 1; }
+          if grep -Fq 'content=<meta' "$OUT/index.html"; then echo 'VALIDATION FAILED: malformed meta tag detected'; exit 1; fi
           TOOLS=(merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text)
           for tool in "${TOOLS[@]}"; do
-            test -f "$OUT/tools/${tool}.html"
-            grep -q "tools/${tool}.html" "$OUT/index.html"
+            test -f "$OUT/tools/${tool}.html" || { echo "VALIDATION FAILED: missing packaged tool ${tool}.html"; exit 1; }
           done
-          grep -q '/api/career/pro/extract-resume' "$OUT/career-pro.html"
-          grep -q '/api/career/pro/optimize' "$OUT/career-pro.html"
-          grep -q '/api/career/pro/cover-letter' "$OUT/career-pro.html"
-          grep -q 'eggypdf_career_pro_checkout' "$OUT/career-pro.html"
-          ! test -f "$OUT/tools/edit-pdf.html"
-          test -f "$OUT/V2-PACKAGE.txt"
-          echo "Homepage V2 package validation passed."
+          check '/api/career/pro/extract-resume' "$OUT/career-pro.html"
+          check '/api/career/pro/optimize' "$OUT/career-pro.html"
+          check '/api/career/pro/cover-letter' "$OUT/career-pro.html"
+          check 'eggypdf_career_pro_checkout' "$OUT/career-pro.html"
+          ! test -f "$OUT/tools/edit-pdf.html" || { echo 'VALIDATION FAILED: edit-pdf must not ship'; exit 1; }
+          test -f "$OUT/V2-PACKAGE.txt" || { echo 'VALIDATION FAILED: V2 manifest missing'; exit 1; }
+          echo 'Homepage V2 package validation passed.'
 
       - name: Create deployment ZIP
         shell: bash
         run: |
-          zip -qr EggyPDF-Homepage-V2-Cloudflare.zip EggyPDF-Homepage-V2-Cloudflare
+          set -euo pipefail
+          cd EggyPDF-Homepage-V2-Cloudflare
+          zip -qr ../EggyPDF-Homepage-V2-Cloudflare.zip .
+          cd ..
+          unzip -l EggyPDF-Homepage-V2-Cloudflare.zip | head -40
           ls -lh EggyPDF-Homepage-V2-Cloudflare.zip
 
       - name: Upload Homepage V2 artifact
