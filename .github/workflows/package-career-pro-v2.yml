@@ -1,0 +1,67 @@
+name: Package EggyPDF Career Pro V2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build stable Cloudflare package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/tools dist/blog
+
+          # Root production pages only. Do not deploy site_editor-1 wholesale.
+          cp index.html dist/
+          cp ats-checker.html career-pro.html resume-builder.html dist/
+          for f in about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg; do
+            [ -f "$f" ] && cp "$f" dist/
+          done
+
+          # Existing production blog content is intentionally copied only from its known blog paths.
+          if [ -f site_editor-1/blog.html ]; then cp site_editor-1/blog.html dist/blog.html; fi
+          if [ -d site_editor-1/blog ]; then cp -R site_editor-1/blog/. dist/blog/; fi
+
+          tools=(compress merge split pdf-to-word jpg-to-pdf pdf-to-jpg word-to-pdf pdf-to-excel protect unlock pdf-to-powerpoint powerpoint-to-pdf png-to-pdf excel-to-pdf pdf-to-png watermark rotate delete-pages page-numbers crop pdf-to-text)
+          for tool in "${tools[@]}"; do
+            test -f "$tool.html"
+            cp "$tool.html" "dist/tools/$tool.html"
+          done
+
+          # QR page varies across the historical root; copy only a known root page if present.
+          for qr in qr-code-generator.html qr-generator.html qr-code.html; do
+            if [ -f "$qr" ]; then cp "$qr" dist/; break; fi
+          done
+
+          # Career Pro V2 validation.
+          grep -q '/api/career/pro/upload' dist/career-pro.html
+          grep -q '/api/career/pro/optimize' dist/career-pro.html
+          grep -q 'PDF, DOCX, or TXT' dist/career-pro.html
+          grep -q 'eggypdf_career_pro_checkout' dist/career-pro.html
+          grep -q '/api/career/pro/cover-letter' dist/career-pro.html
+          grep -q '/api/career/checkout' dist/ats-checker.html
+          grep -q 'career-pro.html' dist/ats-checker.html
+          test -f dist/resume-builder.html
+          test "$(find dist/tools -maxdepth 1 -name '*.html' | wc -l)" -eq 21
+          ! find dist -iname '*edit-pdf*' | grep -q .
+
+          # Guard against accidentally shipping the legacy visible SEO blocks on PDF utilities.
+          if grep -RilE '<section[^>]+class=["'"'][^"'"']*(seo-section|faq-section)'"'"'' dist/tools; then
+            echo 'Legacy visible SEO/FAQ section found in PDF utility package.' >&2
+            exit 1
+          fi
+
+          echo 'VALIDATION PASSED: Career Pro V2 + stable EggyPDF frontend'
+          (cd dist && zip -r ../EggyPDF-Career-Pro-V2-Cloudflare.zip .)
+
+      - name: Upload Cloudflare package
+        uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Career-Pro-V2-Cloudflare
+          path: EggyPDF-Career-Pro-V2-Cloudflare.zip
+          retention-days: 3
