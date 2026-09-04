@@ -20,51 +20,25 @@ jobs:
           OUT="EggyPDF-Homepage-V2-Cloudflare"
           rm -rf "$OUT" EggyPDF-Homepage-V2-Cloudflare.zip
           mkdir -p "$OUT/tools"
-
-          # V2 homepage from this branch.
           cp index.html "$OUT/index.html"
-
-          # Preserve current production career pages and supporting pages.
           for f in ats-checker.html career-pro.html resume-builder.html about-us.html contact.html privacy-policy.html terms.html cookie-policy.html robots.txt sitemap.xml favicon.svg; do
             test -f "$f"
             cp "$f" "$OUT/$f"
           done
           test -f egg.png && cp egg.png "$OUT/egg.png" || true
-
-          # Blog is selectively sourced from the existing frontend fallback when present.
-          if [ -f blog.html ]; then
-            cp blog.html "$OUT/blog.html"
-          elif [ -f site_editor-1/blog.html ]; then
-            cp site_editor-1/blog.html "$OUT/blog.html"
-          fi
-          if [ -d site_editor-1/blog ]; then
-            cp -R site_editor-1/blog "$OUT/blog"
-          fi
-
-          # Stable production PDF tool filenames only. Never package site_editor-1 wholesale.
-          TOOLS=(
-            merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf
-            jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate
-            delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text
-          )
+          if [ -f blog.html ]; then cp blog.html "$OUT/blog.html"; elif [ -f site_editor-1/blog.html ]; then cp site_editor-1/blog.html "$OUT/blog.html"; fi
+          if [ -d site_editor-1/blog ]; then cp -R site_editor-1/blog "$OUT/blog"; fi
+          TOOLS=(merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text)
           for tool in "${TOOLS[@]}"; do
             test -f "${tool}.html"
             cp "${tool}.html" "$OUT/tools/${tool}.html"
           done
-
-          # QR is optional and comes only from the known fallback source.
-          if [ -f site_editor-1/tools/qr-code.html ]; then
-            cp site_editor-1/tools/qr-code.html "$OUT/tools/qr-code.html"
-          fi
-
-          # Create an internal package manifest so rollback/package identity is obvious.
+          if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html "$OUT/tools/qr-code.html"; fi
           cat > "$OUT/V2-PACKAGE.txt" <<'EOF'
           EggyPDF Homepage V2 Cloudflare Package
           ======================================
-          This is the isolated dark/lime Homepage V2 package.
-          It does NOT replace or modify the preserved older deployment package.
-          Source branch: dev/homepage-dark-v2
-          Deploy manually to Cloudflare Pages only after visual validation.
+          Isolated dark/lime Homepage V2 package.
+          Deploy manually to Cloudflare Pages after validation.
           EOF
 
       - name: Validate V2 package
@@ -72,45 +46,28 @@ jobs:
         run: |
           set -euo pipefail
           OUT="EggyPDF-Homepage-V2-Cloudflare"
-
-          # Homepage identity and approved wording.
           grep -q 'Everything you need' "$OUT/index.html"
           grep -q '100% Free PDF Tools' "$OUT/index.html"
           grep -q 'View All Tools' "$OUT/index.html"
-          grep -q 'toolDrawer' "$OUT/index.html"
-          grep -q 'siteSearch' "$OUT/index.html"
+          grep -q 'id="drawer"' "$OUT/index.html"
+          grep -q 'id="search"' "$OUT/index.html"
           grep -q 'resume-builder.html' "$OUT/index.html"
           grep -q 'career-pro.html' "$OUT/index.html"
           grep -q 'Sign In' "$OUT/index.html"
           grep -q 'Sign Up' "$OUT/index.html"
-
-          # Prevent old malformed homepage SEO from returning in V2.
           test "$(grep -o '<title>' "$OUT/index.html" | wc -l)" -eq 1
           ! grep -q 'content=<meta' "$OUT/index.html"
-
-          # All 21 stable PDF tools must exist and homepage links must resolve.
-          TOOLS=(
-            merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf
-            jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate
-            delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text
-          )
+          TOOLS=(merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text)
           for tool in "${TOOLS[@]}"; do
             test -f "$OUT/tools/${tool}.html"
             grep -q "tools/${tool}.html" "$OUT/index.html"
           done
-
-          # Career V2 must remain present and wired to the existing protected APIs.
           grep -q '/api/career/pro/extract-resume' "$OUT/career-pro.html"
           grep -q '/api/career/pro/optimize' "$OUT/career-pro.html"
           grep -q '/api/career/pro/cover-letter' "$OUT/career-pro.html"
           grep -q 'eggypdf_career_pro_checkout' "$OUT/career-pro.html"
-
-          # Do not accidentally resurrect the non-production Edit PDF tool.
           ! test -f "$OUT/tools/edit-pdf.html"
-
-          # V2 and rollback packages remain explicitly distinguishable.
           test -f "$OUT/V2-PACKAGE.txt"
-
           echo "Homepage V2 package validation passed."
 
       - name: Create deployment ZIP
