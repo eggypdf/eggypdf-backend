@@ -15,8 +15,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the existing PDF backend plus the isolated Career Pro modules.
-COPY app.py career_engine.py career_routes.py wsgi.py ./
+# Copy the existing PDF backend plus all isolated Career Pro modules.
+COPY app.py career_engine.py career_routes.py career_v2.py wsgi.py ./
 
 ENV PORT=10000
 ENV PYTHONUNBUFFERED=1
