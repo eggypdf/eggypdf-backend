@@ -11,7 +11,7 @@ jobs:
         run: |
           set -euo pipefail
           OUT="EggyPDF-Homepage-V2-Cloudflare"
-          rm -rf "$OUT" EggyPDF-Homepage-V2-Cloudflare.zip
+          rm -rf "$OUT" EggyPDF-Homepage-V2-Cloudflare-Fixed.zip
           mkdir -p "$OUT/tools"
           cp index.html "$OUT/index.html"
           for f in ats-checker.html career-pro.html resume-builder.html about-us.html contact.html privacy-policy.html terms.html cookie-policy.html robots.txt sitemap.xml favicon.svg; do test -f "$f"; cp "$f" "$OUT/$f"; done
@@ -19,10 +19,20 @@ jobs:
           if [ -f blog.html ]; then cp blog.html "$OUT/blog.html"; elif [ -f site_editor-1/blog.html ]; then cp site_editor-1/blog.html "$OUT/blog.html"; fi
           test -d site_editor-1/blog && cp -R site_editor-1/blog "$OUT/blog" || true
           TOOLS=(merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text)
-          # Keep existing PDF pages at their original root URLs so their relative assets/navigation continue to work.
           for tool in "${TOOLS[@]}"; do test -f "${tool}.html"; cp "${tool}.html" "$OUT/${tool}.html"; done
           if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html "$OUT/tools/qr-code.html"; fi
-          printf '%s\n' 'EggyPDF Homepage V2 corrected package' 'Root tool URLs preserved for rollback-safe deployment.' > "$OUT/V2-PACKAGE.txt"
+
+          # Resume Builder targeted responsive repair. Keep builder logic/content intact; only add safe CSS overrides.
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('EggyPDF-Homepage-V2-Cloudflare/resume-builder.html')
+          s=p.read_text()
+          patch='''\n<style id="eggypdf-resume-responsive-fix">\n/* Package-level regression guard: do not let builder/SEO content inherit fixed viewport compression. */\nhtml,body{max-width:100%;overflow-x:hidden}\n@media(max-width:900px){\n  .builder-wrap{display:grid!important;grid-template-columns:minmax(0,1fr)!important;height:auto!important;min-height:0!important;overflow:visible!important}\n  .form-panel,.preview-panel{width:100%!important;min-width:0!important;height:auto!important;max-height:none!important;overflow:visible!important}\n  .preview-panel{overflow-x:auto!important;align-items:flex-start!important}\n  .preview-paper{width:210mm!important;max-width:none!important;transform-origin:top left}\n  .seo-section,.seo-content,.faq-section,.faq-container,.faq-grid,.content-section,.resume-seo,.resume-faq{width:100%!important;max-width:100%!important;min-width:0!important;height:auto!important;overflow:visible!important;display:block!important}\n}\n@media(max-width:600px){\n  header{padding:0 12px!important}.header-inner{height:auto!important;min-height:60px!important;flex-wrap:wrap!important;padding:8px 0!important}\n  .header-actions{margin-left:auto!important;gap:6px!important}.btn-download,.btn-clear,.back-btn{padding:8px 10px!important;font-size:12px!important}\n  .hero-strip{padding:18px 14px!important}.template-bar{padding:10px 12px!important}\n  .form-panel{padding:12px!important}.preview-panel{padding:12px!important}\n  .field-row{grid-template-columns:minmax(0,1fr)!important}.skill-input-row{flex-wrap:wrap!important}.skill-input-row input{min-width:0!important}\n  .seo-section,.seo-content,.faq-section,.faq-container,.faq-grid,.content-section,.resume-seo,.resume-faq{padding-left:14px!important;padding-right:14px!important}\n  .seo-section *, .seo-content *, .faq-section *, .faq-container *, .content-section *{max-width:100%!important;overflow-wrap:anywhere}\n}\n</style>\n'''
+          if 'eggypdf-resume-responsive-fix' not in s:
+              s=s.replace('</head>',patch+'</head>',1)
+          p.write_text(s)
+          PY
+          printf '%s\n' 'EggyPDF Homepage V2 corrected package' 'Root tool URLs preserved; Resume Builder responsive regression guard included.' > "$OUT/V2-PACKAGE.txt"
       - name: Validate corrected package
         shell: bash
         run: |
@@ -42,12 +52,14 @@ jobs:
           TOOLS=(merge compress split pdf-to-word word-to-pdf ppt-to-pdf excel-to-pdf jpg-to-pdf pdf-to-jpg png-to-pdf pdf-to-png protect unlock watermark rotate delete-pages page-numbers crop pdf-to-excel pdf-to-ppt pdf-to-text)
           for tool in "${TOOLS[@]}"; do test -f "$OUT/${tool}.html"; check "/${tool}.html" "$OUT/index.html"; done
           test -f "$OUT/tools/qr-code.html"
+          check 'eggypdf-resume-responsive-fix' "$OUT/resume-builder.html"
+          check 'grid-template-columns:minmax(0,1fr)' "$OUT/resume-builder.html"
           check '/api/career/pro/extract-resume' "$OUT/career-pro.html"
           check '/api/career/pro/optimize' "$OUT/career-pro.html"
           check '/api/career/pro/cover-letter' "$OUT/career-pro.html"
           check 'eggypdf_career_pro_checkout' "$OUT/career-pro.html"
           ! test -f "$OUT/edit-pdf.html"
-          echo 'Corrected Homepage V2 package validation passed.'
+          echo 'Corrected Homepage V2 + Resume Builder validation passed.'
       - name: Create deployment ZIP
         run: cd EggyPDF-Homepage-V2-Cloudflare && zip -qr ../EggyPDF-Homepage-V2-Cloudflare-Fixed.zip .
       - uses: actions/upload-artifact@v4
