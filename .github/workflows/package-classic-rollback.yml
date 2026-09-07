@@ -29,10 +29,25 @@ jobs:
           s=s.replace('<title>EggyPDF – Free Online PDF Tools | Merge, Compress, Convert PDF</title> <title>EggyPDF – Free PDF Tools & Resume Builder Online</title>','<title>EggyPDF – Free PDF Tools & Resume Builder Online</title>')
           s=s.replace('<meta name="description" content=<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers.">','<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers."/>')
           s=s.replace('</style> .seo-section {','.seo-section {').replace('</head>','</style>\n</head>',1)
+
+          # Keep ATS visible on the classic homepage.
           if 'ATS Resume Checker' not in s:
               end='    </a>\n\n    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'
               card='''    </a>\n\n    <a href="ats-checker.html" class="tool-card" data-cat="ai" style="border-color:#f5a623;background:linear-gradient(135deg,#fff8ed,#fff)">\n      <div class="tool-icon" style="background:#fff3cd;font-size:1.5rem">🎯</div>\n      <h3 style="color:#d4881a">ATS Resume Checker <span style="font-size:10px;background:#f5a623;color:#fff;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;margin-left:4px">NEW</span></h3>\n      <p>Check your resume against a job description and find missing keywords and improvements.</p>\n    </a>\n\n    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'''
               if end in s: s=s.replace(end,card,1)
+
+          # Restore QR Code Generator to the homepage and Create menu.
+          if 'QR Code Generator' not in s:
+              marker='    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'
+              qr='''    <a href="tools/qr-code.html" class="tool-card" data-cat="convert">\n      <div class="tool-icon" style="background:#eef2ff;font-size:1.5rem">▦</div>\n      <h3>QR Code Generator</h3>\n      <p>Create QR codes for website links, text, email and contact details.</p>\n    </a>\n\n'''
+              if marker not in s: raise SystemExit('QR insertion marker not found')
+              s=s.replace(marker,qr+marker,1)
+
+          create_anchor='<a href="resume-builder.html" style="color:var(--brand-dark);font-weight:600">📋 Resume Builder</a>'
+          if 'tools/qr-code.html">QR Code Generator' not in s:
+              if create_anchor not in s: raise SystemExit('Create menu anchor not found')
+              s=s.replace(create_anchor,create_anchor+'\n          <a href="tools/qr-code.html">QR Code Generator</a>',1)
+
           p.write_text(s)
           PY
 
@@ -79,6 +94,7 @@ jobs:
           EggyPDF Classic Rollback Package
           Source frontend snapshot: 00a6c26029150684d6c61dbd106b8295b40a3bcc
           Restores the pre-dark-redesign EggyPDF frontend while leaving the Render backend untouched.
+          QR Code Generator restored to homepage and Create navigation.
           EOF
 
           python - <<'PY'
@@ -90,6 +106,9 @@ jobs:
           assert '#f5a623' in home
           assert 'Everything you need' not in home
           assert 'ATS Resume Checker' in home
+          assert 'QR Code Generator' in home
+          assert 'href="tools/qr-code.html"' in home
+          assert home.count('QR Code Generator') >= 2
           assert 'career-pro.html' in ats and 'eggypdf_career_pro_checkout' in ats
           assert '/api/career/pro/extract-resume' in pro
           assert '/api/career/pro/optimize' in pro
@@ -98,7 +117,7 @@ jobs:
           required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
           assert all(Path(f'cloudflare-rollback/tools/{x}.html').exists() for x in required)
           assert Path('cloudflare-rollback/tools/qr-code.html').exists()
-          print('ROLLBACK VALIDATION PASSED')
+          print('ROLLBACK VALIDATION PASSED: QR restored')
           PY
 
           (cd cloudflare-rollback && zip -qr ../EggyPDF-Classic-Rollback-Cloudflare.zip .)
