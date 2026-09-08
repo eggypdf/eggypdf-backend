@@ -181,20 +181,38 @@ PREVIOUS WEAK ATTEMPT:
 """
 
 
+def _score_context(analysis):
+    k = analysis["keyword_analysis"]
+    keyword_count = len(k.get("matched", [])) + len(k.get("missing", []))
+    if keyword_count < 5:
+        confidence = "low"
+    elif keyword_count < 10:
+        confidence = "medium"
+    else:
+        confidence = "high"
+    return {
+        "resume_score": analysis["score"],
+        "resume_score_label": analysis["score_label"],
+        "keyword_match": k["match_percentage"],
+        "matched_keywords": k.get("matched", []),
+        "missing_keywords": k.get("missing", []),
+        "job_keyword_count": keyword_count,
+        "keyword_match_confidence": confidence,
+    }
+
+
 def optimize_with_gemini(resume, job):
     key = (os.getenv("GEMINI_API") or os.getenv("GEMINI_API_KEY") or "").strip()
     if not key:
-        # A paid optimizer must never pretend optimization succeeded by returning the original resume.
         raise RuntimeError("The AI resume optimizer is not configured on the server.")
 
     model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
-    before = analyze_resume(resume, job)["keyword_analysis"]["match_percentage"]
+    before_analysis = analyze_resume(resume, job)
+    before = _score_context(before_analysis)
 
     out = _gemini_request(key, model, _base_prompt(resume, job))
     change_ratio = _change_ratio(resume, out["optimized_resume"])
 
-    # The old implementation silently returned the original resume whenever Gemini failed.
-    # It could therefore look like a successful optimization with zero changes. Never do that.
     if change_ratio < 3:
         out = _gemini_request(key, model, _revision_prompt(resume, job, out))
         change_ratio = _change_ratio(resume, out["optimized_resume"])
@@ -204,14 +222,27 @@ def optimize_with_gemini(resume, job):
             "The AI optimizer could not produce a meaningful truthful rewrite from this resume. Try adding more detail to your experience or use a fuller job description."
         )
 
-    after = analyze_resume(out["optimized_resume"], job)["keyword_analysis"]["match_percentage"]
+    after_analysis = analyze_resume(out["optimized_resume"], job)
+    after = _score_context(after_analysis)
+
     out.update(
         {
             "mode": "ai",
             "provider": "gemini",
             "model": model,
-            "current_match": before,
-            "optimized_match": after,
+            "current_resume_score": before["resume_score"],
+            "current_resume_score_label": before["resume_score_label"],
+            "optimized_resume_score": after["resume_score"],
+            "optimized_resume_score_label": after["resume_score_label"],
+            "current_keyword_match": before["keyword_match"],
+            "optimized_keyword_match": after["keyword_match"],
+            "matched_keywords": before["matched_keywords"],
+            "missing_keywords": before["missing_keywords"],
+            "job_keyword_count": before["job_keyword_count"],
+            "keyword_match_confidence": before["keyword_match_confidence"],
+            # Backward-compatible fields for older frontends.
+            "current_match": before["keyword_match"],
+            "optimized_match": after["keyword_match"],
             "change_ratio": change_ratio,
             "rewrite_applied": True,
             "integrity_note": (
