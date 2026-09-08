@@ -15,6 +15,15 @@ jobs:
         with:
           ref: 00a6c26029150684d6c61dbd106b8295b40a3bcc
 
+      - name: Fetch latest Career Pro frontend from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git show FETCH_HEAD:career-pro.html > /tmp/career-pro-current.html
+          grep -q 'Current resume score' /tmp/career-pro-current.html
+          grep -q 'Current keyword match' /tmp/career-pro-current.html
+
       - name: Build rollback Cloudflare package
         shell: bash
         run: |
@@ -51,7 +60,8 @@ jobs:
           p.write_text(s)
           PY
 
-          cp ats-checker.html career-pro.html resume-builder.html cloudflare-rollback/
+          cp ats-checker.html resume-builder.html cloudflare-rollback/
+          cp /tmp/career-pro-current.html cloudflare-rollback/career-pro.html
 
           python - <<'PY'
           from pathlib import Path
@@ -92,9 +102,10 @@ jobs:
 
           cat > cloudflare-rollback/ROLLBACK-PACKAGE.txt <<'EOF'
           EggyPDF Classic Rollback Package
-          Source frontend snapshot: 00a6c26029150684d6c61dbd106b8295b40a3bcc
+          Source classic frontend snapshot: 00a6c26029150684d6c61dbd106b8295b40a3bcc
           Restores the pre-dark-redesign EggyPDF frontend while leaving the Render backend untouched.
           QR Code Generator restored to homepage and Create navigation.
+          Career Pro frontend is pulled from current main so scoring labels stay consistent with the free ATS checker.
           EOF
 
           python - <<'PY'
@@ -114,10 +125,14 @@ jobs:
           assert '/api/career/pro/optimize' in pro
           assert '/api/career/pro/cover-letter' in pro
           assert 'eggypdf_career_pro_checkout' in pro
+          assert 'Current resume score' in pro
+          assert 'Optimized resume score' in pro
+          assert 'Current keyword match' in pro
+          assert '100% keyword match does not mean the resume scored 100/100' in pro
           required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
           assert all(Path(f'cloudflare-rollback/tools/{x}.html').exists() for x in required)
           assert Path('cloudflare-rollback/tools/qr-code.html').exists()
-          print('ROLLBACK VALIDATION PASSED: QR restored')
+          print('ROLLBACK VALIDATION PASSED: QR + latest Career Pro scoring UI')
           PY
 
           (cd cloudflare-rollback && zip -qr ../EggyPDF-Classic-Rollback-Cloudflare.zip .)
