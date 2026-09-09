@@ -24,11 +24,9 @@ def extract_resume_upload(f):
 
     if name.endswith(".pdf"):
         from pypdf import PdfReader
-
         text = "\n\n".join((p.extract_text() or "") for p in PdfReader(io.BytesIO(raw)).pages).strip()
     elif name.endswith(".docx"):
         from docx import Document
-
         d = Document(io.BytesIO(raw))
         parts = [p.text.strip() for p in d.paragraphs if p.text.strip()]
         for table in d.tables:
@@ -43,9 +41,7 @@ def extract_resume_upload(f):
         raise ValueError("Please upload a PDF, DOCX, or TXT resume.")
 
     if len(text) < 40:
-        raise ValueError(
-            "We couldn't extract enough readable text. If this is a scanned PDF, upload a text-based PDF or DOCX instead."
-        )
+        raise ValueError("We couldn't extract enough readable text. If this is a scanned PDF, upload a text-based PDF or DOCX instead.")
     return text
 
 
@@ -54,7 +50,6 @@ def _compact_for_compare(text):
 
 
 def _change_ratio(original, rewritten):
-    """Return an approximate 0..100 percentage of textual change."""
     a = _compact_for_compare(original)
     b = _compact_for_compare(rewritten)
     if not a or not b:
@@ -66,17 +61,14 @@ def _change_ratio(original, rewritten):
 def _required_output(out):
     if not isinstance(out, dict):
         raise ValueError("Optimizer returned an invalid response.")
-
     list_keys = ("optimized_bullets", "skills_to_highlight", "keywords_to_review", "changes")
     for key in list_keys:
         if not isinstance(out.get(key), list):
             out[key] = []
         out[key] = [str(x).strip() for x in out[key] if str(x).strip()]
-
     for key in ("optimized_summary", "optimized_resume"):
         value = out.get(key)
         out[key] = str(value).strip() if value is not None else ""
-
     if not out["optimized_resume"]:
         raise ValueError("Optimizer did not return a complete rewritten resume.")
     return out
@@ -86,26 +78,17 @@ def _gemini_request(key, model, prompt):
     try:
         r = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "temperature": 0.25,
-                    "maxOutputTokens": 8192,
-                },
-            },
+            json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json", "temperature": 0.25, "maxOutputTokens": 8192}},
             timeout=45,
         )
     except requests.RequestException as exc:
         raise RuntimeError("The AI resume optimizer is temporarily unreachable. Please try again in a moment.") from exc
-
     if not r.ok:
         if r.status_code == 429:
             raise RuntimeError("The AI resume optimizer is busy right now. Please try again in a minute.")
         if r.status_code in (401, 403):
             raise RuntimeError("The AI resume optimizer is not authenticated correctly on the server.")
         raise RuntimeError(f"The AI resume optimizer failed on the server (HTTP {r.status_code}).")
-
     try:
         payload = r.json()
         candidates = payload.get("candidates") or []
@@ -184,12 +167,7 @@ PREVIOUS WEAK ATTEMPT:
 def _score_context(analysis):
     k = analysis["keyword_analysis"]
     keyword_count = len(k.get("matched", [])) + len(k.get("missing", []))
-    if keyword_count < 5:
-        confidence = "low"
-    elif keyword_count < 10:
-        confidence = "medium"
-    else:
-        confidence = "high"
+    confidence = "low" if keyword_count < 5 else "medium" if keyword_count < 10 else "high"
     return {
         "resume_score": analysis["score"],
         "resume_score_label": analysis["score_label"],
@@ -201,53 +179,83 @@ def _score_context(analysis):
     }
 
 
+def _extract_summary(text):
+    lines = [x.strip() for x in (text or "").splitlines() if x.strip()]
+    heading = re.compile(r"^(professional\s+summary|summary|profile|professional\s+profile|objective|career\s+objective)$", re.I)
+    stop = re.compile(r"^(experience|work\s+experience|professional\s+experience|employment|education|skills|technical\s+skills|core\s+competencies|projects|certifications?)$", re.I)
+    for i, line in enumerate(lines):
+        if heading.match(line):
+            body = []
+            for later in lines[i + 1:]:
+                if stop.match(later):
+                    break
+                body.append(later)
+            return " ".join(body).strip()
+    return ""
+
+
+def _extract_bullets(text):
+    bullets = []
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if re.match(r"^[•●▪◦*\-]\s+", stripped):
+            bullets.append(re.sub(r"^[•●▪◦*\-]\s+", "", stripped))
+    return bullets
+
+
+def _comparison(resume, optimized, out, before, after):
+    original_summary = _extract_summary(resume)
+    original_bullets = _extract_bullets(resume)
+    rewritten_bullets = out.get("optimized_bullets") or _extract_bullets(optimized)
+    pairs = []
+    for idx, after_bullet in enumerate(rewritten_bullets[:8]):
+        before_bullet = original_bullets[idx] if idx < len(original_bullets) else ""
+        pairs.append({"before": before_bullet, "after": after_bullet})
+    return {
+        "summary": {"before": original_summary, "after": out.get("optimized_summary", "")},
+        "bullets": pairs,
+        "score": {"before": before["resume_score"], "after": after["resume_score"], "delta": after["resume_score"] - before["resume_score"]},
+        "keyword_match": {"before": before["keyword_match"], "after": after["keyword_match"], "delta": after["keyword_match"] - before["keyword_match"]},
+        "change_ratio": _change_ratio(resume, optimized),
+        "changes": out.get("changes", []),
+    }
+
+
 def optimize_with_gemini(resume, job):
     key = (os.getenv("GEMINI_API") or os.getenv("GEMINI_API_KEY") or "").strip()
     if not key:
         raise RuntimeError("The AI resume optimizer is not configured on the server.")
-
     model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
     before_analysis = analyze_resume(resume, job)
     before = _score_context(before_analysis)
-
     out = _gemini_request(key, model, _base_prompt(resume, job))
     change_ratio = _change_ratio(resume, out["optimized_resume"])
-
     if change_ratio < 3:
         out = _gemini_request(key, model, _revision_prompt(resume, job, out))
         change_ratio = _change_ratio(resume, out["optimized_resume"])
-
     if change_ratio < 3:
-        raise RuntimeError(
-            "The AI optimizer could not produce a meaningful truthful rewrite from this resume. Try adding more detail to your experience or use a fuller job description."
-        )
-
+        raise RuntimeError("The AI optimizer could not produce a meaningful truthful rewrite from this resume. Try adding more detail to your experience or use a fuller job description.")
     after_analysis = analyze_resume(out["optimized_resume"], job)
     after = _score_context(after_analysis)
-
-    out.update(
-        {
-            "mode": "ai",
-            "provider": "gemini",
-            "model": model,
-            "current_resume_score": before["resume_score"],
-            "current_resume_score_label": before["resume_score_label"],
-            "optimized_resume_score": after["resume_score"],
-            "optimized_resume_score_label": after["resume_score_label"],
-            "current_keyword_match": before["keyword_match"],
-            "optimized_keyword_match": after["keyword_match"],
-            "matched_keywords": before["matched_keywords"],
-            "missing_keywords": before["missing_keywords"],
-            "job_keyword_count": before["job_keyword_count"],
-            "keyword_match_confidence": before["keyword_match_confidence"],
-            # Backward-compatible fields for older frontends.
-            "current_match": before["keyword_match"],
-            "optimized_match": after["keyword_match"],
-            "change_ratio": change_ratio,
-            "rewrite_applied": True,
-            "integrity_note": (
-                "AI rewrite applied. Review every line before use. EggyPDF is instructed not to invent experience, metrics, skills, education, employers, certifications, or achievements."
-            ),
-        }
-    )
+    out.update({
+        "mode": "ai",
+        "provider": "gemini",
+        "model": model,
+        "current_resume_score": before["resume_score"],
+        "current_resume_score_label": before["resume_score_label"],
+        "optimized_resume_score": after["resume_score"],
+        "optimized_resume_score_label": after["resume_score_label"],
+        "current_keyword_match": before["keyword_match"],
+        "optimized_keyword_match": after["keyword_match"],
+        "matched_keywords": before["matched_keywords"],
+        "missing_keywords": before["missing_keywords"],
+        "job_keyword_count": before["job_keyword_count"],
+        "keyword_match_confidence": before["keyword_match_confidence"],
+        "current_match": before["keyword_match"],
+        "optimized_match": after["keyword_match"],
+        "change_ratio": change_ratio,
+        "rewrite_applied": True,
+        "comparison": _comparison(resume, out["optimized_resume"], out, before, after),
+        "integrity_note": "AI rewrite applied. Review every line before use. EggyPDF is instructed not to invent experience, metrics, skills, education, employers, certifications, or achievements.",
+    })
     return out
