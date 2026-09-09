@@ -21,8 +21,11 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin main
           git show FETCH_HEAD:career-pro.html > /tmp/career-pro-current.html
+          git show FETCH_HEAD:career-pdf-summarizer.html > /tmp/career-pdf-summarizer-current.html
           grep -q 'Current resume score' /tmp/career-pro-current.html
           grep -q 'Current keyword match' /tmp/career-pro-current.html
+          grep -q 'AI PDF Summarizer' /tmp/career-pdf-summarizer-current.html
+          grep -q '/api/career/pro/pdf-summary' /tmp/career-pdf-summarizer-current.html
 
       - name: Build rollback Cloudflare package
         shell: bash
@@ -60,6 +63,7 @@ jobs:
 
           cp ats-checker.html resume-builder.html cloudflare-rollback/
           cp /tmp/career-pro-current.html cloudflare-rollback/career-pro.html
+          cp /tmp/career-pdf-summarizer-current.html cloudflare-rollback/career-pdf-summarizer.html
 
           python - <<'PY'
           from pathlib import Path
@@ -90,6 +94,18 @@ jobs:
           marker="'+sparse+'<div class=\"block\"><h3>Optimized professional summary</h3>"
           if marker not in s: raise SystemExit('Career Pro optimizer output marker not found')
           s=s.replace(marker,"'+sparse+comparisonHtml(o)+'<div class=\"block\"><h3>Optimized professional summary</h3>",1)
+          p.write_text(s)
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('cloudflare-rollback/career-pro.html')
+          s=p.read_text()
+          if 'career-pdf-summarizer.html' not in s:
+              marker='<div class="tabs">'
+              if marker not in s: raise SystemExit('Career Pro tabs marker not found')
+              card='''<div class="card" style="margin-top:16px;border-color:#f3d594;background:linear-gradient(135deg,#fff8ed,#fff)"><h2>AI PDF Summarizer</h2><p class="muted">Summarize long text-based PDFs into an overview, key points, important details and action items.</p><a class="btn" href="career-pdf-summarizer.html" style="display:inline-block;text-decoration:none">Open AI PDF Summarizer</a></div>'''
+              s=s.replace(marker,card+marker,1)
           p.write_text(s)
           PY
 
@@ -138,6 +154,8 @@ jobs:
           Career Pro frontend is pulled from current main.
           Career Pro optimized resumes can be downloaded as DOCX or PDF.
           Career Pro shows a before-vs-after summary, bullet comparison, score delta, and change notes.
+          Career Pro includes individual section regeneration controls.
+          Career Pro includes a paid AI PDF Summarizer page and entry point.
           EOF
 
           python - <<'PY'
@@ -145,6 +163,7 @@ jobs:
           home=Path('cloudflare-rollback/index.html').read_text()
           ats=Path('cloudflare-rollback/ats-checker.html').read_text()
           pro=Path('cloudflare-rollback/career-pro.html').read_text()
+          summary=Path('cloudflare-rollback/career-pdf-summarizer.html').read_text()
           assert home.count('<title>')==1 and 'content=<meta' not in home
           assert '#f5a623' in home
           assert 'Everything you need' not in home
@@ -156,6 +175,7 @@ jobs:
           assert '/api/career/pro/extract-resume' in pro
           assert '/api/career/pro/optimize' in pro
           assert '/api/career/pro/cover-letter' in pro
+          assert '/api/career/pro/regenerate-section' in pro
           assert '/api/career/pro/export-resume' in pro
           assert 'Download DOCX' in pro and 'Download PDF' in pro
           assert 'Before vs After' in pro and 'comparisonHtml' in pro
@@ -165,10 +185,15 @@ jobs:
           assert 'Optimized resume score' in pro
           assert 'Current keyword match' in pro
           assert '100% keyword match does not mean the resume scored 100/100' in pro
+          assert 'career-pdf-summarizer.html' in pro
+          assert 'Open AI PDF Summarizer' in pro
+          assert 'AI PDF Summarizer' in summary
+          assert '/api/career/pro/pdf-summary' in summary
+          assert 'eggypdf_career_pro_checkout' in summary
           required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
           assert all(Path(f'cloudflare-rollback/tools/{x}.html').exists() for x in required)
           assert Path('cloudflare-rollback/tools/qr-code.html').exists()
-          print('ROLLBACK VALIDATION PASSED: QR + Career Pro scoring + exports + comparison')
+          print('ROLLBACK VALIDATION PASSED: QR + Career Pro scoring + exports + comparison + regeneration + AI PDF Summarizer')
           PY
 
           (cd cloudflare-rollback && zip -qr ../EggyPDF-Classic-Rollback-Cloudflare.zip .)
