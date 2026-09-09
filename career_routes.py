@@ -7,6 +7,7 @@ from career_engine import analyze_resume,extract_keywords,extract_skills
 from career_v2 import extract_resume_upload,optimize_with_gemini
 from career_ai import generate_cover_letter_with_gemini
 from career_export import build_resume_export
+from career_regen import regenerate_section
 
 career_bp=Blueprint('career',__name__,url_prefix='/api/career');MAX_TEXT_LENGTH=100_000
 DEFAULT_DODO_PRODUCT_ID='pdt_0Nmk7wwSsTDKzOvbI7z9n';DODO_PRODUCT_ID=os.getenv('DODO_PRODUCT_ID',DEFAULT_DODO_PRODUCT_ID).strip();DODO_API_BASE=os.getenv('DODO_API_BASE','https://live.dodopayments.com').rstrip('/');CAREER_PRO_RETURN_URL=os.getenv('CAREER_PRO_RETURN_URL','https://eggypdf.com/ats-checker.html?career_pro=return')
@@ -58,7 +59,7 @@ def _require(d):
  if not paid:raise PermissionError('Career Pro purchase could not be verified.')
 
 @career_bp.get('/health')
-def health():return jsonify({'status':'ok','service':'EggyPDF Career Pro','features':['ats-analysis','job-matching','career-pro-checkout','resume-upload','resume-optimizer','resume-export','ai-cover-letter'],'payments_configured':bool(os.getenv('DODO_PAYMENTS_API_KEY','').strip()),'payment_environment':'test' if 'test' in DODO_API_BASE.lower() else 'live','career_pro_product_configured':bool(DODO_PRODUCT_ID),'ai_optimizer_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip()),'ai_cover_letter_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip())})
+def health():return jsonify({'status':'ok','service':'EggyPDF Career Pro','features':['ats-analysis','job-matching','career-pro-checkout','resume-upload','resume-optimizer','section-regeneration','resume-export','ai-cover-letter'],'payments_configured':bool(os.getenv('DODO_PAYMENTS_API_KEY','').strip()),'payment_environment':'test' if 'test' in DODO_API_BASE.lower() else 'live','career_pro_product_configured':bool(DODO_PRODUCT_ID),'ai_optimizer_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip()),'ai_cover_letter_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip()),'ai_section_regeneration_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip())})
 
 @career_bp.post('/checkout')
 def checkout():
@@ -89,6 +90,18 @@ def pro_extract():
 def pro_optimize():
  try:
   d=request.get_json(silent=True) or {};_require(d);resume=(d.get('resume_text') or '').strip();job=(d.get('job_description') or '').strip();_validate_text(resume,'Resume text');_validate_text(job,'Job description');return jsonify({'success':True,'optimization':optimize_with_gemini(resume,job)})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+ except PermissionError as e:return jsonify({'success':False,'error':str(e)}),403
+ except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
+
+@career_bp.post('/pro/regenerate-section')
+def pro_regenerate_section():
+ try:
+  d=request.get_json(silent=True) or {};_require(d)
+  source=(d.get('source_resume') or '').strip();optimized=(d.get('optimized_resume') or '').strip();job=(d.get('job_description') or '').strip();section=(d.get('section_type') or '').strip();current=(d.get('current_text') or '').strip()
+  _validate_text(source,'Source resume');_validate_text(optimized,'Optimized resume');_validate_text(job,'Job description')
+  result=regenerate_section(source,optimized,job,section,current)
+  return jsonify({'success':True,'regeneration':result})
  except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
  except PermissionError as e:return jsonify({'success':False,'error':str(e)}),403
  except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
