@@ -39,13 +39,11 @@ jobs:
           s=s.replace('<meta name="description" content=<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers.">','<meta name="description" content="Free PDF tools and resume builder online. Merge, compress, convert PDFs and create a job-ready resume in minutes. No sign-up needed. Built for UAE & Gulf job seekers."/>')
           s=s.replace('</style> .seo-section {','.seo-section {').replace('</head>','</style>\n</head>',1)
 
-          # Keep ATS visible on the classic homepage.
           if 'ATS Resume Checker' not in s:
               end='    </a>\n\n    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'
               card='''    </a>\n\n    <a href="ats-checker.html" class="tool-card" data-cat="ai" style="border-color:#f5a623;background:linear-gradient(135deg,#fff8ed,#fff)">\n      <div class="tool-icon" style="background:#fff3cd;font-size:1.5rem">🎯</div>\n      <h3 style="color:#d4881a">ATS Resume Checker <span style="font-size:10px;background:#f5a623;color:#fff;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;margin-left:4px">NEW</span></h3>\n      <p>Check your resume against a job description and find missing keywords and improvements.</p>\n    </a>\n\n    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'''
               if end in s: s=s.replace(end,card,1)
 
-          # Restore QR Code Generator to the homepage and Create menu.
           if 'QR Code Generator' not in s:
               marker='    <!-- ② MOST USED DAILY — Merge, Compress, Split -->'
               qr='''    <a href="tools/qr-code.html" class="tool-card" data-cat="convert">\n      <div class="tool-icon" style="background:#eef2ff;font-size:1.5rem">▦</div>\n      <h3>QR Code Generator</h3>\n      <p>Create QR codes for website links, text, email and contact details.</p>\n    </a>\n\n'''
@@ -62,6 +60,22 @@ jobs:
 
           cp ats-checker.html resume-builder.html cloudflare-rollback/
           cp /tmp/career-pro-current.html cloudflare-rollback/career-pro.html
+
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('cloudflare-rollback/career-pro.html')
+          s=p.read_text()
+          old='<div class="actions"><button class="btn secondary" id="copyResume">Copy Optimized Resume</button></div>'
+          new='<div class="actions"><button class="btn secondary" id="copyResume">Copy Optimized Resume</button><button class="btn secondary" type="button" onclick="exportResume(\'docx\')">Download DOCX</button><button class="btn secondary" type="button" onclick="exportResume(\'pdf\')">Download PDF</button></div>'
+          if old not in s:
+              raise SystemExit('Career Pro resume actions marker not found')
+          s=s.replace(old,new,1)
+          helper="""async function exportResume(format){if(!lastResume){alert('Optimize your resume first.');return}try{let r=await fetch(API+'/api/career/pro/export-resume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:session,resume_text:lastResume,format})});if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.error||'Resume export failed.')}let blob=await r.blob(),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=format==='docx'?'EggyPDF-Optimized-Resume.docx':'EggyPDF-Optimized-Resume.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}catch(e){alert(e.message)}};"""
+          if '</script>' not in s:
+              raise SystemExit('Career Pro script closing tag not found')
+          s=s.replace('</script>',helper+'</script>',1)
+          p.write_text(s)
+          PY
 
           python - <<'PY'
           from pathlib import Path
@@ -105,7 +119,8 @@ jobs:
           Source classic frontend snapshot: 00a6c26029150684d6c61dbd106b8295b40a3bcc
           Restores the pre-dark-redesign EggyPDF frontend while leaving the Render backend untouched.
           QR Code Generator restored to homepage and Create navigation.
-          Career Pro frontend is pulled from current main so scoring labels stay consistent with the free ATS checker.
+          Career Pro frontend is pulled from current main.
+          Career Pro optimized resumes can be downloaded as DOCX or PDF.
           EOF
 
           python - <<'PY'
@@ -124,6 +139,8 @@ jobs:
           assert '/api/career/pro/extract-resume' in pro
           assert '/api/career/pro/optimize' in pro
           assert '/api/career/pro/cover-letter' in pro
+          assert '/api/career/pro/export-resume' in pro
+          assert 'Download DOCX' in pro and 'Download PDF' in pro
           assert 'eggypdf_career_pro_checkout' in pro
           assert 'Current resume score' in pro
           assert 'Optimized resume score' in pro
@@ -132,7 +149,7 @@ jobs:
           required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
           assert all(Path(f'cloudflare-rollback/tools/{x}.html').exists() for x in required)
           assert Path('cloudflare-rollback/tools/qr-code.html').exists()
-          print('ROLLBACK VALIDATION PASSED: QR + latest Career Pro scoring UI')
+          print('ROLLBACK VALIDATION PASSED: QR + Career Pro scoring + resume exports')
           PY
 
           (cd cloudflare-rollback && zip -qr ../EggyPDF-Classic-Rollback-Cloudflare.zip .)
