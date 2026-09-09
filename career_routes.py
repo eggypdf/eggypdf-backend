@@ -8,6 +8,7 @@ from career_v2 import extract_resume_upload,optimize_with_gemini
 from career_ai import generate_cover_letter_with_gemini
 from career_export import build_resume_export
 from career_regen import regenerate_section
+from career_pdf_ai import extract_pdf_text,summarize_pdf_text
 
 career_bp=Blueprint('career',__name__,url_prefix='/api/career');MAX_TEXT_LENGTH=100_000
 DEFAULT_DODO_PRODUCT_ID='pdt_0Nmk7wwSsTDKzOvbI7z9n';DODO_PRODUCT_ID=os.getenv('DODO_PRODUCT_ID',DEFAULT_DODO_PRODUCT_ID).strip();DODO_API_BASE=os.getenv('DODO_API_BASE','https://live.dodopayments.com').rstrip('/');CAREER_PRO_RETURN_URL=os.getenv('CAREER_PRO_RETURN_URL','https://eggypdf.com/ats-checker.html?career_pro=return')
@@ -59,7 +60,7 @@ def _require(d):
  if not paid:raise PermissionError('Career Pro purchase could not be verified.')
 
 @career_bp.get('/health')
-def health():return jsonify({'status':'ok','service':'EggyPDF Career Pro','features':['ats-analysis','job-matching','career-pro-checkout','resume-upload','resume-optimizer','section-regeneration','resume-export','ai-cover-letter'],'payments_configured':bool(os.getenv('DODO_PAYMENTS_API_KEY','').strip()),'payment_environment':'test' if 'test' in DODO_API_BASE.lower() else 'live','career_pro_product_configured':bool(DODO_PRODUCT_ID),'ai_optimizer_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip()),'ai_cover_letter_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip()),'ai_section_regeneration_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip())})
+def health():return jsonify({'status':'ok','service':'EggyPDF Career Pro','features':['ats-analysis','job-matching','career-pro-checkout','resume-upload','resume-optimizer','section-regeneration','resume-export','ai-cover-letter','ai-pdf-summarizer'],'payments_configured':bool(os.getenv('DODO_PAYMENTS_API_KEY','').strip()),'payment_environment':'test' if 'test' in DODO_API_BASE.lower() else 'live','career_pro_product_configured':bool(DODO_PRODUCT_ID),'ai_optimizer_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip()),'ai_cover_letter_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip()),'ai_section_regeneration_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip()),'ai_pdf_summarizer_configured':bool((os.getenv('GEMINI_API') or os.getenv('GEMINI_API_KEY') or '').strip())})
 
 @career_bp.post('/checkout')
 def checkout():
@@ -115,6 +116,21 @@ def pro_export_resume():
  except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
  except PermissionError as e:return jsonify({'success':False,'error':str(e)}),403
  except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
+
+@career_bp.post('/pro/pdf-summary')
+def pro_pdf_summary():
+ try:
+  sid=(request.form.get('session_id') or '').strip();_require({'session_id':sid})
+  f=request.files.get('pdf') or request.files.get('file')
+  if not f:raise ValueError('Choose a PDF file first.')
+  detail=(request.form.get('detail') or 'short').strip().lower()
+  extracted=extract_pdf_text(f)
+  summary=summarize_pdf_text(extracted['text'],detail)
+  return jsonify({'success':True,'document':{'filename':secure_filename(extracted['filename']),'page_count':extracted['page_count'],'characters':extracted['characters']},'summary':summary})
+ except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
+ except PermissionError as e:return jsonify({'success':False,'error':str(e)}),403
+ except RuntimeError as e:return jsonify({'success':False,'error':str(e)}),503
+ except Exception:return jsonify({'success':False,'error':'We could not summarize this PDF. Please try another text-based PDF.'}),500
 
 @career_bp.post('/pro/tailor')
 def tailor():

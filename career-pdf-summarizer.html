@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI PDF Summarizer | Career Pro | EggyPDF</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,sans-serif;background:#f9fafb;color:#1a1a2e}header{height:64px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;padding:0 24px}.head{width:100%;max-width:980px;margin:auto;display:flex;align-items:center}.logo{font-size:20px;font-weight:800;text-decoration:none;color:#1a1a2e}.logo span,.hero span{color:#f5a623}.back{margin-left:auto;color:#6b7280;text-decoration:none;font-size:13px}.hero{text-align:center;padding:44px 20px 28px;background:linear-gradient(160deg,#fff8ed,#fff)}.badge{display:inline-block;background:#1a1a2e;color:#fff;border-radius:99px;padding:6px 11px;font-size:10px;font-weight:800}.hero h1{font-size:clamp(30px,5vw,44px);margin:12px 0 8px}.hero p{color:#6b7280;max-width:690px;margin:auto;font-size:14px}main{max-width:980px;margin:auto;padding:26px 20px 70px}.card,.gate{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:22px}.gate{text-align:center}.status{margin:14px auto;max-width:650px;padding:11px;border-radius:9px;background:#eff6ff;color:#1e40af;font-size:12px}.status.error{background:#fef2f2;color:#991b1b}.workspace{display:none}.drop{border:2px dashed #f1c76c;background:#fff8ed;border-radius:12px;padding:30px 18px;text-align:center;margin:14px 0;cursor:pointer}.drop.drag{border-color:#f5a623;background:#fff2d7}.drop b{display:block;font-size:15px}.drop small{color:#6b7280}.uploadmsg{font-size:11.5px;margin-top:9px;color:#166534}.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.controls select{border:1.5px solid #e5e7eb;border-radius:9px;padding:11px;font:inherit;font-size:13px;background:#fff}.btn{border:0;border-radius:9px;padding:12px 16px;background:#f5a623;color:#fff;font-weight:800;cursor:pointer}.btn:disabled{opacity:.55}.secondary{background:#fff;color:#1a1a2e;border:1px solid #e5e7eb}.meta{margin-top:12px;color:#6b7280;font-size:11.5px}.output{display:none;margin-top:18px}.section{margin:16px 0}.section h3{font-size:13px;margin:0 0 8px}.box{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;white-space:pre-wrap;line-height:1.65;font-size:13px}.list{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 16px}.list li{margin:7px 0;line-height:1.5}.integrity{padding:11px;background:#fff8ed;color:#7c5a13;border-radius:8px;font-size:11.5px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.feature-note{margin-top:12px;padding:10px 12px;border-radius:8px;background:#f8fafc;border:1px solid #e5e7eb;color:#6b7280;font-size:11.5px}
+</style>
+</head>
+<body>
+<header><div class="head"><a class="logo" href="/">Eggy<span>PDF</span></a><a class="back" href="career-pro.html">← Career Pro</a></div></header>
+<section class="hero"><b class="badge">CAREER PRO</b><h1>Summarize long PDFs with <span>AI.</span></h1><p>Upload a text-based PDF and get a clear overview, key points, important details and document action items.</p></section>
+<main>
+<section class="gate" id="gate"><h2>Verifying Career Pro access…</h2><div class="status" id="gateStatus">Checking your purchase.</div></section>
+<section class="workspace" id="workspace">
+<div class="card">
+<h2>AI PDF Summarizer</h2>
+<p style="color:#6b7280;font-size:12.5px">PDF only · up to 15 MB · up to 120 pages · text-based PDFs</p>
+<div class="drop" id="drop"><b>Drop a PDF here or tap to browse</b><small>Your file is processed for this request and is not saved by Career Pro.</small><div class="uploadmsg" id="uploadmsg"></div></div>
+<input id="file" type="file" accept="application/pdf,.pdf" hidden>
+<div class="controls"><select id="detail"><option value="short">Short summary</option><option value="detailed">Detailed summary</option></select><button class="btn" id="sumBtn" disabled>Summarize PDF</button></div>
+<div class="feature-note">Scanned/image-only PDFs are not supported in this version. Use a text-based PDF or convert/OCR the file first.</div>
+<div class="output" id="out"></div>
+</div>
+</section>
+</main>
+<script>
+const API='https://eggypdf-backend-1.onrender.com',KEY='eggypdf_career_pro_checkout';let session=localStorage.getItem(KEY)||'',selected=null,lastText='';const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function verify(){if(!session){$('gateStatus').className='status error';$('gateStatus').textContent='No verified Career Pro purchase found in this browser.';return}try{let r=await fetch(API+'/api/career/checkout/'+encodeURIComponent(session)),d=await r.json();if(!r.ok||!d.paid)throw Error(d.error||'Purchase not verified.');$('gate').style.display='none';$('workspace').style.display='block'}catch(e){$('gateStatus').className='status error';$('gateStatus').textContent=e.message}}verify();
+const drop=$('drop'),file=$('file'),btn=$('sumBtn');drop.onclick=()=>file.click();['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>{let f=e.dataTransfer.files[0];if(f)choose(f)});file.onchange=()=>file.files[0]&&choose(file.files[0]);
+function choose(f){if(!f.name.toLowerCase().endsWith('.pdf')){$('uploadmsg').textContent='Choose a PDF file.';btn.disabled=true;selected=null;return}selected=f;$('uploadmsg').textContent='Selected: '+f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)';btn.disabled=false}
+function list(title,items){if(!items||!items.length)return'';return '<div class="section"><h3>'+esc(title)+'</h3><ul class="list">'+items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>'}
+function asText(s,d){let parts=[s.title,'',s.overview,'','Key points:',...(s.key_points||[]).map(x=>'• '+x)];if(s.important_details?.length)parts.push('','Important details:',...s.important_details.map(x=>'• '+x));if(s.action_items?.length)parts.push('','Action items:',...s.action_items.map(x=>'• '+x));parts.push('','Source: '+d.filename+' · '+d.page_count+' pages');return parts.join('\n')}
+btn.onclick=async function(){let out=$('out');if(!selected)return;this.disabled=true;this.textContent='Summarizing…';$('uploadmsg').textContent='Reading and summarizing '+selected.name+'…';try{let form=new FormData();form.append('session_id',session);form.append('pdf',selected);form.append('detail',$('detail').value);let r=await fetch(API+'/api/career/pro/pdf-summary',{method:'POST',body:form}),d=await r.json();if(!r.ok||!d.success)throw Error(d.error||'PDF summary failed.');let s=d.summary,doc=d.document;lastText=asText(s,doc);out.innerHTML='<div class="section"><h3>'+esc(s.title)+'</h3><div class="box">'+esc(s.overview)+'</div></div>'+list('Key points',s.key_points)+list('Important details',s.important_details)+list('Action items',s.action_items)+'<div class="integrity">'+esc(s.integrity_note)+'</div><div class="meta">'+esc(doc.filename)+' · '+esc(doc.page_count)+' pages · '+esc(doc.characters.toLocaleString())+' extracted characters</div><div class="actions"><button class="btn secondary" id="copySummary">Copy Summary</button><button class="btn secondary" id="downloadSummary">Download .txt</button></div>';out.style.display='block';$('copySummary').onclick=()=>navigator.clipboard.writeText(lastText);$('downloadSummary').onclick=()=>{let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lastText],{type:'text/plain'}));a.download='EggyPDF-PDF-Summary.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};$('uploadmsg').textContent='Summary ready.'}catch(e){out.innerHTML='<div class="status error">'+esc(e.message)+'</div>';out.style.display='block';$('uploadmsg').textContent=''}finally{this.disabled=false;this.textContent='Summarize PDF'}};
+</script>
+</body>
+</html>
