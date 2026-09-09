@@ -79,6 +79,22 @@ jobs:
 
           python - <<'PY'
           from pathlib import Path
+          p=Path('cloudflare-rollback/career-pro.html')
+          s=p.read_text()
+          css='''.compare-wrap{margin:18px 0}.compare-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.compare-head h3{margin:0;font-size:15px}.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.compare-card{border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:13px}.compare-card.before{background:#fff7ed;border-color:#fed7aa}.compare-card.after{background:#ecfdf5;border-color:#bbf7d0}.compare-label{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;margin-bottom:7px}.compare-text{white-space:pre-wrap;font-size:12.5px;line-height:1.55}.compare-pair{margin:10px 0}.delta{font-size:11px;font-weight:800;color:#166534}.changes-list{margin:8px 0 0;padding-left:18px}.changes-list li{margin-bottom:6px}.compare-empty{color:#9ca3af;font-style:italic}@media(max-width:760px){.compare-grid{grid-template-columns:1fr}}'''
+          if '</style>' not in s: raise SystemExit('Career Pro style tag missing')
+          s=s.replace('</style>',css+'</style>',1)
+          helper="""function comparisonHtml(o){let c=o.comparison;if(!c)return'';let summary='<div class="compare-wrap"><div class="compare-head"><h3>Before vs After</h3><span class="delta">'+(c.score?.delta>0?'+':'')+(c.score?.delta??0)+' resume-score points</span></div><div class="compare-grid"><div class="compare-card before"><div class="compare-label">Original summary</div><div class="compare-text">'+esc(c.summary?.before||'No clearly labeled summary detected.')+'</div></div><div class="compare-card after"><div class="compare-label">Optimized summary</div><div class="compare-text">'+esc(c.summary?.after||'No optimized summary returned.')+'</div></div></div>';let pairs=(c.bullets||[]).map((x,i)=>'<div class="compare-pair"><div class="compare-grid"><div class="compare-card before"><div class="compare-label">Original bullet '+(i+1)+'</div><div class="compare-text '+(!x.before?'compare-empty':'')+'">'+esc(x.before||'No matching original bullet detected.')+'</div></div><div class="compare-card after"><div class="compare-label">Rewritten bullet '+(i+1)+'</div><div class="compare-text">'+esc(x.after||'')+'</div></div></div></div>').join('');let changes=(c.changes||[]).length?'<div class="compare-card" style="margin-top:12px"><div class="compare-label">What changed</div><ul class="changes-list">'+c.changes.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>':'';return summary+pairs+changes+'</div>'}"""
+          if 'function comparisonHtml' not in s:
+              s=s.replace('function chips(',helper+'function chips(',1)
+          marker="'+sparse+'<div class=\"block\"><h3>Optimized professional summary</h3>"
+          if marker not in s: raise SystemExit('Career Pro optimizer output marker not found')
+          s=s.replace(marker,"'+sparse+comparisonHtml(o)+'<div class=\"block\"><h3>Optimized professional summary</h3>",1)
+          p.write_text(s)
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
           p=Path('cloudflare-rollback/resume-builder.html'); s=p.read_text()
           s=s.replace('<head> <title>Free Resume Builder – Download PDF Instantly | EggyPDF</title>\n<meta name="description" content="Build a professional resume online and download as PDF for free. No sign-up needed. Designed for job seekers in UAE, Gulf, and worldwide.">','<head>\n<meta name="description" content="Build a professional resume online and download as PDF for free. No sign-up needed. Designed for job seekers in UAE, Gulf, and worldwide.">')
           marker='<section class="seo-section">'; i=s.find(marker)
@@ -121,6 +137,7 @@ jobs:
           QR Code Generator restored to homepage and Create navigation.
           Career Pro frontend is pulled from current main.
           Career Pro optimized resumes can be downloaded as DOCX or PDF.
+          Career Pro shows a before-vs-after summary, bullet comparison, score delta, and change notes.
           EOF
 
           python - <<'PY'
@@ -141,6 +158,8 @@ jobs:
           assert '/api/career/pro/cover-letter' in pro
           assert '/api/career/pro/export-resume' in pro
           assert 'Download DOCX' in pro and 'Download PDF' in pro
+          assert 'Before vs After' in pro and 'comparisonHtml' in pro
+          assert 'Original summary' in pro and 'Rewritten bullet' in pro
           assert 'eggypdf_career_pro_checkout' in pro
           assert 'Current resume score' in pro
           assert 'Optimized resume score' in pro
@@ -149,7 +168,7 @@ jobs:
           required=['merge','compress','split','pdf-to-word','word-to-pdf','ppt-to-pdf','excel-to-pdf','jpg-to-pdf','pdf-to-jpg','png-to-pdf','pdf-to-png','protect','unlock','watermark','rotate','delete-pages','page-numbers','crop','pdf-to-excel','pdf-to-ppt','pdf-to-text']
           assert all(Path(f'cloudflare-rollback/tools/{x}.html').exists() for x in required)
           assert Path('cloudflare-rollback/tools/qr-code.html').exists()
-          print('ROLLBACK VALIDATION PASSED: QR + Career Pro scoring + resume exports')
+          print('ROLLBACK VALIDATION PASSED: QR + Career Pro scoring + exports + comparison')
           PY
 
           (cd cloudflare-rollback && zip -qr ../EggyPDF-Classic-Rollback-Cloudflare.zip .)
