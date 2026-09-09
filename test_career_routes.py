@@ -47,6 +47,18 @@ OPTIMIZATION = {
     "integrity_note": "AI rewrite applied. Review every line before use.",
 }
 
+AI_COVER_LETTER = {
+    "cover_letter": "Dear Example Labs,\n\nI am applying for the Data Analyst role. My experience using SQL, Excel and Power BI includes analyzing customer data and improving reporting time by 35%. This background aligns with the analytical and reporting priorities in your job description.\n\nI would welcome the opportunity to discuss how my data analysis and communication experience could support Example Labs.\n\nSincerely,\nJane Doe",
+    "subject_line": "Application for Data Analyst — Jane Doe",
+    "strengths_used": ["SQL", "Excel", "Power BI", "35% reporting improvement"],
+    "unsupported_requirements": ["Tableau"],
+    "mode": "ai",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "tone": "professional",
+    "integrity_note": "AI-generated from the resume and job description. Review every claim before sending.",
+}
+
 
 class CareerRouteTests(unittest.TestCase):
     def setUp(self):
@@ -58,7 +70,10 @@ class CareerRouteTests(unittest.TestCase):
     def test_health(self):
         r = self.client.get("/api/career/health")
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.get_json()["status"], "ok")
+        body = r.get_json()
+        self.assertEqual(body["status"], "ok")
+        self.assertIn("ai-cover-letter", body["features"])
+        self.assertIn("ai_cover_letter_configured", body)
 
     def test_json_ats_analysis(self):
         r = self.client.post(
@@ -203,8 +218,9 @@ class CareerRouteTests(unittest.TestCase):
         self.assertTrue(b["success"])
         self.assertIn("Data analyst", b["resume_text"])
 
+    @patch("career_routes.generate_cover_letter_with_gemini", return_value=AI_COVER_LETTER)
     @patch("career_routes._dodo")
-    def test_paid_user_can_generate_cover_letter(self, dodo):
+    def test_paid_user_can_generate_ai_cover_letter(self, dodo, generator):
         dodo.return_value = PAID_CHECKOUT
         r = self.client.post(
             "/api/career/pro/cover-letter",
@@ -215,12 +231,36 @@ class CareerRouteTests(unittest.TestCase):
                 "applicant_name": "Jane Doe",
                 "company": "Example Labs",
                 "role": "Data Analyst",
+                "tone": "professional",
             },
         )
         b = r.get_json()
         self.assertEqual(r.status_code, 200)
-        self.assertIn("Dear Example Labs", b["cover_letter"])
-        self.assertIn("Jane Doe", b["cover_letter"])
+        self.assertTrue(b["success"])
+        self.assertEqual(b["mode"], "ai")
+        self.assertEqual(b["provider"], "gemini")
+        self.assertIn("Example Labs", b["cover_letter"])
+        self.assertIn("Tableau", b["unsupported_requirements"])
+        generator.assert_called_once_with(
+            RESUME.strip(), JOB.strip(), "Jane Doe", "Example Labs", "Data Analyst", "professional"
+        )
+
+    @patch("career_routes.generate_cover_letter_with_gemini")
+    @patch("career_routes._dodo")
+    def test_invalid_cover_letter_tone_is_rejected(self, dodo, generator):
+        dodo.return_value = PAID_CHECKOUT
+        generator.side_effect = ValueError("Tone must be professional, confident, or concise.")
+        r = self.client.post(
+            "/api/career/pro/cover-letter",
+            json={
+                "session_id": "cks_test_123",
+                "resume_text": RESUME,
+                "job_description": JOB,
+                "tone": "salesy",
+            },
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("Tone", r.get_json()["error"])
 
     @patch("career_routes._dodo")
     def test_unpaid_user_cannot_generate_cover_letter(self, dodo):
