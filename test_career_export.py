@@ -1,8 +1,12 @@
 import io
 import unittest
 import zipfile
+from unittest.mock import patch
+
+from flask import Flask
 
 from career_export import build_resume_export, export_docx, export_pdf
+from career_routes import career_bp
 
 
 RESUME = """Jane Doe
@@ -22,6 +26,11 @@ Bachelor of Science
 SKILLS
 SQL, Excel, Power BI, Communication
 """
+
+PAID_CHECKOUT = {
+    "payment_status": "succeeded",
+    "metadata": {"product": "career_pro"},
+}
 
 
 class CareerExportTests(unittest.TestCase):
@@ -54,6 +63,77 @@ class CareerExportTests(unittest.TestCase):
     def test_invalid_format_is_rejected(self):
         with self.assertRaises(ValueError):
             build_resume_export(RESUME, "rtf")
+
+
+class CareerExportRouteTests(unittest.TestCase):
+    def setUp(self):
+        app = Flask(__name__)
+        app.register_blueprint(career_bp)
+        app.config["TESTING"] = True
+        self.client = app.test_client()
+
+    @patch("career_routes._dodo")
+    def test_paid_user_can_export_docx(self, dodo):
+        dodo.return_value = PAID_CHECKOUT
+        r = self.client.post(
+            "/api/career/pro/export-resume",
+            json={
+                "session_id": "cks_test_123",
+                "resume_text": RESUME,
+                "format": "docx",
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(
+            r.mimetype,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        self.assertTrue(r.data.startswith(b"PK"))
+        self.assertIn("EggyPDF-Optimized-Resume.docx", r.headers.get("Content-Disposition", ""))
+
+    @patch("career_routes._dodo")
+    def test_paid_user_can_export_pdf(self, dodo):
+        dodo.return_value = PAID_CHECKOUT
+        r = self.client.post(
+            "/api/career/pro/export-resume",
+            json={
+                "session_id": "cks_test_123",
+                "resume_text": RESUME,
+                "format": "pdf",
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.mimetype, "application/pdf")
+        self.assertTrue(r.data.startswith(b"%PDF"))
+
+    @patch("career_routes._dodo")
+    def test_unpaid_user_cannot_export_resume(self, dodo):
+        dodo.return_value = {
+            "payment_status": "pending",
+            "metadata": {"product": "career_pro"},
+        }
+        r = self.client.post(
+            "/api/career/pro/export-resume",
+            json={
+                "session_id": "cks_test_123",
+                "resume_text": RESUME,
+                "format": "pdf",
+            },
+        )
+        self.assertEqual(r.status_code, 403)
+
+    @patch("career_routes._dodo")
+    def test_invalid_export_format_is_rejected(self, dodo):
+        dodo.return_value = PAID_CHECKOUT
+        r = self.client.post(
+            "/api/career/pro/export-resume",
+            json={
+                "session_id": "cks_test_123",
+                "resume_text": RESUME,
+                "format": "rtf",
+            },
+        )
+        self.assertEqual(r.status_code, 400)
 
 
 if __name__ == "__main__":
