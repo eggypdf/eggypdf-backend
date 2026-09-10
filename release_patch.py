@@ -24,6 +24,8 @@ def patch_ats(path):
 
 
 def _inject_exports(s):
+    s=s.replace('onclick="exportResume(\'docx\')"','onclick="exportResume(&quot;docx&quot;)"')
+    s=s.replace('onclick="exportResume(\'pdf\')"','onclick="exportResume(&quot;pdf&quot;)"')
     if 'Download DOCX' in s and '/api/career/pro/export-resume' in s:
         return s
     old='<div class="actions"><button class="btn secondary" id="copyResume">Copy Optimized Resume</button></div>'
@@ -63,13 +65,10 @@ def patch_pro(path):
     card='<div class="card" style="margin-top:16px;border-color:#f3d594;background:linear-gradient(135deg,#fff8ed,#fff)"><h2>AI PDF Summarizer</h2><p class="muted">Summarize long text-based PDFs into an overview, key points, important details and action items.</p><a class="btn" href="career-pdf-summarizer.html" style="display:inline-block;text-decoration:none">Open AI PDF Summarizer</a></div>'
     if card in s:
         s=s.replace(card,'',1)
-    if 'career-pdf-summarizer.html' not in s:
-        marker='<section class="card panel" id="letter">'
-        s=s.replace(marker,card+'\n'+marker,1)
-    else:
-        marker='<section class="card panel" id="letter">'
-        if s.find('AI PDF Summarizer') < s.find('Optimize My Resume'):
-            s=s.replace(marker,card+'\n'+marker,1)
+    marker='<section class="card panel" id="letter">'
+    if marker not in s:
+        raise RuntimeError('Career Pro cover-letter panel marker not found')
+    s=s.replace(marker,card+'\n'+marker,1)
     p.write_text(s)
 
 
@@ -84,6 +83,7 @@ def validate(ats_path, pro_path):
     assert '/api/career/pro/regenerate-section' in pro
     assert '/api/career/pro/export-resume' in pro
     assert 'Download DOCX' in pro and 'Download PDF' in pro
+    assert "exportResume('docx')" not in pro and "exportResume('pdf')" not in pro
     assert 'Before vs After' in pro and 'comparisonHtml' in pro
 
 
