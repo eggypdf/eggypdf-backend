@@ -35,6 +35,30 @@ jobs:
           cp career-pdf-summarizer.html release/career-pdf-summarizer.html
           python release_patch.py release/ats-checker.html release/career-pro.html
 
+          # Runtime repair: an href containing the words careerProOverview used to
+          # fool the patcher's presence check even when the actual target section
+          # was missing. That also left unlockProTop missing and stopped the whole
+          # ATS script before the free form submit handler was registered.
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('release/ats-checker.html')
+          s=p.read_text()
+
+          if 'id="careerProOverview"' not in s:
+              overview='''<section class="card pro-card" id="careerProOverview" style="max-width:1120px;margin:22px auto 0"><div class="pro-grid"><div><div class="pro-badge">Career Pro</div><h2>Go from ATS check to a complete job application.</h2><p class="pro-copy">Upgrade once and keep working with the same resume in this browser session — no repetitive upload after the free ATS check.</p><div class="pro-list"><div><span>✓</span>AI resume optimizer</div><div><span>✓</span>Job-specific tailoring</div><div><span>✓</span>Regenerate individual sections</div><div><span>✓</span>AI cover letter</div><div><span>✓</span>DOCX & PDF resume export</div><div><span>✓</span>AI PDF Summarizer</div></div></div><div class="pro-action"><div class="pro-price">Career Pro<small>One secure checkout · Dodo Payments</small></div><button class="pro-btn" id="unlockProTop" type="button">Unlock Career Pro</button><div class="pro-note">Your free ATS resume and job description are carried into Career Pro in the same browser tab.</div></div></div></section>'''
+              marker='</section><main>'
+              if marker not in s:
+                  raise SystemExit('ATS hero/main insertion marker missing')
+              s=s.replace(marker,'</section>'+overview+'<main>',1)
+
+          # Never let an optional promotional control break the free ATS checker.
+          s=s.replace(
+              "document.getElementById('unlockProTop').addEventListener('click',e=>startCheckout(e.currentTarget));",
+              "const unlockProTop=document.getElementById('unlockProTop');if(unlockProTop)unlockProTop.addEventListener('click',e=>startCheckout(e.currentTarget));"
+          )
+          p.write_text(s)
+          PY
+
       - name: Validate browser JavaScript and release contents
         shell: bash
         run: |
@@ -50,10 +74,17 @@ jobs:
               result=subprocess.run(['node','--check',path],capture_output=True,text=True)
               if result.returncode:
                   raise SystemExit(f'{name} JavaScript invalid: {result.stderr}')
+
           ats=Path('release/ats-checker.html').read_text()
           pro=Path('release/career-pro.html').read_text()
           summary=Path('release/career-pdf-summarizer.html').read_text()
-          assert 'careerProOverview' in ats
+
+          # Assert actual DOM elements, not just matching words in an href or script.
+          assert 'id="careerProOverview"' in ats
+          assert 'id="unlockProTop"' in ats
+          assert 'id="atsForm"' in ats
+          assert "document.getElementById('atsForm').addEventListener('submit'" in ats
+          assert "const unlockProTop=document.getElementById('unlockProTop')" in ats
           assert 'eggypdf_career_handoff' in ats and 'data.resume_text' in ats
           assert 'AI PDF Summarizer' in ats and 'DOCX & PDF' in ats
           assert 'importCareerHandoff' in pro
@@ -63,7 +94,7 @@ jobs:
           assert '/api/career/pro/pdf-summary' in summary
           required=['index.html','resume-builder.html','ats-checker.html','career-pro.html','career-pdf-summarizer.html','tools/qr-code.html','tools/merge.html','tools/compress.html']
           assert all(Path('release',x).exists() for x in required)
-          print('CAREER PRO RELEASE VALIDATION PASSED')
+          print('CAREER PRO RELEASE VALIDATION PASSED: ATS form + Career Pro controls are present and JS is valid')
           PY
 
       - name: Package Cloudflare ZIP
