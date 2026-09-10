@@ -46,13 +46,14 @@ def _verify(i):
   p=_dodo('GET',f'/payments/{i}');return _ispro(p),p.get('status')
  if not _valid(i,'cks_'):raise ValueError('Invalid checkout or payment identifier.')
  c=_dodo('GET',f'/checkouts/{i}');s=c.get('payment_status') or c.get('status');m=c.get('metadata') or {}
+ # Keep the legacy metadata shortcut for older/mock responses.
  if s=='succeeded' and m.get('product')=='career_pro':return True,s
- ps=_dodo('GET','/payments',params={'product_id':DODO_PRODUCT_ID,'status':'succeeded','page_size':50,'page_number':0})
- for x in ps.get('items') or []:
-  pid=x.get('payment_id')
-  if _valid(pid,'pay_'):
-   p=_dodo('GET',f'/payments/{pid}')
-   if _ispro(p,i):return True,p.get('status')
+ # Dodo checkout-session status provides the payment_id directly once payment exists.
+ # Verify that one linked payment instead of listing and re-fetching many payments.
+ pid=(c.get('payment_id') or '').strip()
+ if _valid(pid,'pay_'):
+  p=_dodo('GET',f'/payments/{pid}')
+  return _ispro(p,i),p.get('status') or s
  return False,s
 
 def _require(d):
