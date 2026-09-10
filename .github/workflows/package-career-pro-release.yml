@@ -1,0 +1,83 @@
+name: Package EggyPDF Career Pro Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v4
+
+      - name: Restore last validated classic package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf release /tmp/eggy-base
+          mkdir -p release /tmp/eggy-base
+          gh api repos/${{ github.repository }}/actions/artifacts/10114255992/zip > /tmp/eggy-base/artifact.zip
+          unzip -q /tmp/eggy-base/artifact.zip -d /tmp/eggy-base/outer
+          unzip -q /tmp/eggy-base/outer/EggyPDF-Classic-Rollback-Cloudflare.zip -d release
+          test -f release/ats-checker.html
+          test -f release/career-pro.html
+
+      - name: Apply Career Pro continuity and UX fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp career-pdf-summarizer.html release/career-pdf-summarizer.html
+          python release_patch.py release/ats-checker.html release/career-pro.html
+
+      - name: Validate browser JavaScript and release contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          for name in ['ats-checker.html','career-pro.html','career-pdf-summarizer.html']:
+              s=Path('release',name).read_text()
+              scripts='\n'.join(re.findall(r'<script>(.*?)</script>',s,re.S))
+              with tempfile.NamedTemporaryFile('w',suffix='.js',delete=False) as f:
+                  f.write(scripts); path=f.name
+              result=subprocess.run(['node','--check',path],capture_output=True,text=True)
+              if result.returncode:
+                  raise SystemExit(f'{name} JavaScript invalid: {result.stderr}')
+          ats=Path('release/ats-checker.html').read_text()
+          pro=Path('release/career-pro.html').read_text()
+          summary=Path('release/career-pdf-summarizer.html').read_text()
+          assert 'careerProOverview' in ats
+          assert 'eggypdf_career_handoff' in ats and 'data.resume_text' in ats
+          assert 'AI PDF Summarizer' in ats and 'DOCX & PDF' in ats
+          assert 'importCareerHandoff' in pro
+          assert pro.find('Optimize My Resume') < pro.find('AI PDF Summarizer')
+          assert 'Download DOCX' in pro and 'Download PDF' in pro
+          assert '/api/career/pro/regenerate-section' in pro
+          assert '/api/career/pro/pdf-summary' in summary
+          required=['index.html','resume-builder.html','ats-checker.html','career-pro.html','career-pdf-summarizer.html','tools/qr-code.html','tools/merge.html','tools/compress.html']
+          assert all(Path('release',x).exists() for x in required)
+          print('CAREER PRO RELEASE VALIDATION PASSED')
+          PY
+
+      - name: Package Cloudflare ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f EggyPDF-Career-Pro-Release-Cloudflare.zip
+          (cd release && zip -qr ../EggyPDF-Career-Pro-Release-Cloudflare.zip .)
+          unzip -t EggyPDF-Career-Pro-Release-Cloudflare.zip >/dev/null
+
+      - name: Upload Cloudflare package
+        uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Career-Pro-Release-Cloudflare
+          path: EggyPDF-Career-Pro-Release-Cloudflare.zip
+          if-no-files-found: error
+          retention-days: 7

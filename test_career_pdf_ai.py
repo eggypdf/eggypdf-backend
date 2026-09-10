@@ -30,20 +30,53 @@ class PdfSummarizerUnitTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             career_pdf_ai.extract_pdf_text(f)
 
-    @patch.dict("os.environ", {"GEMINI_API": "test-key"}, clear=False)
-    @patch("career_pdf_ai.requests.post")
-    def test_short_summary_returns_structured_result(self, post):
+    def _summary_response(self):
         response = Mock()
         response.ok = True
+        response.status_code = 200
         response.json.return_value = {
             "candidates": [{"content": {"parts": [{"text": '{"title":"Quarterly Report","overview":"This quarterly report explains that revenue increased by 12% and requires the final report to be submitted by Friday. It presents a concise status update and a clear next action for the reader.","key_points":["Revenue increased by 12%.","The final report is due Friday."],"action_items":["Submit the final report by Friday."],"important_details":["Revenue increase: 12%","Deadline: Friday"]}'}]}}]
         }
-        post.return_value = response
+        return response
+
+    @patch.dict("os.environ", {"GEMINI_API": "test-key"}, clear=False)
+    @patch("career_pdf_ai.requests.post")
+    def test_short_summary_returns_structured_result(self, post):
+        post.return_value = self._summary_response()
         result = career_pdf_ai.summarize_pdf_text("Quarterly report text. " * 10, "short")
         self.assertEqual(result["title"], "Quarterly Report")
         self.assertEqual(result["detail"], "short")
         self.assertEqual(result["provider"], "gemini")
         self.assertIn("12%", result["key_points"][0])
+
+    @patch.dict("os.environ", {"GEMINI_API": "test-key"}, clear=False)
+    @patch("career_pdf_ai.time.sleep", return_value=None)
+    @patch("career_pdf_ai.requests.post")
+    def test_retries_transient_503_then_succeeds(self, post, _sleep):
+        unavailable = Mock(ok=False, status_code=503)
+        post.side_effect = [unavailable, self._summary_response()]
+        result = career_pdf_ai.summarize_pdf_text("Quarterly report text. " * 10, "short")
+        self.assertEqual(result["title"], "Quarterly Report")
+        self.assertEqual(post.call_count, 2)
+
+    @patch.dict("os.environ", {"GEMINI_API": "test-key"}, clear=False)
+    @patch("career_pdf_ai._gemini_call")
+    def test_long_document_is_chunked_before_final_summary(self, call):
+        call.side_effect = [
+            {"digest": "Section one factual digest."},
+            {"digest": "Section two factual digest."},
+            {
+                "title": "Long Report",
+                "overview": "This is a complete overview of the long report based only on the factual section digests generated from the source document. It is long enough to pass validation safely.",
+                "key_points": ["Point one", "Point two"],
+                "action_items": [],
+                "important_details": [],
+            },
+        ]
+        text = ("A" * 39000) + "\n\n" + ("B" * 12000)
+        result = career_pdf_ai.summarize_pdf_text(text, "short")
+        self.assertEqual(result["title"], "Long Report")
+        self.assertEqual(call.call_count, 3)
 
 
 class PdfSummarizerRouteTests(unittest.TestCase):
