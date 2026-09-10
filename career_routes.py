@@ -46,10 +46,7 @@ def _verify(i):
   p=_dodo('GET',f'/payments/{i}');return _ispro(p),p.get('status')
  if not _valid(i,'cks_'):raise ValueError('Invalid checkout or payment identifier.')
  c=_dodo('GET',f'/checkouts/{i}');s=c.get('payment_status') or c.get('status');m=c.get('metadata') or {}
- # Keep the legacy metadata shortcut for older/mock responses.
  if s=='succeeded' and m.get('product')=='career_pro':return True,s
- # Dodo checkout-session status provides the payment_id directly once payment exists.
- # Verify that one linked payment instead of listing and re-fetching many payments.
  pid=(c.get('payment_id') or '').strip()
  if _valid(pid,'pay_'):
   p=_dodo('GET',f'/payments/{pid}')
@@ -163,7 +160,9 @@ def _job():
 
 @career_bp.post('/ats/analyze')
 def ats():
- try:r=_gettext();j=_job();_validate_text(r,'Resume text');return jsonify({'success':True,'analysis':analyze_resume(r,j)})
+ try:
+  r=_gettext();j=_job();_validate_text(r,'Resume text')
+  return jsonify({'success':True,'analysis':analyze_resume(r,j),'resume_text':r})
  except ValueError as e:return jsonify({'success':False,'error':str(e)}),400
  except Exception:return jsonify({'success':False,'error':'We could not analyze this resume. Please try another file.'}),500
 
