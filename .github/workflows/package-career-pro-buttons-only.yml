@@ -1,4 +1,4 @@
-name: Package Career Pro Buttons Only
+name: Package Yellow White EggyPDF Frontend
 
 on:
   push:
@@ -11,6 +11,7 @@ permissions:
 jobs:
   package:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,34 +22,53 @@ jobs:
           set -euo pipefail
           rm -rf release /tmp/eggy-current
           mkdir -p release /tmp/eggy-current
+
           gh api repos/${{ github.repository }}/actions/artifacts/10274236600/zip > /tmp/eggy-current/artifact.zip
           unzip -q /tmp/eggy-current/artifact.zip -d release
+
+          # Always replace the rejected dark homepage with the approved yellow/white homepage.
+          cp index.html release/index.html
+
+          # Always use the current yellow/white Career Pro source.
           cp career-pro.html release/career-pro.html
           cp career-pdf-summarizer.html release/career-pdf-summarizer.html
 
-      - name: Add feature buttons only
+      - name: Add Career Pro buttons, file-size check and compressor return flow
         run: python scripts/add-career-buttons.py
 
-      - name: Confirm the original Career Pro page and three buttons exist
+      - name: Validate approved yellow white frontend
         run: |
           set -euo pipefail
+
+          grep -q '#f5a623' release/index.html
+          grep -q '#fff8ed' release/index.html
+          ! grep -qi '#caff16' release/index.html
+          ! grep -qi '#050c10' release/index.html
+          ! grep -q 'Everything you need' release/index.html
+
           grep -q 'CAREER PRO V2' release/career-pro.html
           grep -q 'Resume Optimizer' release/career-pro.html
           grep -q 'AI Cover Letter' release/career-pro.html
           grep -q 'AI PDF Summarizer' release/career-pro.html
-          echo 'Career Pro original theme source preserved and feature buttons added.'
+          grep -q '8 MB Career Pro limit' release/career-pro.html
+          grep -q 'Click here to compress your PDF' release/career-pro.html
+
+          grep -q 'Go back to Career Pro' release/compress.html
+          grep -q 'career-pro-resume' release/compress.html
+
+          echo 'Approved yellow/white frontend validation passed.'
 
       - name: Package Cloudflare ZIP
         run: |
           set -euo pipefail
-          rm -f EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip
-          (cd release && zip -qr ../EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip .)
-          unzip -t EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip >/dev/null
+          rm -f EggyPDF-Yellow-White-Career-Pro-Cloudflare.zip
+          (cd release && zip -qr ../EggyPDF-Yellow-White-Career-Pro-Cloudflare.zip .)
+          unzip -t EggyPDF-Yellow-White-Career-Pro-Cloudflare.zip >/dev/null
 
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: EggyPDF-Career-Pro-Buttons-Only-Cloudflare
-          path: EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip
+          name: EggyPDF-Yellow-White-Career-Pro-Cloudflare
+          path: EggyPDF-Yellow-White-Career-Pro-Cloudflare.zip
           if-no-files-found: error
           retention-days: 7
