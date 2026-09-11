@@ -1,0 +1,73 @@
+name: Package Career Pro Dashboard
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out current code
+        uses: actions/checkout@v4
+
+      - name: Build Cloudflare upload folder
+        run: |
+          set -e
+          rm -rf cloudflare-upload
+          mkdir -p cloudflare-upload/blog
+
+          cp index.html cloudflare-upload/
+          cp ats-checker.html cloudflare-upload/
+          cp resume-builder.html cloudflare-upload/
+          cp about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg cloudflare-upload/
+
+          cp site_editor-1/blog.html cloudflare-upload/blog.html
+          cp -R site_editor-1/blog/. cloudflare-upload/blog/
+
+          for file in compress crop delete-pages excel-to-pdf jpg-to-pdf merge page-numbers pdf-to-excel pdf-to-jpg pdf-to-png pdf-to-ppt pdf-to-text pdf-to-word png-to-pdf ppt-to-pdf protect rotate split unlock watermark word-to-pdf; do
+            test -f "$file.html"
+            cp "$file.html" cloudflare-upload/
+          done
+
+          if [ -f qr-code.html ]; then
+            cp qr-code.html cloudflare-upload/
+          elif [ -f site_editor-1/tools/qr-code.html ]; then
+            cp site_editor-1/tools/qr-code.html cloudflare-upload/qr-code.html
+          fi
+
+          cp career-pro-dashboard.html cloudflare-upload/career-pro.html
+          cp career-pdf-summarizer.html cloudflare-upload/career-pdf-summarizer.html
+
+      - name: Validate Career Pro dashboard package
+        run: |
+          set -e
+          test -f cloudflare-upload/index.html
+          test -f cloudflare-upload/ats-checker.html
+          test -f cloudflare-upload/career-pro.html
+          test -f cloudflare-upload/career-pdf-summarizer.html
+
+          grep -q "Resume Optimizer" cloudflare-upload/career-pro.html
+          grep -q "AI Cover Letter" cloudflare-upload/career-pro.html
+          grep -q "AI PDF Summarizer" cloudflare-upload/career-pro.html
+          grep -q "/api/career/pro/pdf-summary" cloudflare-upload/career-pro.html
+          grep -q "/api/career/pro/cover-letter" cloudflare-upload/career-pro.html
+          grep -q "/api/career/pro/optimize" cloudflare-upload/career-pro.html
+
+          echo "Career Pro dashboard package validation passed."
+
+      - name: Create deployable ZIP
+        run: |
+          cd cloudflare-upload
+          zip -qr ../EggyPDF-Career-Pro-Dashboard-Cloudflare.zip .
+          cd ..
+          unzip -t EggyPDF-Career-Pro-Dashboard-Cloudflare.zip >/dev/null
+
+      - name: Upload Cloudflare package
+        uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Career-Pro-Dashboard-Cloudflare
+          path: EggyPDF-Career-Pro-Dashboard-Cloudflare.zip
+          if-no-files-found: error
+          retention-days: 7
