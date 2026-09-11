@@ -65,10 +65,10 @@ def patch_pro(path):
     card='<div class="card" style="margin-top:16px;border-color:#f3d594;background:linear-gradient(135deg,#fff8ed,#fff)"><h2>AI PDF Summarizer</h2><p class="muted">Summarize long text-based PDFs into an overview, key points, important details and action items.</p><a class="btn" href="career-pdf-summarizer.html" style="display:inline-block;text-decoration:none">Open AI PDF Summarizer</a></div>'
     if card in s:
         s=s.replace(card,'',1)
-    marker='<section class="card panel" id="letter">'
-    if marker not in s:
-        raise RuntimeError('Career Pro cover-letter panel marker not found')
-    s=s.replace(marker,card+'\n'+marker,1)
+    end_marker='</section>\n</section>\n</main>'
+    if end_marker not in s:
+        raise RuntimeError('Career Pro workspace end marker not found')
+    s=s.replace(end_marker,'</section>\n'+card+'\n</section>\n</main>',1)
     p.write_text(s)
 
 
@@ -79,7 +79,7 @@ def validate(ats_path, pro_path):
     assert "data.resume_text" in ats
     assert 'AI PDF Summarizer' in ats and 'DOCX & PDF' in ats
     assert 'importCareerHandoff' in pro and "eggypdf_career_handoff" in pro
-    assert pro.find('Optimize My Resume') < pro.find('AI PDF Summarizer')
+    assert pro.find('Optimize My Resume') < pro.find('Generate AI Cover Letter') < pro.find('AI PDF Summarizer')
     assert '/api/career/pro/regenerate-section' in pro
     assert '/api/career/pro/export-resume' in pro
     assert 'Download DOCX' in pro and 'Download PDF' in pro
