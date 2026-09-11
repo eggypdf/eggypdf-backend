@@ -92,8 +92,9 @@ def _extract_json(payload):
 
 
 def _gemini_call(key: str, model: str, prompt: str, max_output_tokens: int = 4096):
-    """Call Gemini with bounded retries for transient provider failures."""
+    """Call Gemini with bounded retries for provider errors and malformed JSON."""
     response = None
+    last_parse_error = None
     for attempt in range(3):
         try:
             response = requests.post(
@@ -102,15 +103,15 @@ def _gemini_call(key: str, model: str, prompt: str, max_output_tokens: int = 409
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "responseMimeType": "application/json",
-                        "temperature": 0.2,
+                        "temperature": 0.15,
                         "maxOutputTokens": max_output_tokens,
                     },
                 },
-                timeout=70,
+                timeout=80,
             )
         except requests.RequestException as exc:
             if attempt < 2:
-                time.sleep(0.6 * (attempt + 1))
+                time.sleep(0.7 * (attempt + 1))
                 continue
             raise RuntimeError("The AI PDF Summarizer is temporarily unreachable. Please try again in a moment.") from exc
 
@@ -118,12 +119,19 @@ def _gemini_call(key: str, model: str, prompt: str, max_output_tokens: int = 409
             try:
                 return _extract_json(response.json())
             except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-                raise RuntimeError("The AI PDF Summarizer returned an incomplete response. Please try again.") from exc
+                last_parse_error = exc
+                if attempt < 2:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                raise RuntimeError("The AI PDF Summarizer returned an incomplete response after automatic retries. Please try again.") from exc
 
         if response.status_code in RETRYABLE_STATUS and attempt < 2:
             time.sleep(0.8 * (attempt + 1))
             continue
         break
+
+    if last_parse_error is not None:
+        raise RuntimeError("The AI PDF Summarizer returned an incomplete response after automatic retries. Please try again.") from last_parse_error
 
     status = response.status_code if response is not None else 503
     if status == 429:
@@ -175,7 +183,7 @@ Return JSON only with exactly one key: digest (string). Keep the digest concise 
 EXCERPT {index}:
 {chunk}
 """
-        out = _gemini_call(key, model, prompt, max_output_tokens=1800)
+        out = _gemini_call(key, model, prompt, max_output_tokens=2200)
         digest = str(out.get("digest") or "").strip()
         if not digest:
             raise RuntimeError("The AI PDF Summarizer could not process one section of this document. Please try again.")
@@ -200,9 +208,11 @@ def summarize_pdf_text(text: str, detail: str = "short"):
     model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 
     if detail == "short":
-        length_rule = "Keep the overview to roughly 120-180 words and return 5-8 key points."
+        length_rule = "Keep the overview to roughly 120-180 words and return 5-8 key points. Keep each list item concise."
+        final_output_tokens = 4096
     else:
-        length_rule = "Write a thorough overview of roughly 300-500 words and return 8-15 key points, preserving important nuance."
+        length_rule = "Write a thorough overview of roughly 300-450 words and return 8-12 key points. Keep action items and important details concise so the full JSON response remains complete."
+        final_output_tokens = 6144
 
     source_text = text if len(text) <= DIRECT_SUMMARY_CHARS else _digest_long_document(text, key, model)
     source_label = "PDF TEXT" if source_text is text else "FACTUAL DIGESTS OF PDF SECTIONS"
@@ -225,6 +235,7 @@ SUMMARY STYLE
 - Use plain, readable language.
 - Key points should be concise standalone statements.
 - Important details should contain notable dates, amounts, deadlines, names, or constraints that a reader should not miss; return an empty array if none are present.
+- Keep every array item to one or two sentences maximum.
 
 Return JSON only with exactly these keys:
 title (string; infer a concise document title from the content, or use "PDF Summary")
@@ -237,7 +248,7 @@ important_details (array of strings)
 {source_text}
 """
 
-    out = _gemini_call(key, model, prompt, max_output_tokens=4096)
+    out = _gemini_call(key, model, prompt, max_output_tokens=final_output_tokens)
 
     title = str(out.get("title") or "PDF Summary").strip() or "PDF Summary"
     overview = str(out.get("overview") or "").strip()
