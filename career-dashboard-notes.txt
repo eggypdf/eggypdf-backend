@@ -1,1 +1,0 @@
-Career Pro dashboard design marker. This temporary marker can be removed after the dashboard patch is applied.
