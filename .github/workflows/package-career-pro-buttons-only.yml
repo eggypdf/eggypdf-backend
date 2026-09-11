@@ -4,100 +4,55 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build stable Cloudflare package with original Career Pro theme
-        shell: bash
+      - name: Restore current Cloudflare frontend
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          rm -rf cloudflare-upload EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip
-          mkdir -p cloudflare-upload/tools cloudflare-upload/blog
+          rm -rf release /tmp/eggy-current
+          mkdir -p release /tmp/eggy-current
+          gh api repos/${{ github.repository }}/actions/artifacts/10274236600/zip > /tmp/eggy-current/artifact.zip
+          unzip -q /tmp/eggy-current/artifact.zip -d release
+          cp career-pro.html release/career-pro.html
+          cp career-pdf-summarizer.html release/career-pdf-summarizer.html
 
-          cp index.html cloudflare-upload/index.html
-          cp ats-checker.html career-pro.html resume-builder.html cloudflare-upload/
-          cp about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg cloudflare-upload/
-          [ -f egg.png ] && cp egg.png cloudflare-upload/ || true
-          cp site_editor-1/blog.html cloudflare-upload/blog.html
-          cp -R site_editor-1/blog/. cloudflare-upload/blog/
+      - name: Add feature buttons only
+        run: |
+          set -euo pipefail
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnA9UGF0aCgncmVsZWFzZS9jYXJlZXItcHJvLmh0bWwnKQpzPXAucmVhZF90ZXh0KCkKb2xkX2hlcm89JzxzZWN0aW9uIGNsYXNzPSJoZXJvIj48YiBjbGFzcz0iYmFkZ2UiPkNBUkVFUiBQUk8gVjI8L2I+PGgxPlR1cm4geW91ciByZXN1bWUgaW50byBhIHN0cm9uZ2VyIDxzcGFuPmFwcGxpY2F0aW9uLjwvc3Bhbj48L2gxPjxwPlVwbG9hZCB5b3VyIHJlc3VtZSwgbWF0Y2ggaXQgdG8gYSByZWFsIGpvYiwgb3B0aW1pemUgdGhlIGNvbnRlbnQsIGFuZCBjcmVhdGUgYXBwbGljYXRpb24tcmVhZHkgbWF0ZXJpYWwgd2l0aG91dCBpbnZlbnRpbmcgZXhwZXJpZW5jZS48L3A+PC9zZWN0aW9uPicKbmV3X2hlcm89JzxzZWN0aW9uIGNsYXNzPSJoZXJvIj48YiBjbGFzcz0iYmFkZ2UiPkNBUkVFUiBQUk8gVjI8L2I+PGgxPlR1cm4geW91ciByZXN1bWUgaW50byBhIHN0cm9uZ2VyIDxzcGFuPmFwcGxpY2F0aW9uLjwvc3Bhbj48L2gxPjxwPlVwbG9hZCB5b3VyIHJlc3VtZSwgbWF0Y2ggaXQgdG8gYSByZWFsIGpvYiwgb3B0aW1pemUgdGhlIGNvbnRlbnQsIGFuZCBjcmVhdGUgYXBwbGljYXRpb24tcmVhZHkgbWF0ZXJpYWwgd2l0aG91dCBpbnZlbnRpbmcgZXhwZXJpZW5jZS48L3A+PGRpdiBjbGFzcz0idGFicyIgc3R5bGU9Imp1c3RpZnktY29udGVudDpjZW50ZXI7ZmxleC13cmFwOndyYXAiPjxidXR0b24gY2xhc3M9InRhYiBhY3RpdmUiIGRhdGEtcGFuZWw9Im9wdCI+UmVzdW1lIE9wdGltaXplcjwvYnV0dG9uPjxidXR0b24gY2xhc3M9InRhYiIgZGF0YS1wYW5lbD0ibGV0dGVyIj5BSSBDb3ZlciBMZXR0ZXI8L2J1dHRvbj48YnV0dG9uIGNsYXNzPSJ0YWIiIGRhdGEtcGFuZWw9InN1bW1hcnkiPkFJIFBERiBTdW1tYXJpemVyPC9idXR0b24+PC9kaXY+PC9zZWN0aW9uPicKYXNzZXJ0IG9sZF9oZXJvIGluIHMKcz1zLnJlcGxhY2Uob2xkX2hlcm8sbmV3X2hlcm8sMSkKb2xkX3RhYnM9JzxkaXYgY2xhc3M9InRhYnMiPjxidXR0b24gY2xhc3M9InRhYiBhY3RpdmUiIGRhdGEtcGFuZWw9Im9wdCI+UmVzdW1lIE9wdGltaXplcjwvYnV0dG9uPjxidXR0b24gY2xhc3M9InRhYiIgZGF0YS1wYW5lbD0ibGV0dGVyIj5BSSBDb3ZlciBMZXR0ZXI8L2J1dHRvbj48L2Rpdj4nCmFzc2VydCBvbGRfdGFicyBpbiBzCnM9cy5yZXBsYWNlKG9sZF90YWJzLCcnLDEpCm1hcmtlcj0nPC9zZWN0aW9uPlxuPC9zZWN0aW9uPlxuPC9tYWluPicKYXNzZXJ0IG1hcmtlciBpbiBzCnBhbmVsPSc8L3NlY3Rpb24+XG48c2VjdGlvbiBjbGFzcz0iY2FyZCBwYW5lbCIgaWQ9InN1bW1hcnkiPjxoMj5BSSBQREYgU3VtbWFyaXplcjwvaDI+PHAgY2xhc3M9Im11dGVkIj5VcGxvYWQgYSB0ZXh0LWJhc2VkIFBERiBhbmQgZ2V0IGEgY2xlYXIgb3ZlcnZpZXcsIGtleSBwb2ludHMsIGltcG9ydGFudCBkZXRhaWxzIGFuZCBhY3Rpb24gaXRlbXMuPC9wPjxkaXYgY2xhc3M9ImRyb3AiIGlkPSJzdW1tYXJ5RHJvcCI+PGI+RHJvcCBhIFBERiBoZXJlIG9yIGNsaWNrIHRvIGJyb3dzZTwvYj48c21hbGw+UERGIG9ubHkgLSB1cCB0byAxNSBNQiAtIHVwIHRvIDEyMCBwYWdlczwvc21hbGw+PGRpdiBjbGFzcz0idXBsb2FkbXNnIiBpZD0ic3VtbWFyeVVwbG9hZG1zZyI+PC9kaXY+PC9kaXY+PGlucHV0IGlkPSJzdW1tYXJ5RmlsZSIgdHlwZT0iZmlsZSIgYWNjZXB0PSJhcHBsaWNhdGlvbi9wZGYsLnBkZiIgaGlkZGVuPjxzZWxlY3QgaWQ9InN1bW1hcnlEZXRhaWwiPjxvcHRpb24gdmFsdWU9InNob3J0Ij5TaG9ydCBzdW1tYXJ5PC9vcHRpb24+PG9wdGlvbiB2YWx1ZT0iZGV0YWlsZWQiPkRldGFpbGVkIHN1bW1hcnk8L29wdGlvbj48L3NlbGVjdD48YnV0dG9uIGNsYXNzPSJidG4iIGlkPSJzdW1tYXJ5QnRuIiBkaXNhYmxlZD5TdW1tYXJpemUgUERGPC9idXR0b24+PGRpdiBjbGFzcz0iZmVhdHVyZS1ub3RlIj5TY2FubmVkIG9yIGltYWdlLW9ubHkgUERGcyBhcmUgbm90IHN1cHBvcnRlZCB5ZXQuPC9kaXY+PGRpdiBjbGFzcz0ib3V0cHV0IiBpZD0ic3VtbWFyeU91dCI+PC9kaXY+PC9zZWN0aW9uPlxuPC9zZWN0aW9uPlxuPC9tYWluPicKcz1zLnJlcGxhY2UobWFya2VyLHBhbmVsLDEpCm9sZF9oYW5kbGVyPSJkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcudGFiJykuZm9yRWFjaChiPT5iLm9uY2xpY2s9KCk9Pntkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcudGFiLC5wYW5lbCcpLmZvckVhY2goeD0+eC5jbGFzc0xpc3QucmVtb3ZlKCdhY3RpdmUnKSk7Yi5jbGFzc0xpc3QuYWRkKCdhY3RpdmUnKTskKGIuZGF0YXNldC5wYW5lbCkuY2xhc3NMaXN0LmFkZCgnYWN0aXZlJyl9KTsiCm5ld19oYW5kbGVyPSJkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcudGFiJykuZm9yRWFjaChiPT5iLm9uY2xpY2s9KCk9Pntkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcudGFiLC5wYW5lbCcpLmZvckVhY2goeD0+eC5jbGFzc0xpc3QucmVtb3ZlKCdhY3RpdmUnKSk7Yi5jbGFzc0xpc3QuYWRkKCdhY3RpdmUnKTskKGIuZGF0YXNldC5wYW5lbCkuY2xhc3NMaXN0LmFkZCgnYWN0aXZlJyk7ZG9jdW1lbnQucXVlcnlTZWxlY3RvcignLmlucHV0cycpLnN0eWxlLmRpc3BsYXk9Yi5kYXRhc2V0LnBhbmVsPT09J3N1bW1hcnknPydub25lJzonZ3JpZCd9KTsiCmFzc2VydCBvbGRfaGFuZGxlciBpbiBzCnM9cy5yZXBsYWNlKG9sZF9oYW5kbGVyLG5ld19oYW5kbGVyLDEpCmpzID0gcicnJwpjb25zdCBzdW1tYXJ5RHJvcD0kKCdzdW1tYXJ5RHJvcCcpLHN1bW1hcnlGaWxlPSQoJ3N1bW1hcnlGaWxlJyksc3VtbWFyeUJ0bj0kKCdzdW1tYXJ5QnRuJyk7bGV0IHNlbGVjdGVkU3VtbWFyeVBkZj1udWxsLGxhc3RTdW1tYXJ5VGV4dD0nJzsKc3VtbWFyeURyb3Aub25jbGljaz0oKT0+c3VtbWFyeUZpbGUuY2xpY2soKTsKWydkcmFnZW50ZXInLCdkcmFnb3ZlciddLmZvckVhY2goZT0+c3VtbWFyeURyb3AuYWRkRXZlbnRMaXN0ZW5lcihlLHg9Pnt4LnByZXZlbnREZWZhdWx0KCk7c3VtbWFyeURyb3AuY2xhc3NMaXN0LmFkZCgnZHJhZycpfSkpOwpbJ2RyYWdsZWF2ZScsJ2Ryb3AnXS5mb3JFYWNoKGU9PnN1bW1hcnlEcm9wLmFkZEV2ZW50TGlzdGVuZXIoZSx4PT57eC5wcmV2ZW50RGVmYXVsdCgpO3N1bW1hcnlEcm9wLmNsYXNzTGlzdC5yZW1vdmUoJ2RyYWcnKX0pKTsKc3VtbWFyeURyb3AuYWRkRXZlbnRMaXN0ZW5lcignZHJvcCcsZT0+e2NvbnN0IGY9ZS5kYXRhVHJhbnNmZXIuZmlsZXNbMF07aWYoZiljaG9vc2VTdW1tYXJ5UGRmKGYpfSk7CnN1bW1hcnlGaWxlLm9uY2hhbmdlPSgpPT5zdW1tYXJ5RmlsZS5maWxlc1swXSYmY2hvb3NlU3VtbWFyeVBkZihzdW1tYXJ5RmlsZS5maWxlc1swXSk7CmZ1bmN0aW9uIGNob29zZVN1bW1hcnlQZGYoZil7aWYoIWYubmFtZS50b0xvd2VyQ2FzZSgpLmVuZHNXaXRoKCcucGRmJykpeyQoJ3N1bW1hcnlVcGxvYWRtc2cnKS50ZXh0Q29udGVudD0nQ2hvb3NlIGEgUERGIGZpbGUuJztzZWxlY3RlZFN1bW1hcnlQZGY9bnVsbDtzdW1tYXJ5QnRuLmRpc2FibGVkPXRydWU7cmV0dXJufXNlbGVjdGVkU3VtbWFyeVBkZj1mOyQoJ3N1bW1hcnlVcGxvYWRtc2cnKS50ZXh0Q29udGVudD0nU2VsZWN0ZWQ6ICcrZi5uYW1lO3N1bW1hcnlCdG4uZGlzYWJsZWQ9ZmFsc2V9CmZ1bmN0aW9uIHN1bW1hcnlMaXN0KHRpdGxlLGl0ZW1zKXtpZighaXRlbXN8fCFpdGVtcy5sZW5ndGgpcmV0dXJuJyc7cmV0dXJuICc8ZGl2IGNsYXNzPSJibG9jayI+PGgzPicrZXNjKHRpdGxlKSsnPC9oMz48dWw+JytpdGVtcy5tYXAoeD0+JzxsaT4nK2VzYyh4KSsnPC9saT4nKS5qb2luKCcnKSsnPC91bD48L2Rpdj4nfQpmdW5jdGlvbiBzdW1tYXJ5VGV4dCh4LGQpe2xldCBhPVt4LnRpdGxlLCcnLHgub3ZlcnZpZXcsJycsJ0tleSBwb2ludHM6JywuLi4oeC5rZXlfcG9pbnRzfHxbXSkubWFwKHY9PidigKIgJyt2KV07aWYoeC5pbXBvcnRhbnRfZGV0YWlscz8ubGVuZ3RoKWEucHVzaCgnJywnSW1wb3J0YW50IGRldGFpbHM6JywuLi54LmltcG9ydGFudF9kZXRhaWxzLm1hcCh2PT4n4oCiICcrdikpO2lmKHguYWN0aW9uX2l0ZW1zPy5sZW5ndGgpYS5wdXNoKCcnLCdBY3Rpb24gaXRlbXM6JywuLi54LmFjdGlvbl9pdGVtcy5tYXAodj0+J+KAoiAnK3YpKTtyZXR1cm4gYS5qb2luKCdcXG4nKX0Kc3VtbWFyeUJ0bi5vbmNsaWNrPWFzeW5jIGZ1bmN0aW9uKCl7Y29uc3Qgb3V0PSQoJ3N1bW1hcnlPdXQnKTtpZighc2VsZWN0ZWRTdW1tYXJ5UGRmKXJldHVybjt0aGlzLmRpc2FibGVkPXRydWU7dGhpcy50ZXh0Q29udGVudD0nU3VtbWFyaXppbmfigKYnO3RyeXtjb25zdCBmb3JtPW5ldyBGb3JtRGF0YSgpO2Zvcm0uYXBwZW5kKCdzZXNzaW9uX2lkJyxzZXNzaW9uKTtmb3JtLmFwcGVuZCgncGRmJyxzZWxlY3RlZFN1bW1hcnlQZGYpO2Zvcm0uYXBwZW5kKCdkZXRhaWwnLCQoJ3N1bW1hcnlEZXRhaWwnKS52YWx1ZSk7Y29uc3Qgcj1hd2FpdCBmZXRjaChBUEkrJy9hcGkvY2FyZWVyL3Byby9wZGYtc3VtbWFyeScse21ldGhvZDonUE9TVCcsYm9keTpmb3JtfSksZD1hd2FpdCByLmpzb24oKTtpZighci5va3x8IWQuc3VjY2VzcyclR4cm93IEVycm9yKGQuZXJyb3J8fCdQREYgc3VtbWFyeSBmYWlsZWQuJyk7Y29uc3QgeD1kLnN1bW1hcnksZG9jPWQuZG9jdW1lbnQ7bGFzdFN1bW1hcnlUZXh0PXN1bW1hcnlUZXh0KHgsZG9jKTtvdXQuaW5uZXJIVE1MPSc8ZGl2IGNsYXNzPSJibG9jayI+PGgzPicrZXNjKHgudGl0bGUpKyc8L2gzPjxkaXYgY2xhc3M9InByZSI+Jytlc2MoeC5vdmVydmlldykrJzwvZGl2PjwvZGl2Picrc3VtbWFyeUxpc3QoJ0tleSBwb2ludHMnLHgua2V5X3BvaW50cykrc3VtbWFyeUxpc3QoJ0ltcG9ydGFudCBkZXRhaWxzJyx4LmltcG9ydGFudF9kZXRhaWxzKStzdW1tYXJ5TGlzdCgnQWN0aW9uIGl0ZW1zJyx4LmFjdGlvbl9pdGVtcykrJzxkaXYgY2xhc3M9ImludGVncml0eSI+Jytlc2MoeC5pbnRlZ3JpdHlfbm90ZXx8JycpKyc8L2Rpdj48ZGl2IGNsYXNzPSJhY3Rpb25zIj48YnV0dG9uIGNsYXNzPSJidG4gc2Vjb25kYXJ5IiBpZD0iY29weVN1bW1hcnkiPkNvcHkgU3VtbWFyeTwvYnV0dG9uPjwvZGl2Pic7b3V0LnN0eWxlLmRpc3BsYXk9J2Jsb2NrJzskKCdjb3B5U3VtbWFyeScpLm9uY2xpY2s9KCk9Pm5hdmlnYXRvci5jbGlwYm9hcmQud3JpdGVUZXh0KGxhc3RTdW1tYXJ5VGV4dCl9Y2F0Y2goZSl7b3V0LnRleHRDb250ZW50PWUubWVzc2FnZTtvdXQuc3R5bGUuZGlzcGxheT0nYmxvY2snfWZpbmFsbHl7dGhpcy5kaXNhYmxlZD1mYWxzZTt0aGlzLnRleHRDb250ZW50PSdTdW1tYXJpemUgUERGJ319Owo=' | base64 -d > /tmp/patch.py
+          python /tmp/patch.py
 
-          for f in compress crop delete-pages excel-to-pdf jpg-to-pdf merge page-numbers pdf-to-excel pdf-to-jpg pdf-to-png pdf-to-ppt pdf-to-text pdf-to-word png-to-pdf ppt-to-pdf protect rotate split unlock watermark word-to-pdf; do
-            test -f "$f.html"
-            cp "$f.html" "cloudflare-upload/tools/$f.html"
-          done
-          if [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html cloudflare-upload/tools/qr-code.html; fi
+      - name: Validate no theme redesign
+        run: |
+          set -euo pipefail
+          grep -q 'CAREER PRO V2' release/career-pro.html
+          grep -q 'background:#f9fafb' release/career-pro.html
+          grep -q '#f5a623' release/career-pro.html
+          test "$(grep -o 'Resume Optimizer</button>' release/career-pro.html | wc -l)" -eq 1
+          test "$(grep -o 'AI Cover Letter</button>' release/career-pro.html | wc -l)" -eq 1
+          test "$(grep -o 'AI PDF Summarizer</button>' release/career-pro.html | wc -l)" -eq 1
+          grep -q '/api/career/pro/optimize' release/career-pro.html
+          grep -q '/api/career/pro/cover-letter' release/career-pro.html
+          grep -q '/api/career/pro/pdf-summary' release/career-pro.html
 
-          python - <<'PY'
-          from pathlib import Path
-
-          p = Path('cloudflare-upload/career-pro.html')
-          s = p.read_text()
-
-          # 1) Keep the exact existing hero/theme. Only add feature buttons under the existing tagline.
-          old_hero = '<section class="hero"><b class="badge">CAREER PRO V2</b><h1>Turn your resume into a stronger <span>application.</span></h1><p>Upload your resume, match it to a real job, optimize the content, and create application-ready material without inventing experience.</p></section>'
-          new_hero = '<section class="hero"><b class="badge">CAREER PRO V2</b><h1>Turn your resume into a stronger <span>application.</span></h1><p>Upload your resume, match it to a real job, optimize the content, and create application-ready material without inventing experience.</p><div class="tabs" style="justify-content:center;flex-wrap:wrap"><button class="tab active" data-panel="opt">Resume Optimizer</button><button class="tab" data-panel="letter">AI Cover Letter</button><button class="tab" data-panel="summary">AI PDF Summarizer</button></div></section>'
-          assert old_hero in s, 'Original Career Pro hero not found; refusing to alter theme.'
-          s = s.replace(old_hero, new_hero, 1)
-
-          # 2) Remove the old duplicated two-button tab row below the resume/job inputs.
-          old_tabs = '<div class="tabs"><button class="tab active" data-panel="opt">Resume Optimizer</button><button class="tab" data-panel="letter">AI Cover Letter</button></div>'
-          assert old_tabs in s, 'Original tab row not found.'
-          s = s.replace(old_tabs, '', 1)
-
-          # 3) Add PDF Summarizer as a normal existing-theme panel. No redesign CSS.
-          workspace_end = '</section>\n</section>\n</main>'
-          assert workspace_end in s, 'Career Pro workspace ending not found.'
-          summary_panel = '''</section>\n<section class="card panel" id="summary"><h2>AI PDF Summarizer</h2><p class="muted">Upload a text-based PDF and get a clear overview, key points, important details and action items.</p><div class="drop" id="summaryDrop"><b>Drop a PDF here or click to browse</b><small>PDF only · up to 15 MB · up to 120 pages</small><div class="uploadmsg" id="summaryUploadmsg"></div></div><input id="summaryFile" type="file" accept="application/pdf,.pdf" hidden><select id="summaryDetail" aria-label="Summary detail"><option value="short">Short summary</option><option value="detailed">Detailed summary</option></select><button class="btn" id="summaryBtn" disabled>Summarize PDF</button><div class="feature-note">Scanned or image-only PDFs are not supported yet. Use a text-based PDF or OCR the file first.</div><div class="output" id="summaryOut"></div></section>\n</section>\n</main>'''
-          s = s.replace(workspace_end, summary_panel, 1)
-
-          # 4) Keep existing tab behavior, with one extra rule: resume/job inputs hide only for PDF Summarizer.
-          old_handler = "document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.panel).classList.add('active')});"
-          new_handler = "document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.panel).classList.add('active');document.querySelector('.inputs').style.display=b.dataset.panel==='summary'?'none':'grid'});"
-          assert old_handler in s, 'Original tab JavaScript not found.'
-          s = s.replace(old_handler, new_handler, 1)
-
-          # 5) Add summarizer functionality without touching Resume Optimizer or Cover Letter code.
-          summary_js = r'''
-const summaryDrop=$('summaryDrop'),summaryFile=$('summaryFile'),summaryBtn=$('summaryBtn');let selectedSummaryPdf=null,lastSummaryText='';
-summaryDrop.onclick=()=>summaryFile.click();
-['dragenter','dragover'].forEach(e=>summaryDrop.addEventListener(e,x=>{x.preventDefault();summaryDrop.classList.add('drag')}));
-['dragleave','drop'].forEach(e=>summaryDrop.addEventListener(e,x=>{x.preventDefault();summaryDrop.classList.remove('drag')}));
-summaryDrop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)chooseSummaryPdf(f)});
-summaryFile.onchange=()=>summaryFile.files[0]&&chooseSummaryPdf(summaryFile.files[0]);
-function chooseSummaryPdf(f){if(!f.name.toLowerCase().endsWith('.pdf')){$('summaryUploadmsg').textContent='Choose a PDF file.';selectedSummaryPdf=null;summaryBtn.disabled=true;return}selectedSummaryPdf=f;$('summaryUploadmsg').textContent='Selected: '+f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)';summaryBtn.disabled=false}
-function summaryList(title,items){if(!items||!items.length)return'';return '<div class="block"><h3>'+esc(title)+'</h3><ul>'+items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></div>'}
-function summaryText(s,d){let a=[s.title,'',s.overview,'','Key points:',...(s.key_points||[]).map(x=>'• '+x)];if(s.important_details?.length)a.push('','Important details:',...s.important_details.map(x=>'• '+x));if(s.action_items?.length)a.push('','Action items:',...s.action_items.map(x=>'• '+x));a.push('','Source: '+d.filename+' · '+d.page_count+' pages');return a.join('\n')}
-summaryBtn.onclick=async function(){const out=$('summaryOut');if(!selectedSummaryPdf)return;this.disabled=true;this.textContent='Summarizing…';$('summaryUploadmsg').textContent='Reading and summarizing '+selectedSummaryPdf.name+'…';try{const form=new FormData();form.append('session_id',session);form.append('pdf',selectedSummaryPdf);form.append('detail',$('summaryDetail').value);const r=await fetch(API+'/api/career/pro/pdf-summary',{method:'POST',body:form}),d=await r.json();if(!r.ok||!d.success)throw Error(d.error||'PDF summary failed.');const x=d.summary,doc=d.document;lastSummaryText=summaryText(x,doc);out.innerHTML='<div class="block"><h3>'+esc(x.title)+'</h3><div class="pre">'+esc(x.overview)+'</div></div>'+summaryList('Key points',x.key_points)+summaryList('Important details',x.important_details)+summaryList('Action items',x.action_items)+'<div class="integrity">'+esc(x.integrity_note||'')+'</div><div class="actions"><button class="btn secondary" id="copySummary">Copy Summary</button><button class="btn secondary" id="downloadSummary">Download .txt</button></div>';out.style.display='block';$('copySummary').onclick=()=>navigator.clipboard.writeText(lastSummaryText);$('downloadSummary').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lastSummaryText],{type:'text/plain'}));a.download='EggyPDF-PDF-Summary.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};$('summaryUploadmsg').textContent='Summary ready.'}catch(e){out.textContent=e.message;out.style.display='block';$('summaryUploadmsg').textContent=''}finally{this.disabled=false;this.textContent='Summarize PDF'}};
-'''
-          assert '</script>' in s
-          s = s.replace('</script>', summary_js + '\n</script>', 1)
-
-          p.write_text(s)
-          PY
-
-          python - <<'PY'
-          from pathlib import Path
-          s=Path('cloudflare-upload/career-pro.html').read_text()
-          assert 'CAREER PRO V2' in s
-          assert 'Turn your resume into a stronger <span>application.</span>' in s
-          assert s.count('Resume Optimizer</button>') == 1
-          assert s.count('AI Cover Letter</button>') == 1
-          assert s.count('AI PDF Summarizer</button>') == 1
-          assert '/api/career/pro/optimize' in s
-          assert '/api/career/pro/cover-letter' in s
-          assert '/api/career/pro/pdf-summary' in s
-          assert 'background:#f9fafb' in s
-          assert '#f5a623' in s
-          print('VALIDATION PASSED: original Career Pro theme preserved; buttons-only navigation added.')
-          PY
-
-          (cd cloudflare-upload && zip -qr ../EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip .)
+      - name: Package Cloudflare ZIP
+        run: |
+          set -euo pipefail
+          rm -f EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip
+          (cd release && zip -qr ../EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip .)
           unzip -t EggyPDF-Career-Pro-Buttons-Only-Cloudflare.zip >/dev/null
 
-      - name: Upload Cloudflare package
+      - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: EggyPDF-Career-Pro-Buttons-Only-Cloudflare
