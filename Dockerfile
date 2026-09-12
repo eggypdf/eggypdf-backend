@@ -15,12 +15,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the existing PDF backend plus all isolated Career Pro modules.
-COPY app.py career_engine.py career_routes.py career_v2.py career_ai.py career_export.py career_regen.py career_pdf_ai.py wsgi.py ./
+# Copy the existing PDF backend plus Career Pro and account modules.
+COPY app.py career_engine.py career_routes.py career_v2.py career_ai.py career_export.py career_regen.py career_pdf_ai.py account_routes.py wsgi.py ./
 
 ENV PORT=10000
 ENV PYTHONUNBUFFERED=1
 EXPOSE 10000
 
-# wsgi.py registers the Career Pro blueprint on the existing Flask app.
 CMD gunicorn wsgi:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --preload
