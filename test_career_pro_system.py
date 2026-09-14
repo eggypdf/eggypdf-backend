@@ -4,6 +4,7 @@ from unittest.mock import patch
 from flask import Flask, jsonify
 
 import career_pro_system
+import career_pro_runtime_patch
 from career_pro_system import career_system_bp
 
 
@@ -108,6 +109,50 @@ class CareerProSystemTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         consume.assert_called_once()
         refund.assert_called_once()
+
+    @patch("career_pro_runtime_patch._rpc")
+    @patch("career_pro_runtime_patch._upsert_entitlement")
+    @patch("career_pro_runtime_patch._product_id", return_value="pdt_annual_test")
+    @patch("career_pro_runtime_patch._entitlement")
+    @patch("career_pro_runtime_patch.career_routes._dodo")
+    @patch("career_pro_runtime_patch.current_account_user")
+    def test_revisiting_same_paid_checkout_does_not_grant_credits_twice(
+        self, current_user, dodo, entitlement, product, upsert, rpc
+    ):
+        current_user.return_value = {"id": "user-123", "email": "buyer@example.com"}
+        entitlement.return_value = {
+            "user_id": "user-123",
+            "status": "active",
+            "plan": "annual",
+            "dodo_checkout_id": "cks_test_paid",
+            "purchased_at": "2026-09-14T00:00:00Z",
+            "dodo_subscription_id": "sub_test_123",
+        }
+        dodo.return_value = {
+            "payment_status": "succeeded",
+            "payment_id": None,
+            "subscription_id": "sub_test_123",
+            "metadata": {
+                "product": "career_pro",
+                "plan": "annual",
+                "account_user_id": "user-123",
+            },
+        }
+        app = Flask(__name__)
+        app.register_blueprint(career_system_bp)
+        app.view_functions["career_system.verify_subscription_checkout"] = career_pro_runtime_patch._verify_subscription_checkout
+        app.config["TESTING"] = True
+        client = app.test_client()
+        response = client.get(
+            "/api/career/subscription-checkout/cks_test_paid",
+            headers={"Authorization": "Bearer test"},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["paid"])
+        self.assertFalse(body["credits_granted"])
+        rpc.assert_not_called()
+        upsert.assert_called_once()
 
 
 if __name__ == "__main__":
