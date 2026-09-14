@@ -10,6 +10,7 @@ on:
       - feat/career-pro-accounts-db
       - feat/link-career-pro-entitlements
       - fix/career-pro-account-isolation
+      - feat/free-ats-cv-extract
 
 jobs:
   test:
@@ -24,4 +25,4 @@ jobs:
       - name: Install minimal test dependencies
         run: pip install Flask Werkzeug pypdf requests python-docx reportlab
       - name: Run Career Pro tests
-        run: python -m unittest -v test_career_engine.py test_career_routes.py test_career_export.py test_career_v2.py test_career_regen.py test_career_pdf_ai.py test_career_verify_fast.py test_account_routes.py test_career_entitlements.py test_career_security_patch.py
+        run: python -m unittest -v test_career_engine.py test_career_routes.py test_career_export.py test_career_v2.py test_career_regen.py test_career_pdf_ai.py test_career_verify_fast.py test_account_routes.py test_career_entitlements.py test_career_security_patch.py test_career_free_routes.py
