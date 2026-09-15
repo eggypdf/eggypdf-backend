@@ -59,10 +59,9 @@ jobs:
           p.write_text(s)
           PY
 
-          # Replace the legacy anonymous one-click checkout with Career Pro V1:
-          # pricing -> account -> monthly/yearly Dodo checkout, plus account-based
-          # Career Pro access and AI credit headers in the paid workspace.
+          # Replace legacy checkout with Career Pro V1 account + subscription UI.
           python billing_ui_patch.py release/ats-checker.html release/career-pro.html
+          python subscription_ui_patch.py release/career-pro.html
 
       - name: Validate browser JavaScript and release contents
         shell: bash
@@ -106,10 +105,13 @@ jobs:
           assert '/api/career/pro/regenerate-section' in pro
           assert '/api/billing/me' in pro
           assert 'X-Idempotency-Key' in pro
+          assert 'Stop Next Renewal' in pro
+          assert '/api/billing/subscription/cancel-renewal' in pro
+          assert 'Cancel anytime' not in pro
           assert '/api/career/pro/pdf-summary' in summary
           required=['index.html','resume-builder.html','ats-checker.html','career-pro.html','career-pdf-summarizer.html','tools/qr-code.html','tools/merge.html','tools/compress.html']
           assert all(Path('release',x).exists() for x in required)
-          print('CAREER PRO RELEASE VALIDATION PASSED: ATS + pricing/account flow + Career Pro credit client are valid')
+          print('CAREER PRO RELEASE VALIDATION PASSED: ATS + pricing/account + credits + subscription management are valid')
           PY
 
       - name: Package Cloudflare ZIP
