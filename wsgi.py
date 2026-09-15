@@ -4,17 +4,24 @@ from career_routes import career_bp
 from career_free_routes import career_free_bp
 from account_routes import account_bp
 from career_security_patch import install as install_career_security
+from career_pro_system import career_system_bp
+from career_pro_runtime_patch import install as install_career_pro_runtime
+from career_webhook_patch import install as install_career_webhook_patch
 
 install_career_security()
+install_career_webhook_patch()
 
 app.register_blueprint(career_bp)
 app.register_blueprint(career_free_bp)
 app.register_blueprint(account_bp)
+app.register_blueprint(career_system_bp)
+
+install_career_pro_runtime(app)
 
 
 def allow_account_authorization_header(response):
     """Keep the shared API CORS policy compatible with Bearer-token requests."""
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Eggy-Request-Id"
     return response
 
 
