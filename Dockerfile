@@ -16,7 +16,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the existing PDF backend plus Career Pro and account modules.
-COPY app.py career_engine.py career_routes.py career_free_routes.py career_v2.py career_ai.py career_export.py career_regen.py career_pdf_ai.py account_routes.py career_security_patch.py career_pro_system.py career_pro_runtime_patch.py wsgi.py ./
+COPY app.py career_engine.py career_routes.py career_free_routes.py career_v2.py career_ai.py career_export.py career_regen.py career_pdf_ai.py account_routes.py career_security_patch.py career_pro_system.py career_pro_runtime_patch.py career_webhook_patch.py wsgi.py ./
 
 ENV PORT=10000
 ENV PYTHONUNBUFFERED=1
