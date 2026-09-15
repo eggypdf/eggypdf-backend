@@ -6,8 +6,10 @@ from account_routes import account_bp
 from career_security_patch import install as install_career_security
 from career_pro_system import career_system_bp
 from career_pro_runtime_patch import install as install_career_pro_runtime
+from career_webhook_patch import install as install_career_webhook_patch
 
 install_career_security()
+install_career_webhook_patch()
 
 app.register_blueprint(career_bp)
 app.register_blueprint(career_free_bp)
