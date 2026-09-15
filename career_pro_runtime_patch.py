@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 
 from flask import jsonify
 
+import account_routes
 import career_routes
 from account_routes import current_account_user
 from career_pro_system import (
     CREDIT_COSTS,
     MONTHLY_CREDITS,
+    _career_status,
     _credit_wrapper,
     _enriched_me,
     _entitlement,
@@ -17,6 +19,14 @@ from career_pro_system import (
     _rpc,
     _upsert_entitlement,
 )
+
+
+def _active_career_pro(user_id: str) -> bool:
+    """Use the recurring entitlement rules everywhere, including zero-credit Pro routes."""
+    try:
+        return bool(_career_status(user_id).get("active"))
+    except Exception:
+        return False
 
 
 def _verify_subscription_checkout(identifier: str):
@@ -38,8 +48,8 @@ def _verify_subscription_checkout(identifier: str):
         if status != "succeeded":
             return jsonify({"success": True, "paid": False, "payment_status": status, "plan": plan})
 
-        # A browser can revisit the return URL many times. Never let a refresh
-        # mint another 2,000 credits for the same checkout.
+        # The return URL can be revisited many times. Never let a refresh mint
+        # another 2,000 credits for the same checkout.
         existing = _entitlement(user["id"])
         already_linked = bool(
             existing
@@ -59,6 +69,26 @@ def _verify_subscription_checkout(identifier: str):
             except Exception:
                 pass
 
+        # If Dodo already exposes the subscription object, persist the exact
+        # paid period immediately. Otherwise subscription.active/updated will
+        # fill these fields through the verified webhook shortly afterwards.
+        current_period_start = (existing or {}).get("current_period_start")
+        current_period_end = (existing or {}).get("current_period_end")
+        subscription_status = "active"
+        cancel_at_period_end = False
+        if subscription_id:
+            try:
+                subscription = career_routes._dodo("GET", f"/subscriptions/{subscription_id}")
+                current_period_start = subscription.get("previous_billing_date") or current_period_start
+                current_period_end = subscription.get("next_billing_date") or current_period_end
+                subscription_status = str(subscription.get("status") or "active").lower()
+                cancel_at_period_end = bool(subscription.get("cancel_at_next_billing_date"))
+                sub_customer = subscription.get("customer") or {}
+                if isinstance(sub_customer, dict) and sub_customer.get("customer_id"):
+                    customer = sub_customer
+            except Exception:
+                pass
+
         _upsert_entitlement(
             user["id"],
             status="active",
@@ -68,10 +98,12 @@ def _verify_subscription_checkout(identifier: str):
             purchased_at=(existing or {}).get("purchased_at") or datetime.now(timezone.utc).isoformat(),
             plan=plan,
             access_source="paid",
-            subscription_status="active",
+            subscription_status=subscription_status,
             dodo_subscription_id=subscription_id or (existing or {}).get("dodo_subscription_id"),
             dodo_customer_id=(customer.get("customer_id") if isinstance(customer, dict) else None) or (existing or {}).get("dodo_customer_id"),
-            cancel_at_period_end=False,
+            current_period_start=current_period_start,
+            current_period_end=current_period_end,
+            cancel_at_period_end=cancel_at_period_end,
             expires_at=None,
         )
         if not already_linked:
@@ -94,6 +126,9 @@ def _verify_subscription_checkout(identifier: str):
 
 
 def install(app) -> None:
+    # Keep every access path on the same recurring/promo entitlement rules.
+    account_routes.user_has_career_pro = _active_career_pro
+    career_routes.user_has_career_pro = _active_career_pro
     app.view_functions["account.me"] = _enriched_me
     app.view_functions["career_system.verify_subscription_checkout"] = _verify_subscription_checkout
 
