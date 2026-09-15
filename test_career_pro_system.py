@@ -128,16 +128,26 @@ class CareerProSystemTests(unittest.TestCase):
             "purchased_at": "2026-09-14T00:00:00Z",
             "dodo_subscription_id": "sub_test_123",
         }
-        dodo.return_value = {
-            "payment_status": "succeeded",
-            "payment_id": None,
-            "subscription_id": "sub_test_123",
-            "metadata": {
-                "product": "career_pro",
-                "plan": "annual",
-                "account_user_id": "user-123",
+        dodo.side_effect = [
+            {
+                "payment_status": "succeeded",
+                "payment_id": None,
+                "subscription_id": "sub_test_123",
+                "metadata": {
+                    "product": "career_pro",
+                    "plan": "annual",
+                    "account_user_id": "user-123",
+                },
             },
-        }
+            {
+                "subscription_id": "sub_test_123",
+                "status": "active",
+                "previous_billing_date": "2026-09-14T00:00:00Z",
+                "next_billing_date": "2027-09-14T00:00:00Z",
+                "cancel_at_next_billing_date": False,
+                "customer": {"customer_id": "cus_test_123"},
+            },
+        ]
         app = Flask(__name__)
         app.register_blueprint(career_system_bp)
         app.view_functions["career_system.verify_subscription_checkout"] = career_pro_runtime_patch._verify_subscription_checkout
@@ -152,7 +162,15 @@ class CareerProSystemTests(unittest.TestCase):
         self.assertTrue(body["paid"])
         self.assertFalse(body["credits_granted"])
         rpc.assert_not_called()
-        upsert.assert_called_once()
+        saved = upsert.call_args.kwargs
+        self.assertEqual(saved["current_period_end"], "2027-09-14T00:00:00Z")
+        self.assertEqual(saved["dodo_customer_id"], "cus_test_123")
+
+    @patch("career_pro_runtime_patch._career_status")
+    def test_expired_or_inactive_entitlement_is_not_treated_as_pro(self, career_status):
+        career_status.return_value = {"active": False}
+        self.assertFalse(career_pro_runtime_patch._active_career_pro("user-expired"))
+        career_status.assert_called_once_with("user-expired")
 
 
 if __name__ == "__main__":
