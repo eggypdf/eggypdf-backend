@@ -67,9 +67,13 @@ jobs:
           p.write_text(s)
           PY
 
+          # First normalize the classic package: move Career Pro below the free
+          # ATS form, add free CV extraction, replace the old account placeholder,
+          # and add checkout recovery. The preferred billing skin is applied only
+          # after this structure is stable.
+          python release_v1_fix.py release/index.html release/ats-checker.html
           python billing_ui_patch.py release/ats-checker.html release/career-pro.html
           python subscription_ui_patch.py release/career-pro.html
-          python release_v1_fix.py release/index.html release/ats-checker.html
 
           # Never let a stale/unverifiable browser checkout block the pricing UI.
           # Account entitlement is checked first; only confirmed paid checkouts are
@@ -132,10 +136,16 @@ jobs:
           assert 'PDF, DOCX or TXT' in ats
 
           assert 'id="careerBillingModal"' in ats
+          assert 'Monthly Billing' in ats
+          assert 'Yearly Billing' in ats
+          assert 'SAVE 43%' in ats
           assert 'Continue with Yearly' in ats
+          assert 'Continue with Monthly' in ats
           assert '$48 USD billed annually' in ats
           assert '$6.99 USD billed monthly' in ats
-          assert '2,000 AI credits/month' in ats
+          assert '2,000 AI credits / month' in ats
+          assert 'View Career Pro Plans' in ats
+          assert 'From $4 USD' in ats
           assert '/api/billing/checkout' in ats
           assert '/api/account/' in ats
           assert '/api/billing/creator-code/redeem' in ats
@@ -144,6 +154,7 @@ jobs:
           assert "if(s.state==='signin'){localStorage.removeItem(CHECKOUT_KEY);if(original)return original();return}" in ats
           assert ats.count('localStorage.removeItem(CHECKOUT_KEY);if(original)return original();return') >= 2
           assert 'do not pay again' in ats
+          assert 'Unexpected token' not in ats
           assert 'Cancel anytime' not in ats
           assert 'Payments already made are non-refundable except where required by law.' not in ats
 
