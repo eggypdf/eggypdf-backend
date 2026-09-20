@@ -16,6 +16,7 @@ from career_billing import _request, recent_events, redeem_creator_code, wallet
 
 billing_bp = Blueprint("billing", __name__, url_prefix="/api/billing")
 MONTHLY_CREDITS = 2000
+SUCCESS_STATES = {"succeeded", "success", "paid"}
 
 
 def _products() -> dict[str, str]:
@@ -65,8 +66,6 @@ def _save_subscription_fields(
     payment_id: str | None,
     subscription: dict,
 ) -> None:
-    # Keep compatibility with the original entitlement grant, then enrich it
-    # with the authoritative Dodo subscription state.
     grant_career_pro(
         user_id,
         product_id=product_id,
@@ -246,30 +245,21 @@ def checkout():
 
 @billing_bp.get("/checkout/<identifier>")
 def verify_checkout(identifier: str):
-    """Server-side verification of a recurring Career Pro checkout.
-
-    Dodo's checkout-session retrieve response gives us payment_id/status, not
-    checkout metadata. We therefore retrieve the payment, then its subscription,
-    and validate both product and account metadata before granting access.
-    """
+    """Server-side verification of a recurring Career Pro checkout."""
     try:
         user = _user()
         checkout = _checkout_record(identifier)
-        checkout_status = (checkout.get("payment_status") or "").strip().lower()
+        checkout_status = (checkout.get("payment_status") or checkout.get("status") or "").strip().lower()
         payment_id = (checkout.get("payment_id") or "").strip()
-        if checkout_status != "succeeded" or not payment_id:
-            return jsonify({"success": True, "paid": False, "payment_status": checkout_status or None})
+        if checkout_status not in SUCCESS_STATES or not payment_id:
+            return jsonify({"success": True, "paid": False, "active": False, "payment_status": checkout_status or None})
 
         payment = _payment_record(payment_id)
-        if (payment.get("status") or "").strip().lower() != "succeeded":
-            return jsonify({"success": True, "paid": False, "payment_status": payment.get("status")})
+        payment_status = (payment.get("status") or "").strip().lower()
+        if payment_status not in SUCCESS_STATES:
+            return jsonify({"success": True, "paid": False, "active": False, "payment_status": payment_status or None})
         if (payment.get("checkout_session_id") or "").strip() != identifier:
             raise PermissionError("Payment verification did not match this checkout session.")
-
-        metadata = payment.get("metadata") or {}
-        owner = str(metadata.get("account_user_id") or "").strip()
-        if owner != user["id"]:
-            raise PermissionError("This Career Pro purchase belongs to a different EggyPDF account.")
 
         subscription_id = (payment.get("subscription_id") or "").strip()
         if not subscription_id:
@@ -280,9 +270,14 @@ def verify_checkout(identifier: str):
         if not plan:
             raise PermissionError("The verified subscription is not an EggyPDF Career Pro plan.")
 
+        payment_meta = payment.get("metadata") or {}
         subscription_meta = subscription.get("metadata") or {}
-        sub_owner = str(subscription_meta.get("account_user_id") or owner).strip()
-        if sub_owner != user["id"]:
+        owner = str(
+            payment_meta.get("account_user_id")
+            or subscription_meta.get("account_user_id")
+            or ""
+        ).strip()
+        if owner != user["id"]:
             raise PermissionError("This Career Pro subscription belongs to a different EggyPDF account.")
 
         sub_status = (subscription.get("status") or "").strip().lower()
@@ -304,7 +299,7 @@ def verify_checkout(identifier: str):
                 "success": True,
                 "paid": True,
                 "active": active,
-                "payment_status": "succeeded",
+                "payment_status": payment_status or "succeeded",
                 "subscription_status": sub_status,
                 "plan": plan,
                 "subscription_id": subscription_id,
@@ -316,4 +311,7 @@ def verify_checkout(identifier: str):
     except PermissionError as exc:
         return jsonify({"success": False, "error": str(exc)}), 403
     except RuntimeError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 503
+        message = str(exc)
+        if "could not find the requested checkout resource" in message.lower():
+            return jsonify({"success": False, "error": "This checkout session is no longer available.", "stale_checkout": True}), 404
+        return jsonify({"success": False, "error": message}), 503
