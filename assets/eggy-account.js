@@ -10,13 +10,14 @@
   function clearSession(){localStorage.removeItem(SESSION_KEY);meCache=null;renderHeader()}
   function token(){return readSession()?.access_token||''}
   function headers(extra){const h=Object.assign({},extra||{});const t=token();if(t)h.Authorization='Bearer '+t;return h}
+  async function safeJson(r,fallback){const text=await r.text();if(!text)return {};try{return JSON.parse(text)}catch(_){throw Error(fallback||'EggyPDF received an unexpected server response. Please try again.')}}
 
   async function refresh(){
     if(refreshPromise)return refreshPromise;
     const s=readSession(); if(!s?.refresh_token)return null;
     refreshPromise=(async()=>{try{
       const r=await fetch(API+'/api/account/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});
-      const d=await r.json(); if(!r.ok||!d.success)throw Error(d.error||'Session expired.');
+      const d=await safeJson(r,'Your session could not be refreshed. Please sign in again.'); if(!r.ok||!d.success)throw Error(d.error||'Session expired.');
       return writeSession(d.session);
     }catch(_){clearSession();return null}finally{refreshPromise=null}})();
     return refreshPromise;
@@ -34,23 +35,23 @@
   async function me(force){
     if(meCache&&!force)return meCache;
     if(!token())return null;
-    try{const r=await accountFetch(API+'/api/billing/me',{},true);const d=await r.json();if(!r.ok||!d.success){if(r.status===401)clearSession();return null}meCache=d;renderHeader();document.dispatchEvent(new CustomEvent('eggy:account',{detail:d}));return d}catch(_){return null}
+    try{const r=await accountFetch(API+'/api/billing/me',{},true);const d=await safeJson(r,'Could not verify your account right now.');if(!r.ok||!d.success){if(r.status===401)clearSession();return null}meCache=d;renderHeader();document.dispatchEvent(new CustomEvent('eggy:account',{detail:d}));return d}catch(_){return null}
   }
 
   async function login(email,password){
     const r=await fetch(API+'/api/account/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-    const d=await r.json(); if(!r.ok||!d.success)throw Error(d.error||'Could not sign in.'); writeSession(d.session); await me(true); return d;
+    const d=await safeJson(r,'Sign in service returned an unexpected response. Please try again.'); if(!r.ok||!d.success)throw Error(d.error||'Could not sign in.'); writeSession(d.session); await me(true); return d;
   }
   async function signup(email,password){
     const r=await fetch(API+'/api/account/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-    const d=await r.json(); if(!r.ok||!d.success)throw Error(d.error||'Could not create account.');
+    const d=await safeJson(r,'Account creation service returned an unexpected response. Please try again.'); if(!r.ok||!d.success)throw Error(d.error||'Could not create account.');
     if(d.session?.access_token){writeSession(d.session);await me(true)}
     return d;
   }
   async function redeemCreatorCode(code){
     code=String(code||'').trim().toUpperCase();if(!code)throw Error('Enter your Creator Code first.');
     const r=await accountFetch(API+'/api/billing/creator-code/redeem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})},true);
-    const d=await r.json();if(!r.ok||!d.success)throw Error(d.error||'Could not redeem this Creator Code.');
+    const d=await safeJson(r,'Creator Code service returned an unexpected response.');if(!r.ok||!d.success)throw Error(d.error||'Could not redeem this Creator Code.');
     localStorage.removeItem(CREATOR_KEY);await me(true);return d;
   }
   async function redeemPendingCreatorCode(){const code=localStorage.getItem(CREATOR_KEY);if(!code)return null;return redeemCreatorCode(code)}
