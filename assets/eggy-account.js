@@ -3,11 +3,11 @@
   const API='https://eggypdf-backend-1.onrender.com';
   const SESSION_KEY='eggypdf_account_session';
   const CREATOR_KEY='eggypdf_pending_creator_code';
-  let meCache=null, refreshPromise=null, authWaiters=[];
+  let meCache=null, refreshPromise=null, authWaiters=[], reconcileAttempted=false;
 
   function readSession(){try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch(_){return null}}
-  function writeSession(s){if(s&&s.access_token)localStorage.setItem(SESSION_KEY,JSON.stringify(s));else localStorage.removeItem(SESSION_KEY);meCache=null;renderHeader();return s}
-  function clearSession(){localStorage.removeItem(SESSION_KEY);meCache=null;renderHeader()}
+  function writeSession(s){if(s&&s.access_token)localStorage.setItem(SESSION_KEY,JSON.stringify(s));else localStorage.removeItem(SESSION_KEY);meCache=null;reconcileAttempted=false;renderHeader();return s}
+  function clearSession(){localStorage.removeItem(SESSION_KEY);meCache=null;reconcileAttempted=false;renderHeader()}
   function token(){return readSession()?.access_token||''}
   function headers(extra){const h=Object.assign({},extra||{});const t=token();if(t)h.Authorization='Bearer '+t;return h}
   async function safeJson(r,fallback){const text=await r.text();if(!text)return {};try{return JSON.parse(text)}catch(_){throw Error(fallback||'EggyPDF received an unexpected server response. Please try again.')}}
@@ -32,10 +32,34 @@
     return r;
   }
 
+  async function fetchAccountState(){
+    const r=await accountFetch(API+'/api/account/me',{},true);
+    const d=await safeJson(r,'Could not verify your account right now.');
+    if(!r.ok||!d.success){if(r.status===401)clearSession();return null}
+    return d;
+  }
+
+  async function tryReconcile(){
+    if(reconcileAttempted||!token())return false;
+    reconcileAttempted=true;
+    try{
+      const r=await accountFetch(API+'/api/billing/reconcile-account',{},true);
+      const d=await safeJson(r,'Could not restore Career Pro right now.');
+      return !!(r.ok&&d.success&&d.active);
+    }catch(_){return false}
+  }
+
   async function me(force){
     if(meCache&&!force)return meCache;
     if(!token())return null;
-    try{const r=await accountFetch(API+'/api/billing/me',{},true);const d=await safeJson(r,'Could not verify your account right now.');if(!r.ok||!d.success){if(r.status===401)clearSession();return null}meCache=d;renderHeader();document.dispatchEvent(new CustomEvent('eggy:account',{detail:d}));return d}catch(_){return null}
+    try{
+      let d=await fetchAccountState();
+      if(!d)return null;
+      if(!d.career_pro?.active&&force&&await tryReconcile()){
+        d=await fetchAccountState()||d;
+      }
+      meCache=d;renderHeader();document.dispatchEvent(new CustomEvent('eggy:account',{detail:d}));return d;
+    }catch(_){return null}
   }
 
   async function login(email,password){
@@ -52,7 +76,7 @@
     code=String(code||'').trim().toUpperCase();if(!code)throw Error('Enter your Creator Code first.');
     const r=await accountFetch(API+'/api/billing/creator-code/redeem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})},true);
     const d=await safeJson(r,'Creator Code service returned an unexpected response.');if(!r.ok||!d.success)throw Error(d.error||'Could not redeem this Creator Code.');
-    localStorage.removeItem(CREATOR_KEY);await me(true);return d;
+    localStorage.removeItem(CREATOR_KEY);reconcileAttempted=false;await me(true);return d;
   }
   async function redeemPendingCreatorCode(){const code=localStorage.getItem(CREATOR_KEY);if(!code)return null;return redeemCreatorCode(code)}
   async function logout(){try{await accountFetch(API+'/api/account/logout',{method:'POST'},false)}catch(_){}clearSession();location.reload()}
@@ -95,7 +119,7 @@
     slot.innerHTML=`<div class="eggy-account-user">${pro?'<span class="eggy-pro-pill">Career Pro</span>':''}<span class="eggy-account-email" title="${escapeHtml(email)}">${escapeHtml(email)}</span><div class="eggy-account-menu"><button class="eggy-account-btn" type="button" id="eggyAccountMenuBtn">Account ▾</button><div class="eggy-account-menu-panel"><div class="meta"><b>${escapeHtml(email)}</b><span>${pro?'Career Pro active':'Free account'}</span></div>${pro?'<a href="/career-pro.html">Open Career Pro</a>':'<button type="button" id="eggyRedeemCreatorBtn">Redeem Creator Code</button>'}<button type="button" id="eggyLogoutBtn">Sign out</button></div></div></div>`;
     const menu=slot.querySelector('.eggy-account-menu');slot.querySelector('#eggyAccountMenuBtn').onclick=e=>{e.stopPropagation();menu.classList.toggle('open')};const redeemBtn=slot.querySelector('#eggyRedeemCreatorBtn');if(redeemBtn)redeemBtn.onclick=async()=>{const code=prompt('Enter your one-time EggyPDF Creator Code');if(!code)return;try{await redeemCreatorCode(code);alert('Creator Code applied. Career Pro is now active.')}catch(e){alert(e.message||'Could not redeem Creator Code.')}};slot.querySelector('#eggyLogoutBtn').onclick=logout;
   }
-  function escapeHtml(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  function escapeHtml(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]))}
 
   function wireLegacyHomeButtons(){
     document.querySelectorAll('[onclick*="showSignInModal"]').forEach((b,i)=>{b.removeAttribute('onclick');b.style.display='none';b.onclick=()=>open(i===0?'login':'signup')});
