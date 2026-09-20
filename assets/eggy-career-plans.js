@@ -14,9 +14,10 @@
   }
   function status(msg,type){const e=document.getElementById('eggyPlanStatus');if(!e)return;e.textContent=msg||'';e.className='eggy-plan-status'+(msg?' show '+(type||''):'')}
   function select(plan){selected=plan==='monthly'?'monthly':'annual';document.querySelectorAll('#eggyPlanOverlay [data-plan]').forEach(b=>b.classList.toggle('active',b.dataset.plan===selected));const annual=selected==='annual';document.getElementById('eggyPlanAmount').textContent=annual?'$4':'$6.99';document.getElementById('eggyPlanBilled').textContent=annual?'$48 USD billed annually':'$6.99 USD billed monthly';document.getElementById('eggyPlanSave').style.display=annual?'inline-block':'none';document.getElementById('eggyPlanValue').textContent=annual?'Best value':'Monthly plan';document.getElementById('eggyPlanContinue').textContent=annual?'Continue with Yearly':'Continue with Monthly';status('','')}
+  async function recoverAccount(){try{if(!window.EggyAccount?.isSignedIn?.())return false;const r=await EggyAccount.fetch(API+'/api/billing/reconcile-account');let d={};try{d=await r.json()}catch(_){d={}}if(!r.ok||!d.success||!d.active)return false;const a=await EggyAccount.me(true);EggyAccount.renderHeader?.();return !!a?.career_pro?.active}catch(_){return false}}
   async function open(opts){
     opts=opts||{}; target=opts.target||'/career-pro.html';
-    try{const a=await window.EggyAccount?.me(true);if(a?.career_pro?.active){location.href=target;return}}catch(_){}
+    try{const a=await window.EggyAccount?.me(true);if(a?.career_pro?.active){location.href=target;return}if(await recoverAccount()){location.href=target;return}}catch(_){}
     ensure();select('annual');document.getElementById('eggyPlanOverlay').classList.add('show');document.body.style.overflow='hidden';
   }
   function close(){const e=document.getElementById('eggyPlanOverlay');if(e)e.classList.remove('show');document.body.style.overflow=''}
@@ -24,6 +25,7 @@
     if(!window.EggyAccount)throw Error('Account system is still loading. Please try again.');
     await EggyAccount.requireAuth('login');
     const a=await EggyAccount.me(true);if(a?.career_pro?.active){close();location.href=target;return}
+    if(await recoverAccount()){close();location.href=target;return}
     btn.disabled=true;btn.textContent='Opening secure checkout…';status('Preparing your '+(selected==='annual'?'yearly':'monthly')+' Career Pro checkout…','');
     const r=await EggyAccount.fetch(API+'/api/billing/checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:selected==='annual'?'yearly':'monthly'})});
     let text='';try{text=await r.text()}catch(_){}let d={};if(text){try{d=JSON.parse(text)}catch(_){throw Error('The payment service returned an unexpected response. Please try again in a moment.')}}if(!r.ok||!d.success||!d.checkout_url||!d.session_id)throw Error(d.error||'Could not start checkout.');
@@ -32,5 +34,5 @@
   document.addEventListener('click',async e=>{const a=e.target.closest('a[href*="career-pro.html"]');if(!a||a.dataset.eggyNoPlan==='1')return;e.preventDefault();await open({target:a.getAttribute('href')||'/career-pro.html'})});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
   document.addEventListener('DOMContentLoaded',ensure);
-  window.EggyCareerPlans={open,close,select};
+  window.EggyCareerPlans={open,close,select,recoverAccount};
 })();
