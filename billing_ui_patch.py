@@ -66,15 +66,6 @@ def patch_ats(path):
 
     p.write_text(s)
 
-if 'id="careerBillingScript"' not in s:
-    s=s.replace('</body>', JS+'</body>', 1)
-    # Existing packaged release has both top and result Career Pro buttons.
-    s=s.replace("document.getElementById('unlockPro').addEventListener('click',e=>startCheckout(e.currentTarget));", "document.getElementById('unlockPro').addEventListener('click',e=>openCareerProOffer());")
-    s=s.replace("if(unlockProTop)unlockProTop.addEventListener('click',e=>startCheckout(e.currentTarget));", "if(unlockProTop)unlockProTop.addEventListener('click',e=>openCareerProOffer());")
-    # The new billing return verifier owns account-linked checkout restoration.
-    s=s.replace('restoreCareerPro();', '/* Career Pro V1 billing restoration handled below. */')
-    p.write_text(s)
-
 
 def patch_pro(path):
     p=Path(path); s=p.read_text()
