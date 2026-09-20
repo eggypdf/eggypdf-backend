@@ -53,13 +53,15 @@ def _mark_processed(webhook_id: str, event_type: str) -> None:
         raise RuntimeError("Could not record webhook processing.")
 
 
-def _patch_entitlement(user_id: str, payload: dict[str, Any]) -> None:
+def _upsert_entitlement(user_id: str, payload: dict[str, Any]) -> None:
+    """Create or update an entitlement row for an account-aware subscription."""
+    body = {"user_id": user_id, **payload}
     r = _request(
-        "PATCH",
+        "POST",
         "/rest/v1/career_entitlements",
-        params={"user_id": f"eq.{user_id}"},
-        json=payload,
-        prefer="return=minimal",
+        params={"on_conflict": "user_id"},
+        json=body,
+        prefer="resolution=merge-duplicates,return=minimal",
     )
     if not r.ok:
         raise RuntimeError("Could not synchronize Career Pro entitlement.")
@@ -69,13 +71,11 @@ def _sync_subscription(event_type: str, sub: dict[str, Any]) -> None:
     product_id = str(sub.get("product_id") or "").strip()
     plan = _plan_for_product(product_id)
     if not plan:
-        # Ignore unrelated Dodo subscriptions safely.
         return
 
     metadata = sub.get("metadata") or {}
     user_id = str(metadata.get("account_user_id") or "").strip()
     if not user_id:
-        # Old/non-account-aware subscriptions must never be attached by email.
         return
 
     dodo_status = str(sub.get("status") or "").strip().lower()
@@ -90,11 +90,9 @@ def _sync_subscription(event_type: str, sub: dict[str, Any]) -> None:
     elif dodo_status in {"cancelled", "failed", "expired"}:
         local_status = dodo_status
     else:
-        # For generic subscription.updated, preserve access when Dodo still says
-        # active, otherwise mirror a known terminal state only.
         return
 
-    _patch_entitlement(
+    _upsert_entitlement(
         user_id,
         {
             "status": local_status,
@@ -147,5 +145,4 @@ def dodo_webhook():
     except (ValueError, TypeError, json.JSONDecodeError):
         return jsonify({"error": "Invalid webhook payload."}), 400
     except RuntimeError as exc:
-        # Non-2xx makes Dodo retry the event instead of silently losing state.
         return jsonify({"error": str(exc)}), 503
