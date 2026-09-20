@@ -82,9 +82,9 @@ def validate(ats_path, pro_path):
     assert 'id="careerBillingModal"' in ats
     assert 'Continue with Yearly' in ats and '$48 USD billed annually' in ats
     assert '$6.99 USD billed monthly' in ats and '2,000 AI credits/month' in ats
-   assert '/api/billing/checkout' in ats
-assert '/api/account/' in ats
-assert "authMode==='signup'?'signup':'login'" in ats
+    assert '/api/billing/checkout' in ats
+    assert '/api/account/' in ats
+    assert "authMode==='signup'?'signup':'login'" in ats
     assert 'creator-code/redeem' in ats
     assert 'Cancel anytime' not in ats
     assert 'Payments already made are non-refundable except where required by law.' not in ats
