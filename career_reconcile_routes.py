@@ -126,26 +126,34 @@ def _patch_entitlement(
             "Payment was verified, but EggyPDF could not finish activating Career Pro."
         )
 
-    wallet(user_id, refresh=True)
+    # Wallet initialization must not revoke/erase a verified entitlement. If the
+    # wallet RPC has an issue, /api/account/me can still report Career Pro active
+    # and credits can recover independently.
+    try:
+        wallet(user_id, refresh=True)
+    except RuntimeError:
+        pass
 
 
 def _latest_successful_payment(subscription_id: str) -> tuple[str | None, str | None]:
     if not subscription_id:
         return None, None
     try:
+        # Payment history is optional for entitlement recovery. If Dodo rejects
+        # filters here we simply keep payment/checkout ids empty; the active
+        # subscription itself is sufficient to restore account access.
         record = career_routes._dodo(
             "GET",
             "/payments",
-            params={
-                "subscription_id": subscription_id,
-                "status": "succeeded",
-                "page_size": 100,
-                "page_number": 0,
-            },
+            params={"page_size": 100, "page_number": 0},
         )
     except RuntimeError:
         return None, None
-    rows = _items(record)
+    rows = [
+        p for p in _items(record)
+        if str(p.get("subscription_id") or "").strip() == subscription_id
+        and str(p.get("status") or "").strip().lower() in SUCCESS_STATES
+    ]
     if not rows:
         return None, None
     rows.sort(key=lambda x: str(x.get("created_at") or x.get("updated_at") or ""), reverse=True)
@@ -161,6 +169,7 @@ def _find_active_subscription_by_email(email: str) -> tuple[str, str, dict[str, 
     if not email:
         return None
 
+    # Dodo supports email filtering on the customer list API.
     customer_record = career_routes._dodo(
         "GET",
         "/customers",
@@ -173,35 +182,41 @@ def _find_active_subscription_by_email(email: str) -> tuple[str, str, dict[str, 
     if not customers:
         return None
 
+    configured = _products()
+    product_to_plan = {pid: plan for plan, pid in configured.items() if pid}
     matches: list[tuple[str, str, dict[str, Any]]] = []
-    products = _products()
+
     for customer in customers:
         customer_id = str(customer.get("customer_id") or customer.get("id") or "").strip()
         if not customer_id:
             continue
-        for plan, product_id in products.items():
-            if not product_id:
+
+        # Dodo's current subscription list endpoint documents customer_id and
+        # status filters. product_id is NOT a documented subscription-list
+        # filter, so fetch active subscriptions for the customer once and filter
+        # the configured Career Pro products locally.
+        subs_record = career_routes._dodo(
+            "GET",
+            "/subscriptions",
+            params={
+                "customer_id": customer_id,
+                "status": "active",
+                "page_size": 100,
+                "page_number": 0,
+            },
+        )
+        for sub in _items(subs_record):
+            product_id = str(sub.get("product_id") or "").strip()
+            plan = product_to_plan.get(product_id)
+            if not plan:
                 continue
-            subs_record = career_routes._dodo(
-                "GET",
-                "/subscriptions",
-                params={
-                    "customer_id": customer_id,
-                    "product_id": product_id,
-                    "status": "active",
-                    "page_size": 100,
-                    "page_number": 0,
-                },
-            )
-            for sub in _items(subs_record):
-                if str(sub.get("product_id") or "").strip() != product_id:
-                    continue
-                if str(sub.get("status") or "").strip().lower() != "active":
-                    continue
-                sub_email = str((sub.get("customer") or {}).get("email") or "").strip().lower()
-                if sub_email and sub_email != email:
-                    continue
-                matches.append((plan, product_id, sub))
+            if str(sub.get("status") or "").strip().lower() != "active":
+                continue
+            sub_customer = sub.get("customer") or {}
+            sub_email = str(sub_customer.get("email") or "").strip().lower() if isinstance(sub_customer, dict) else ""
+            if sub_email and sub_email != email:
+                continue
+            matches.append((plan, product_id, sub))
 
     if not matches:
         return None
@@ -244,13 +259,19 @@ def reconcile_account():
             payment_id=payment_id,
         )
 
+        credits = None
+        try:
+            credits = wallet(user["id"], refresh=True)
+        except RuntimeError:
+            pass
+
         return jsonify({
             "success": True,
             "active": True,
             "found_subscription": True,
             "plan": plan,
             "subscription_id": subscription_id or None,
-            "credits": wallet(user["id"], refresh=True),
+            "credits": credits,
         })
     except PermissionError as exc:
         return jsonify({"success": False, "error": str(exc)}), 401
@@ -347,6 +368,12 @@ def reconcile_checkout(identifier: str):
             subscription=subscription,
         )
 
+        credits = None
+        try:
+            credits = wallet(user["id"], refresh=True)
+        except RuntimeError:
+            pass
+
         return jsonify({
             "success": True,
             "paid": True,
@@ -355,7 +382,7 @@ def reconcile_checkout(identifier: str):
             "payment_status": payment_status,
             "subscription_status": sub_status,
             "subscription_id": subscription_id,
-            "credits": wallet(user["id"], refresh=True),
+            "credits": credits,
         })
 
     except PermissionError as exc:
