@@ -69,9 +69,6 @@ jobs:
 
           python billing_ui_patch.py release/ats-checker.html release/career-pro.html
           python subscription_ui_patch.py release/career-pro.html
-
-          # Final V1 corrections: free ATS first, real homepage auth, resilient
-          # post-payment entitlement recovery.
           python release_v1_fix.py release/index.html release/ats-checker.html
 
       - name: Validate browser JavaScript and release contents
@@ -95,21 +92,25 @@ jobs:
           pro=Path('release/career-pro.html').read_text()
           summary=Path('release/career-pdf-summarizer.html').read_text()
 
-          # Homepage account controls must use real Supabase account auth.
           assert 'Something great is hatching!' not in index
           assert "openEggyAccount('login')" in index
           assert "openEggyAccount('signup')" in index
           assert 'id="eggAccountAuthScript"' in index
 
-          # Free ATS experience comes first; Career Pro stays in the result area.
           assert 'id="careerProOverview"' not in ats
           assert 'href="#careerProOverview"' not in ats
           assert 'id="atsForm"' in ats
           assert 'id="careerPro"' in ats
+          assert 'id="results"' in ats
+          assert ats.find('</form>') < ats.find('id="careerPro"') < ats.find('id="results"')
           assert "document.getElementById('atsForm').addEventListener('submit'" in ats
           assert 'eggypdf_career_handoff' in ats and 'data.resume_text' in ats
 
-          # Subscription pricing/account/recovery.
+          assert 'id="freeResumeExtraction"' in ats
+          assert '/api/career/ats/extract-resume' in ats
+          assert 'accept=".pdf,.docx,.txt"' in ats
+          assert 'PDF, DOCX or TXT' in ats
+
           assert 'id="careerBillingModal"' in ats
           assert 'Continue with Yearly' in ats
           assert '$48 USD billed annually' in ats
@@ -119,6 +120,7 @@ jobs:
           assert '/api/account/' in ats
           assert '/api/billing/creator-code/redeem' in ats
           assert 'id="careerBillingRecovery"' in ats
+          assert 'do not pay again' in ats
           assert 'You will not be charged again' in ats
           assert 'Cancel anytime' not in ats
           assert 'Payments already made are non-refundable except where required by law.' not in ats
