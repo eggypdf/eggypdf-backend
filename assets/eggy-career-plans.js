@@ -25,8 +25,8 @@
     await EggyAccount.requireAuth('login');
     const a=await EggyAccount.me(true);if(a?.career_pro?.active){close();location.href=target;return}
     btn.disabled=true;btn.textContent='Opening secure checkout…';status('Preparing your '+(selected==='annual'?'yearly':'monthly')+' Career Pro checkout…','');
-    const r=await EggyAccount.fetch(API+'/api/billing/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:selected==='annual'?'yearly':'monthly'})});
-    let d={};try{d=await r.json()}catch(_){throw Error('Could not start checkout. Please try again.')}if(!r.ok||!d.success||!d.checkout_url||!d.session_id)throw Error(d.error||'Could not start checkout.');
+    const r=await EggyAccount.fetch(API+'/api/billing/checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:selected==='annual'?'yearly':'monthly'})});
+    let text='';try{text=await r.text()}catch(_){}let d={};if(text){try{d=JSON.parse(text)}catch(_){throw Error('The payment service returned an unexpected response. Please try again in a moment.')}}if(!r.ok||!d.success||!d.checkout_url||!d.session_id)throw Error(d.error||'Could not start checkout.');
     localStorage.setItem(CHECKOUT_KEY,d.session_id);localStorage.setItem(CHECKOUT_KEY+'_plan',selected);localStorage.setItem(CHECKOUT_KEY+'_target',target);location.assign(d.checkout_url);
   }catch(e){if(e.message!=='Sign in was cancelled.')status(e.message||'Could not start checkout.','error');btn.disabled=false;btn.textContent=selected==='annual'?'Continue with Yearly':'Continue with Monthly'}}
   document.addEventListener('click',async e=>{const a=e.target.closest('a[href*="career-pro.html"]');if(!a||a.dataset.eggyNoPlan==='1')return;e.preventDefault();await open({target:a.getAttribute('href')||'/career-pro.html'})});
