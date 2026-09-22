@@ -104,7 +104,12 @@ def _save_subscription_fields(
     if not r.ok:
         raise RuntimeError("Career Pro payment was verified, but the subscription record could not be completed.")
     if entitlement_status == "active":
-        wallet(user_id, refresh=True)
+        try:
+            wallet(user_id, refresh=True)
+        except RuntimeError:
+            # Entitlement is authoritative. A temporary wallet/RPC issue must
+            # never make a paid account look free.
+            pass
 
 
 def _checkout_record(identifier: str) -> dict:
@@ -157,13 +162,25 @@ def me():
         user = _user()
         entitlement = _entitlement_full(user["id"])
         active = bool(entitlement and entitlement.get("status") == "active")
-        credit_wallet = wallet(user["id"], refresh=True) if active else None
+
+        # Career Pro entitlement is authoritative. Credits are supplementary and
+        # must not make /me fail or make a paid account render as Free.
+        credit_wallet = None
+        credit_error = None
+        if active:
+            try:
+                credit_wallet = wallet(user["id"], refresh=True)
+            except RuntimeError as exc:
+                credit_error = str(exc)
+
         return jsonify(
             {
                 "success": True,
                 "user": {"id": user.get("id"), "email": user.get("email")},
                 "career_pro": {"active": active, "entitlement": entitlement},
                 "credits": credit_wallet,
+                "credits_available": credit_wallet is not None,
+                "credits_error": credit_error,
             }
         )
     except PermissionError as exc:
@@ -191,7 +208,10 @@ def redeem_code():
         result = redeem_creator_code(user["id"], data.get("code") or "")
         status = 200 if result.get("success") else 400
         if result.get("success"):
-            result["wallet"] = wallet(user["id"], refresh=True)
+            try:
+                result["wallet"] = wallet(user["id"], refresh=True)
+            except RuntimeError:
+                result["wallet"] = None
         return jsonify(result), status
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
@@ -294,6 +314,12 @@ def verify_checkout(identifier: str):
         )
         entitlement = _entitlement_full(user["id"])
         active = bool(entitlement and entitlement.get("status") == "active")
+        credits = None
+        if active:
+            try:
+                credits = wallet(user["id"], refresh=True)
+            except RuntimeError:
+                credits = None
         return jsonify(
             {
                 "success": True,
@@ -303,7 +329,7 @@ def verify_checkout(identifier: str):
                 "subscription_status": sub_status,
                 "plan": plan,
                 "subscription_id": subscription_id,
-                "credits": wallet(user["id"], refresh=True) if active else None,
+                "credits": credits,
             }
         )
     except ValueError as exc:
