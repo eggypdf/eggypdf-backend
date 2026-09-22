@@ -31,6 +31,25 @@ def _plan_for_product(product_id: str) -> str | None:
     return None
 
 
+def _safe_supabase_error(resp, fallback: str) -> str:
+    """Return non-secret PostgREST diagnostics for webhook troubleshooting."""
+    detail = ""
+    try:
+        body = resp.json()
+        if isinstance(body, dict):
+            code = str(body.get("code") or "").strip()
+            message = str(body.get("message") or body.get("error") or "").strip()
+            hint = str(body.get("hint") or "").strip()
+            parts = [x for x in [code, message, hint] if x]
+            detail = " | ".join(parts)
+    except Exception:
+        detail = ""
+    suffix = f" Supabase HTTP {resp.status_code}."
+    if detail:
+        suffix += f" {detail}"
+    return fallback + suffix
+
+
 def _already_processed(webhook_id: str) -> bool:
     r = _request(
         "GET",
@@ -38,7 +57,7 @@ def _already_processed(webhook_id: str) -> bool:
         params={"select": "webhook_id", "webhook_id": f"eq.{webhook_id}", "limit": "1"},
     )
     if not r.ok:
-        raise RuntimeError("Could not check webhook idempotency.")
+        raise RuntimeError(_safe_supabase_error(r, "Could not check webhook idempotency."))
     return bool(r.json() or [])
 
 
@@ -50,7 +69,7 @@ def _mark_processed(webhook_id: str, event_type: str) -> None:
         prefer="return=minimal",
     )
     if not r.ok and r.status_code != 409:
-        raise RuntimeError("Could not record webhook processing.")
+        raise RuntimeError(_safe_supabase_error(r, "Could not record webhook processing."))
 
 
 def _upsert_entitlement(user_id: str, payload: dict[str, Any]) -> None:
@@ -64,19 +83,19 @@ def _upsert_entitlement(user_id: str, payload: dict[str, Any]) -> None:
         prefer="resolution=merge-duplicates,return=minimal",
     )
     if not r.ok:
-        raise RuntimeError("Could not synchronize Career Pro entitlement.")
+        raise RuntimeError(_safe_supabase_error(r, "Could not synchronize Career Pro entitlement."))
 
 
 def _sync_subscription(event_type: str, sub: dict[str, Any]) -> None:
     product_id = str(sub.get("product_id") or "").strip()
     plan = _plan_for_product(product_id)
     if not plan:
-        return
+        raise RuntimeError("Dodo subscription product does not match the configured Career Pro product IDs.")
 
     metadata = sub.get("metadata") or {}
     user_id = str(metadata.get("account_user_id") or "").strip()
     if not user_id:
-        return
+        raise RuntimeError("Dodo subscription metadata is missing account_user_id.")
 
     dodo_status = str(sub.get("status") or "").strip().lower()
     cancel_next = bool(sub.get("cancel_at_next_billing_date"))
@@ -90,7 +109,7 @@ def _sync_subscription(event_type: str, sub: dict[str, Any]) -> None:
     elif dodo_status in {"cancelled", "failed", "expired"}:
         local_status = dodo_status
     else:
-        return
+        raise RuntimeError(f"Unsupported subscription state: {dodo_status or event_type}")
 
     _upsert_entitlement(
         user_id,
