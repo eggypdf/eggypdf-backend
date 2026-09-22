@@ -67,7 +67,7 @@ def resend_confirmation():
             return jsonify({"success": False, "error": _error_message(r, "Could not resend the verification email.")}), 400
         return jsonify({
             "success": True,
-            "message": "If this email has a pending EggyPDF signup, Supabase will send a new verification email.",
+            "message": "If this email has a pending EggyPDF signup, a new verification email will be sent.",
         })
     except requests.RequestException:
         return jsonify({"success": False, "error": "Account email service is temporarily unavailable."}), 503
@@ -98,6 +98,45 @@ def password_reset():
         })
     except requests.RequestException:
         return jsonify({"success": False, "error": "Account email service is temporarily unavailable."}), 503
+
+
+@account_recovery_bp.post("/password-reset/exchange")
+def password_reset_exchange():
+    """Exchange an EggyPDF-branded recovery TokenHash for a recovery session."""
+    data = request.get_json(silent=True) or {}
+    token_hash = str(data.get("token_hash") or "").strip()
+    token_type = str(data.get("type") or "recovery").strip().lower()
+
+    if not token_hash:
+        return jsonify({"success": False, "error": "This password-reset link is invalid or has expired. Request a new reset email."}), 400
+    if token_type != "recovery":
+        return jsonify({"success": False, "error": "Invalid password-reset link type."}), 400
+
+    try:
+        url, _, _ = _cfg()
+        r = requests.post(
+            f"{url}/auth/v1/verify",
+            headers=_auth_headers(),
+            json={"token_hash": token_hash, "type": "recovery"},
+            timeout=20,
+        )
+        if r.status_code in (400, 401, 403, 422):
+            return jsonify({"success": False, "error": "This password-reset link is invalid or has expired. Request a new reset email."}), 401
+        if not r.ok:
+            return jsonify({"success": False, "error": _error_message(r, "Could not verify the password-reset link.")}), 400
+
+        payload = r.json() or {}
+        access_token = str(payload.get("access_token") or "").strip()
+        if not access_token:
+            return jsonify({"success": False, "error": "The password-reset link could not be verified. Request a new reset email."}), 401
+
+        return jsonify({
+            "success": True,
+            "access_token": access_token,
+            "expires_in": payload.get("expires_in"),
+        })
+    except requests.RequestException:
+        return jsonify({"success": False, "error": "Account service is temporarily unavailable."}), 503
 
 
 @account_recovery_bp.post("/password-update")
