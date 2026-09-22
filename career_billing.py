@@ -6,6 +6,8 @@ creator-code redemption. Browser clients never receive the Supabase service key.
 from __future__ import annotations
 
 import os
+from calendar import monthrange
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -75,11 +77,23 @@ def _rpc(name: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
     return data if isinstance(data, list) else [data]
 
 
-def wallet(user_id: str, *, refresh: bool = True) -> dict[str, Any]:
-    if refresh:
-        rows = _rpc("refresh_career_credit_cycle", {"p_user": user_id})
-        if rows:
-            return rows[0]
+def _next_month(value: datetime) -> datetime:
+    year = value.year + (1 if value.month == 12 else 0)
+    month = 1 if value.month == 12 else value.month + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
+
+
+def _parse_dt(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _read_wallet(user_id: str) -> dict[str, Any] | None:
     r = _request(
         "GET",
         "/rest/v1/career_credit_wallets",
@@ -92,15 +106,156 @@ def wallet(user_id: str, *, refresh: bool = True) -> dict[str, Any]:
     if not r.ok:
         raise RuntimeError(_message(r, "Could not read Career Pro credits."))
     rows = r.json() or []
-    return rows[0] if rows else {
-        "balance": 0,
-        "monthly_allowance": 0,
-        "cycle_start": None,
-        "cycle_end": None,
-    }
+    return rows[0] if rows else None
+
+
+def _active_entitlement(user_id: str) -> dict[str, Any] | None:
+    r = _request(
+        "GET",
+        "/rest/v1/career_entitlements",
+        params={
+            "select": "status,monthly_credits,access_ends_at",
+            "user_id": f"eq.{user_id}",
+            "limit": "1",
+        },
+    )
+    if not r.ok:
+        raise RuntimeError(_message(r, "Could not read Career Pro credit entitlement."))
+    rows = r.json() or []
+    if not rows:
+        return None
+    row = rows[0]
+    if row.get("status") != "active":
+        return None
+    ends = _parse_dt(row.get("access_ends_at"))
+    if ends and ends <= datetime.now(timezone.utc):
+        return None
+    return row
+
+
+def _ensure_wallet_fallback(user_id: str) -> dict[str, Any]:
+    """Repair/create a wallet without depending on the refresh RPC.
+
+    The database RPC remains the preferred path because AI debits use it for
+    atomicity. This fallback prevents a paid account from being stuck on a
+    permanent 'Refreshing' state if the wallet row was never initialized.
+    """
+    existing = _read_wallet(user_id)
+    entitlement = _active_entitlement(user_id)
+    if not entitlement:
+        if existing:
+            return existing
+        raise RuntimeError("Career Pro access is not active.")
+
+    allowance = max(int(entitlement.get("monthly_credits") or 2000), 0)
+    now = datetime.now(timezone.utc)
+
+    if not existing:
+        cycle_end = _next_month(now)
+        payload = {
+            "user_id": user_id,
+            "balance": allowance,
+            "monthly_allowance": allowance,
+            "cycle_start": now.isoformat(),
+            "cycle_end": cycle_end.isoformat(),
+        }
+        r = _request(
+            "POST",
+            "/rest/v1/career_credit_wallets",
+            params={"on_conflict": "user_id"},
+            json=payload,
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+        if not r.ok:
+            raise RuntimeError(_message(r, "Could not initialize Career Pro credits."))
+        rows = r.json() or []
+        wallet_row = rows[0] if rows else payload
+        # Best-effort ledger entry. A duplicate or ledger issue must not block
+        # the visible wallet balance.
+        try:
+            _request(
+                "POST",
+                "/rest/v1/career_credit_events",
+                json={
+                    "user_id": user_id,
+                    "event_type": "grant",
+                    "action": "subscription_initialization",
+                    "amount": allowance,
+                    "balance_after": allowance,
+                    "metadata": {"source": "wallet_self_heal"},
+                },
+                prefer="return=minimal",
+            )
+        except Exception:
+            pass
+        return wallet_row
+
+    cycle_end = _parse_dt(existing.get("cycle_end"))
+    if cycle_end and cycle_end <= now:
+        new_end = _next_month(now)
+        payload = {
+            "balance": allowance,
+            "monthly_allowance": allowance,
+            "cycle_start": now.isoformat(),
+            "cycle_end": new_end.isoformat(),
+        }
+        r = _request(
+            "PATCH",
+            "/rest/v1/career_credit_wallets",
+            params={"user_id": f"eq.{user_id}"},
+            json=payload,
+            prefer="return=representation",
+        )
+        if not r.ok:
+            raise RuntimeError(_message(r, "Could not refresh Career Pro credits."))
+        rows = r.json() or []
+        existing = rows[0] if rows else {**existing, **payload}
+        try:
+            _request(
+                "POST",
+                "/rest/v1/career_credit_events",
+                json={
+                    "user_id": user_id,
+                    "event_type": "reset",
+                    "action": "monthly_cycle",
+                    "amount": allowance,
+                    "balance_after": allowance,
+                    "metadata": {"source": "wallet_self_heal"},
+                },
+                prefer="return=minimal",
+            )
+        except Exception:
+            pass
+
+    return existing
+
+
+def wallet(user_id: str, *, refresh: bool = True) -> dict[str, Any]:
+    rpc_error: RuntimeError | None = None
+    if refresh:
+        try:
+            rows = _rpc("refresh_career_credit_cycle", {"p_user": user_id})
+            if rows and rows[0]:
+                return rows[0]
+        except RuntimeError as exc:
+            rpc_error = exc
+
+    try:
+        return _ensure_wallet_fallback(user_id) if refresh else (_read_wallet(user_id) or {
+            "balance": 0,
+            "monthly_allowance": 0,
+            "cycle_start": None,
+            "cycle_end": None,
+        })
+    except RuntimeError:
+        if rpc_error:
+            raise rpc_error
+        raise
 
 
 def consume(user_id: str, amount: int, action: str, request_key: str) -> dict[str, Any]:
+    # Ensure old paid accounts have a wallet row before the atomic debit RPC.
+    wallet(user_id, refresh=True)
     rows = _rpc(
         "consume_career_credits",
         {
