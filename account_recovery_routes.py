@@ -14,8 +14,33 @@ def _email(data) -> str:
     return str((data or {}).get("email") or "").strip().lower()
 
 
-def _redirect_url() -> str:
-    return (os.getenv("ACCOUNT_AUTH_REDIRECT_URL") or "https://eggypdf.com/").strip()
+def _confirmation_redirect_url() -> str:
+    return (
+        os.getenv("ACCOUNT_EMAIL_CONFIRM_REDIRECT_URL")
+        or os.getenv("ACCOUNT_AUTH_REDIRECT_URL")
+        or "https://eggypdf.com/"
+    ).strip()
+
+
+def _password_redirect_url() -> str:
+    return (
+        os.getenv("ACCOUNT_PASSWORD_RESET_REDIRECT_URL")
+        or "https://eggypdf.com/reset-password.html"
+    ).strip()
+
+
+def _error_message(resp: requests.Response, fallback: str) -> str:
+    try:
+        body = resp.json()
+        return str(
+            body.get("msg")
+            or body.get("message")
+            or body.get("error_description")
+            or body.get("error")
+            or fallback
+        )
+    except Exception:
+        return fallback
 
 
 @account_recovery_bp.post("/resend-confirmation")
@@ -32,19 +57,14 @@ def resend_confirmation():
             json={
                 "type": "signup",
                 "email": email,
-                "options": {"email_redirect_to": _redirect_url()},
+                "options": {"email_redirect_to": _confirmation_redirect_url()},
             },
             timeout=20,
         )
         if r.status_code == 429:
             return jsonify({"success": False, "error": "Email limit reached. Please wait before requesting another verification email."}), 429
         if not r.ok:
-            try:
-                body = r.json()
-                msg = body.get("msg") or body.get("message") or body.get("error_description") or body.get("error")
-            except Exception:
-                msg = None
-            return jsonify({"success": False, "error": str(msg or "Could not resend the verification email.")}), 400
+            return jsonify({"success": False, "error": _error_message(r, "Could not resend the verification email.")}), 400
         return jsonify({
             "success": True,
             "message": "If this email has a pending EggyPDF signup, Supabase will send a new verification email.",
@@ -63,22 +83,47 @@ def password_reset():
         url, _, _ = _cfg()
         r = requests.post(
             f"{url}/auth/v1/recover",
+            params={"redirect_to": _password_redirect_url()},
             headers=_auth_headers(),
-            json={"email": email, "redirect_to": _redirect_url()},
+            json={"email": email},
             timeout=20,
         )
         if r.status_code == 429:
             return jsonify({"success": False, "error": "Email limit reached. Please wait before requesting another password-reset email."}), 429
         if not r.ok:
-            try:
-                body = r.json()
-                msg = body.get("msg") or body.get("message") or body.get("error_description") or body.get("error")
-            except Exception:
-                msg = None
-            return jsonify({"success": False, "error": str(msg or "Could not send the password-reset email.")}), 400
+            return jsonify({"success": False, "error": _error_message(r, "Could not send the password-reset email.")}), 400
         return jsonify({
             "success": True,
             "message": "If an EggyPDF account exists for this email, a password-reset email will be sent.",
         })
     except requests.RequestException:
         return jsonify({"success": False, "error": "Account email service is temporarily unavailable."}), 503
+
+
+@account_recovery_bp.post("/password-update")
+def password_update():
+    data = request.get_json(silent=True) or {}
+    recovery_token = str(data.get("access_token") or "").strip()
+    password = str(data.get("password") or "")
+    if not recovery_token:
+        return jsonify({"success": False, "error": "This password-reset link is invalid or has expired. Request a new reset email."}), 401
+    if len(password) < 8:
+        return jsonify({"success": False, "error": "Password must be at least 8 characters."}), 400
+    try:
+        url, _, _ = _cfg()
+        r = requests.put(
+            f"{url}/auth/v1/user",
+            headers=_auth_headers(recovery_token),
+            json={"password": password},
+            timeout=20,
+        )
+        if r.status_code in (401, 403):
+            return jsonify({"success": False, "error": "This password-reset link is invalid or has expired. Request a new reset email."}), 401
+        if not r.ok:
+            return jsonify({"success": False, "error": _error_message(r, "Could not update your password.")}), 400
+        return jsonify({
+            "success": True,
+            "message": "Your EggyPDF password has been updated. You can now sign in with the new password.",
+        })
+    except requests.RequestException:
+        return jsonify({"success": False, "error": "Account service is temporarily unavailable."}), 503
