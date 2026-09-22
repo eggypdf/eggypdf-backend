@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
+import time
 
 import requests
 
 
 ALLOWED_TONES = {"professional", "confident", "concise"}
+TRANSIENT_STATUSES = {408, 429, 500, 502, 503, 504}
 
 
 def _gemini_key():
@@ -25,6 +28,78 @@ def _extract_json_text(payload):
     text = parts[0]["text"].strip()
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I | re.S)
     return json.loads(text)
+
+
+def _cover_letter_models():
+    """Use the configured Gemini model first, then a stable fallback."""
+    primary = (
+        os.getenv("GEMINI_COVER_LETTER_MODEL")
+        or os.getenv("GEMINI_MODEL")
+        or "gemini-2.5-flash"
+    ).strip()
+    fallback = (
+        os.getenv("GEMINI_COVER_LETTER_FALLBACK_MODEL")
+        or "gemini-2.5-flash-lite"
+    ).strip()
+    models = []
+    for model in (primary, fallback):
+        if model and model not in models:
+            models.append(model)
+    return models
+
+
+def _cover_letter_log(model: str, event: str, detail: str = ""):
+    """Render-safe diagnostics. Never log API keys, prompts, or resume content."""
+    message = f"[career-cover-letter] model={model} event={event}"
+    if detail:
+        message += f" detail={detail[:160]}"
+    print(message, flush=True)
+
+
+def _gemini_cover_letter_request(key: str, model: str, prompt: str):
+    """Call Gemini with bounded exponential-backoff retries.
+
+    Returns (response, transport_error). A non-None transport_error means all
+    attempts failed before a normal HTTP response was received.
+    """
+    last_error = None
+    last_response = None
+
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "responseMimeType": "application/json",
+                        "temperature": 0.35,
+                        "maxOutputTokens": 4096,
+                    },
+                },
+                timeout=(10, 75),
+            )
+            last_response = response
+        except requests.RequestException as exc:
+            last_error = exc
+            _cover_letter_log(model, "transport_error", exc.__class__.__name__)
+            if attempt < 2:
+                time.sleep((2 ** attempt) + random.uniform(0.15, 0.55))
+                continue
+            return None, last_error
+
+        if response.ok:
+            _cover_letter_log(model, "success")
+            return response, None
+
+        _cover_letter_log(model, "http_error", str(response.status_code))
+        if response.status_code in TRANSIENT_STATUSES and attempt < 2:
+            time.sleep((2 ** attempt) + random.uniform(0.15, 0.55))
+            continue
+
+        return response, None
+
+    return last_response, last_error
 
 
 def generate_cover_letter_with_gemini(
@@ -44,7 +119,6 @@ def generate_cover_letter_with_gemini(
     if tone not in ALLOWED_TONES:
         raise ValueError("Tone must be professional, confident, or concise.")
 
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
     applicant_name = (applicant_name or "").strip()
     company = (company or "").strip()
     role = (role or "").strip()
@@ -93,52 +167,61 @@ TARGET JOB DESCRIPTION:
 {job}
 """
 
-    try:
-        response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "temperature": 0.35,
-                    "maxOutputTokens": 4096,
-                },
-            },
-            timeout=45,
-        )
-    except requests.RequestException as exc:
-        raise RuntimeError("The AI cover letter generator is temporarily unreachable. Please try again in a moment.") from exc
+    failures = []
+    for model in _cover_letter_models():
+        response, transport_error = _gemini_cover_letter_request(key, model, prompt)
 
-    if not response.ok:
-        if response.status_code == 429:
-            raise RuntimeError("The AI cover letter generator is busy right now. Please try again in a minute.")
-        if response.status_code in (401, 403):
-            raise RuntimeError("The AI cover letter generator is not authenticated correctly on the server.")
-        raise RuntimeError(f"The AI cover letter generator failed on the server (HTTP {response.status_code}).")
+        if transport_error is not None and response is None:
+            failures.append(f"{model}: network")
+            continue
 
-    try:
-        out = _extract_json_text(response.json())
-    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-        raise RuntimeError("The AI cover letter generator returned an incomplete response. Please try again.") from exc
+        if response is None:
+            failures.append(f"{model}: unavailable")
+            continue
 
-    letter = str(out.get("cover_letter") or "").strip()
-    subject = str(out.get("subject_line") or "").strip()
-    strengths = [str(x).strip() for x in (out.get("strengths_used") or []) if str(x).strip()]
-    unsupported = [str(x).strip() for x in (out.get("unsupported_requirements") or []) if str(x).strip()]
+        if not response.ok:
+            if response.status_code in (401, 403):
+                raise RuntimeError("The AI cover letter generator is not authenticated correctly on the server.")
+            if response.status_code == 404 or response.status_code in TRANSIENT_STATUSES:
+                failures.append(f"{model}: HTTP {response.status_code}")
+                continue
+            if response.status_code == 400:
+                raise RuntimeError("The AI cover letter request was rejected by the AI provider. Please review the inputs and try again.")
+            failures.append(f"{model}: HTTP {response.status_code}")
+            continue
 
-    if len(letter) < 180:
-        raise RuntimeError("The AI cover letter generator returned an incomplete letter. Please try again.")
+        try:
+            out = _extract_json_text(response.json())
+        except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+            _cover_letter_log(model, "invalid_json")
+            failures.append(f"{model}: incomplete response")
+            continue
 
-    return {
-        "cover_letter": letter,
-        "subject_line": subject,
-        "strengths_used": strengths,
-        "unsupported_requirements": unsupported,
-        "mode": "ai",
-        "provider": "gemini",
-        "model": model,
-        "tone": tone,
-        "integrity_note": (
-            "AI-generated from the resume and job description. Review every claim before sending; EggyPDF is instructed not to invent experience, skills, metrics, education, employers, certifications, or achievements."
-        ),
-    }
+        letter = str(out.get("cover_letter") or "").strip()
+        subject = str(out.get("subject_line") or "").strip()
+        strengths = [str(x).strip() for x in (out.get("strengths_used") or []) if str(x).strip()]
+        unsupported = [str(x).strip() for x in (out.get("unsupported_requirements") or []) if str(x).strip()]
+
+        if len(letter) < 180:
+            _cover_letter_log(model, "short_response", str(len(letter)))
+            failures.append(f"{model}: short response")
+            continue
+
+        return {
+            "cover_letter": letter,
+            "subject_line": subject,
+            "strengths_used": strengths,
+            "unsupported_requirements": unsupported,
+            "mode": "ai",
+            "provider": "gemini",
+            "model": model,
+            "tone": tone,
+            "integrity_note": (
+                "AI-generated from the resume and job description. Review every claim before sending; EggyPDF is instructed not to invent experience, skills, metrics, education, employers, certifications, or achievements."
+            ),
+        }
+
+    _cover_letter_log("all", "failed_after_retries", "; ".join(failures))
+    raise RuntimeError(
+        "The AI cover letter service is temporarily unavailable after several retries. Please try again shortly."
+    )
