@@ -212,6 +212,12 @@ def redeem_code():
                 result["wallet"] = wallet(user["id"], refresh=True)
             except RuntimeError:
                 result["wallet"] = None
+        else:
+            # The RPC returns a human-readable `message` for expected failures
+            # such as invalid, expired, inactive, or already-claimed codes.
+            # Mirror it into `error` so every frontend can display the exact
+            # reason instead of a generic redemption failure.
+            result["error"] = result.get("message") or "Could not redeem this Creator Code."
         return jsonify(result), status
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
