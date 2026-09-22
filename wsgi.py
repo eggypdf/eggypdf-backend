@@ -3,6 +3,7 @@ from app import app
 from career_routes import career_bp
 from career_free_routes import career_free_bp
 from account_routes import account_bp
+from account_recovery_routes import account_recovery_bp
 from career_billing_routes import billing_bp
 from career_checkout_session_routes import checkout_session_bp
 from career_reconcile_routes import reconcile_bp
@@ -17,6 +18,7 @@ install_career_security()
 app.register_blueprint(career_bp)
 app.register_blueprint(career_free_bp)
 app.register_blueprint(account_bp)
+app.register_blueprint(account_recovery_bp)
 app.register_blueprint(billing_bp)
 app.register_blueprint(checkout_session_bp)
 app.register_blueprint(reconcile_bp)
