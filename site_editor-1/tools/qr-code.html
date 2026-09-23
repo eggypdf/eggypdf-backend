@@ -7,440 +7,72 @@
 <link rel="apple-touch-icon" href="../egg.png"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Free QR Code Generator – EggyPDF</title>
-<meta name="description" content="Generate QR codes instantly for URLs, text, email, phone and WiFi. Free, no sign up, never stored."/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<meta name="description" content="Create custom EggyPDF QR codes for URLs, text, email, phone and WiFi. Free, private and generated in your browser."/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;--text:#1a1a2e;--muted:#6b7280;--border:#e5e7eb;--bg:#f9fafb;--white:#fff;--radius:10px}
-body{font-family:'Inter',sans-serif;color:var(--text);background:var(--bg);min-height:100vh}
-a{text-decoration:none;color:inherit}
-header{background:var(--white);border-bottom:1px solid var(--border);padding:0 1.5rem}
-.header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;height:60px;gap:1rem}
-.logo{font-size:1.15rem;font-weight:700}.logo span{color:var(--brand)}
-.back-btn{font-size:13.5px;color:var(--muted);padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--white);cursor:pointer}
-.tool-hero{background:linear-gradient(160deg,var(--brand-light),var(--white));padding:40px 1.5rem 32px;text-align:center;border-bottom:1px solid var(--border)}
-.tool-icon-big{font-size:3rem;margin-bottom:12px}
-.tool-hero h1{font-size:1.9rem;font-weight:700;margin-bottom:8px}
-.tool-hero p{color:var(--muted);font-size:14.5px;max-width:500px;margin:0 auto}
-main{max-width:760px;margin:0 auto;padding:36px 1.5rem 60px}
-
-/* Type tabs */
-.type-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
-.type-tab{padding:8px 18px;border-radius:50px;border:1.5px solid var(--border);background:var(--white);font-size:13.5px;font-weight:600;cursor:pointer;transition:all 0.15s;color:var(--muted)}
-.type-tab.active{background:var(--brand);border-color:var(--brand);color:#fff}
-.type-tab:hover:not(.active){border-color:var(--brand);color:var(--brand-dark)}
-
-/* Input card */
-.input-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
-.field-group{margin-bottom:16px}
-.field-group:last-child{margin-bottom:0}
-.field-group label{display:block;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px}
-.field-group input,.field-group select{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);outline:none;transition:border-color 0.15s}
-.field-group input:focus,.field-group select:focus{border-color:var(--brand)}
-.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-
-/* Options */
-.options-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
-.opt-group{display:flex;flex-direction:column;gap:6px}
-.opt-group label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em}
-.opt-group select{padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--white);cursor:pointer;outline:none}
-.color-pick{display:flex;align-items:center;gap:8px}
-.color-pick input[type=color]{width:36px;height:36px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;padding:2px}
-
-/* Generate button */
-.action-btn{width:100%;padding:14px;background:var(--brand);color:var(--white);border:none;border-radius:var(--radius);font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background 0.15s;margin-bottom:24px}
-.action-btn:hover{background:var(--brand-dark)}
-
-/* QR Result */
-.qr-result{display:none;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:28px;text-align:center}
-.qr-canvas-wrap{display:inline-block;padding:16px;background:#fff;border-radius:10px;box-shadow:0 2px 16px rgba(0,0,0,0.08);margin-bottom:20px}
-canvas{display:block}
-.qr-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
-.dl-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all 0.15s}
-.dl-png{background:var(--brand);color:#fff}.dl-png:hover{background:var(--brand-dark)}
-.dl-svg{background:var(--white);color:var(--text);border:1.5px solid var(--border)}.dl-svg:hover{border-color:var(--brand);color:var(--brand-dark)}
-.new-btn{background:var(--white);color:var(--muted);border:1.5px solid var(--border);}.new-btn:hover{border-color:var(--brand);color:var(--brand-dark)}
-.privacy-note{font-size:12px;color:var(--muted);background:var(--bg);border-radius:8px;padding:10px 14px;display:inline-block}
-
-/* Footer */
-footer{background:var(--white);border-top:1px solid var(--border);padding:28px 1.5rem;text-align:center}
-.footer-inner{max-width:1100px;margin:0 auto}
-.footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:10px}
-.footer-links a{font-size:13px;color:var(--muted)}.footer-links a:hover{color:var(--text)}
-.footer-copy{font-size:12px;color:var(--muted)}
-
-@media(max-width:600px){
-  .field-row{grid-template-columns:1fr}
-  .options-row{flex-direction:column;align-items:flex-start}
-}
+:root{--brand:#f5a623;--brand-dark:#d4881a;--brand-light:#fff8ed;--ink:#171727;--muted:#6b7280;--border:#e7e7ec;--bg:#f6f7f9;--white:#fff;--green:#16a34a;--shadow:0 18px 50px rgba(23,23,39,.08)}
+html{scroll-behavior:smooth}body{font-family:Inter,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;line-height:1.5}a{text-decoration:none;color:inherit}button,input,select,textarea{font:inherit}
+header{height:64px;background:rgba(255,255,255,.92);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20;padding:0 24px}.header-inner{height:100%;max-width:1180px;margin:auto;display:flex;align-items:center}.logo{font-size:20px;font-weight:800;letter-spacing:-.6px}.logo span{color:var(--brand)}.back-btn{margin-left:auto;border:1px solid var(--border);background:#fff;color:var(--muted);border-radius:10px;padding:8px 13px;cursor:pointer}.back-btn:hover{border-color:var(--brand);color:var(--brand-dark)}
+.hero{position:relative;overflow:hidden;background:linear-gradient(145deg,#fff 15%,#fff8ed 70%,#fff1d3);padding:62px 24px 52px;border-bottom:1px solid #f2dfb6}.hero:before,.hero:after{content:"";position:absolute;border-radius:50%;filter:blur(2px);pointer-events:none}.hero:before{width:320px;height:320px;right:-90px;top:-150px;background:rgba(245,166,35,.13)}.hero:after{width:210px;height:210px;left:-90px;bottom:-120px;background:rgba(23,23,39,.05)}.hero-inner{position:relative;max-width:900px;margin:auto;text-align:center}.eyebrow{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #f2d99f;border-radius:999px;padding:7px 11px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--brand-dark);box-shadow:0 8px 30px rgba(245,166,35,.08)}.egg-dot{width:15px;height:19px;border:2px solid var(--brand);border-radius:52% 52% 46% 46% / 60% 60% 40% 40%;display:inline-block;transform:rotate(8deg)}.hero h1{font-size:clamp(34px,6vw,58px);line-height:1.02;letter-spacing:-2.4px;max-width:760px;margin:17px auto 14px}.hero h1 span{color:var(--brand)}.hero p{color:var(--muted);font-size:15px;max-width:650px;margin:auto}.trust{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:20px;font-size:12px;color:#4b5563}.trust b{color:var(--ink)}
+main{max-width:1180px;margin:auto;padding:34px 24px 72px}.builder{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(340px,.9fr);gap:22px;align-items:start}.panel,.preview-card{background:#fff;border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow)}.panel{padding:24px}.preview-card{position:sticky;top:88px;padding:22px;text-align:center}.section-label{font-size:11px;font-weight:800;color:#9a6a11;text-transform:uppercase;letter-spacing:.08em}.panel h2,.preview-card h2{font-size:20px;letter-spacing:-.4px;margin-top:4px}.sub{font-size:12.5px;color:var(--muted);margin-top:4px}
+.type-tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:20px 0}.type-tab{border:1px solid var(--border);background:#fafafa;border-radius:12px;padding:11px 8px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;transition:.18s}.type-tab:hover{border-color:#f0c96d;color:var(--ink);transform:translateY(-1px)}.type-tab.active{background:var(--ink);border-color:var(--ink);color:#fff;box-shadow:0 8px 22px rgba(23,23,39,.12)}
+.form-surface{background:#fafafa;border:1px solid #efeff2;border-radius:16px;padding:18px}.field-group{margin-bottom:15px}.field-group:last-child{margin-bottom:0}.field-group label,.control label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:800;color:#787886;margin-bottom:7px}.field-group input,.field-group select,.field-group textarea,.control select{width:100%;border:1.5px solid #dedee5;background:#fff;color:var(--ink);border-radius:11px;padding:12px 13px;outline:none;transition:.15s}.field-group textarea{min-height:100px;resize:vertical}.field-group input:focus,.field-group select:focus,.field-group textarea:focus,.control select:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(245,166,35,.1)}.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.helper{font-size:11.5px;color:#8b8b98;margin-top:6px}.helper strong{color:#646474}
+.customize{margin-top:22px}.customize-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:13px}.control{border:1px solid #ececf0;background:#fff;border-radius:14px;padding:13px}.swatch-line{display:flex;align-items:center;gap:9px}.swatch-line input[type=color]{width:42px;height:38px;border:1px solid #dedee5;background:#fff;border-radius:9px;padding:3px;cursor:pointer}.swatch-line span{font-size:12px;color:var(--muted)}.style-pills{display:grid;grid-template-columns:1fr 1fr;gap:8px}.style-pill{border:1px solid #e2e2e8;background:#fff;border-radius:10px;padding:9px 8px;font-size:11.5px;font-weight:700;cursor:pointer;color:#626272}.style-pill.active{border-color:var(--brand);background:var(--brand-light);color:#9a6610}.safe-note{margin-top:13px;border:1px solid #dbeafe;background:#eff6ff;color:#1e40af;border-radius:11px;padding:10px 12px;font-size:11.5px}
+.action-btn{width:100%;border:0;background:var(--brand);color:#fff;border-radius:13px;padding:14px 16px;font-weight:800;font-size:14px;cursor:pointer;margin-top:18px;box-shadow:0 10px 24px rgba(245,166,35,.25);transition:.15s}.action-btn:hover{background:var(--brand-dark);transform:translateY(-1px)}
+.preview-shell{position:relative;margin:20px auto 16px;display:flex;align-items:center;justify-content:center;min-height:390px;border:1px dashed #e0d3b5;background:radial-gradient(circle at 50% 35%,#fff 0,#fff8ed 54%,#f8f8fa 100%);border-radius:18px;overflow:hidden}.preview-shell:before{content:"";position:absolute;width:250px;height:310px;border:1px solid rgba(245,166,35,.22);border-radius:52% 52% 45% 45% / 60% 60% 40% 40%;transform:rotate(4deg)}#qrCanvas{max-width:90%;height:auto;position:relative;z-index:2;filter:drop-shadow(0 14px 20px rgba(23,23,39,.08))}.empty-preview{position:absolute;z-index:3;max-width:220px}.empty-egg{width:66px;height:82px;margin:0 auto 12px;border:2px solid #e3b951;border-radius:52% 52% 45% 45% / 60% 60% 40% 40%;display:grid;place-items:center;color:var(--brand);font-weight:800;font-size:21px;transform:rotate(5deg);background:#fff}.empty-preview p{font-size:12px;color:#8b8b98}.preview-meta{display:none;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.meta{background:#fafafa;border:1px solid #eeeeF2;border-radius:11px;padding:9px}.meta b{display:block;font-size:12px}.meta span{display:block;color:var(--muted);font-size:9.5px;margin-top:2px}.qr-actions{display:none;gap:8px}.dl-btn{flex:1;border-radius:11px;padding:11px 10px;font-weight:800;font-size:12px;cursor:pointer}.dl-png{border:0;background:var(--ink);color:#fff}.dl-svg{border:1px solid #dedee5;background:#fff;color:var(--ink)}.new-btn{border:1px solid #dedee5;background:#fff;color:#6b7280}.privacy-note{font-size:10.5px;color:#7b7b88;margin-top:13px;display:flex;align-items:center;justify-content:center;gap:6px}.scan-status{display:none;margin:11px 0 0;padding:9px;border-radius:10px;background:#ecfdf5;color:#166534;font-size:11px;font-weight:700}
+footer{background:#181824;color:#aaaab5;padding:32px 24px}.footer-inner{max-width:1180px;margin:auto;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}.footer-links{display:flex;gap:18px;flex-wrap:wrap}.footer-links a{font-size:12px}.footer-copy{font-size:12px}.footer-brand{font-weight:800;color:#fff}.footer-brand span{color:var(--brand)}
+@media(max-width:900px){.builder{grid-template-columns:1fr}.preview-card{position:static}.preview-shell{min-height:360px}.type-tabs{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:560px){header{padding:0 16px}.hero{padding:45px 18px 38px}.hero h1{letter-spacing:-1.6px}main{padding:22px 14px 55px}.panel,.preview-card{border-radius:16px;padding:17px}.type-tabs{grid-template-columns:repeat(2,1fr)}.field-row,.customize-grid{grid-template-columns:1fr}.preview-shell{min-height:330px}.qr-actions{flex-direction:column}.preview-meta{grid-template-columns:1fr 1fr 1fr}}
 </style>
 </head>
 <body>
-
-<header>
-  <div class="header-inner">
-    <a href="../index.html" class="logo">Eggy<span>PDF</span></a>
-    <button class="back-btn" onclick="history.back()">← Back</button>
-  </div>
-</header>
-
-<div class="tool-hero">
-  <div class="tool-icon-big">⬛</div>
-  <h1>QR Code Generator</h1>
-  <p>Generate a QR code instantly for any URL, text, email, phone or WiFi. Free — nothing stored, nothing tracked.</p>
+<header><div class="header-inner"><a href="../index.html" class="logo">Eggy<span>PDF</span></a><button class="back-btn" onclick="history.back()">← Back</button></div></header>
+<section class="hero"><div class="hero-inner"><div class="eyebrow"><span class="egg-dot"></span> Eggy QR</div><h1>A QR code that looks a little more <span>Eggy.</span></h1><p>Create a clean, branded QR code with rounded modules and an egg-inspired frame—without sacrificing the quiet zone scanners need.</p><div class="trust"><span><b>Free</b> to use</span><span><b>Private</b> in your browser</span><span><b>Scanner-safe</b> layout</span></div></div></section>
+<main><div class="builder">
+<section class="panel"><div class="section-label">1 · Content</div><h2>What should your QR open?</h2><p class="sub">Choose a type and enter the information you want to encode.</p>
+<div class="type-tabs"><button class="type-tab active" onclick="setType('url',this)">URL</button><button class="type-tab" onclick="setType('wifi',this)">WiFi</button><button class="type-tab" onclick="setType('text',this)">Text</button><button class="type-tab" onclick="setType('email',this)">Email</button><button class="type-tab" onclick="setType('phone',this)">Phone</button></div>
+<div class="form-surface">
+<div id="form-url"><div class="field-group"><label>Website URL</label><input type="text" id="inp-url" placeholder="https://eggypdf.com" oninput="liveGenerate()"/><div class="helper">If you forget <strong>https://</strong>, EggyPDF adds it for you.</div></div></div>
+<div id="form-text" style="display:none"><div class="field-group"><label>Text</label><textarea id="inp-text" placeholder="Write any text..." oninput="liveGenerate()"></textarea><div class="helper">Scanning will display this text directly.</div></div></div>
+<div id="form-email" style="display:none"><div class="field-group"><label>Email address</label><input type="email" id="inp-email-addr" placeholder="hello@example.com" oninput="liveGenerate()"/></div><div class="field-group"><label>Subject (optional)</label><input type="text" id="inp-email-sub" placeholder="Email subject" oninput="liveGenerate()"/></div></div>
+<div id="form-phone" style="display:none"><div class="field-group"><label>Phone number</label><input type="tel" id="inp-phone" placeholder="+971 50 000 0000" oninput="liveGenerate()"/></div></div>
+<div id="form-wifi" style="display:none"><div class="field-row"><div class="field-group"><label>Network name (SSID)</label><input type="text" id="inp-wifi-ssid" placeholder="MyWiFiNetwork" oninput="liveGenerate()"/></div><div class="field-group"><label>Password</label><input type="password" id="inp-wifi-pass" placeholder="Password" oninput="liveGenerate()"/></div></div><div class="field-group"><label>Security</label><select id="inp-wifi-sec" onchange="liveGenerate()"><option value="WPA">WPA/WPA2</option><option value="WEP">WEP</option><option value="nopass">Open network</option></select></div></div>
 </div>
-
-<main>
-
-  <!-- Type selector -->
-  <div class="type-tabs">
-    <button class="type-tab active" onclick="setType('url',this)">🔗 URL</button>
-    <button class="type-tab" onclick="setType('wifi',this)">📶 WiFi</button>
-    <button class="type-tab" onclick="setType('text',this)">📝 Text</button>
-    <button class="type-tab" onclick="setType('email',this)">📧 Email</button>
-    <button class="type-tab" onclick="setType('phone',this)">📞 Phone</button>
-  </div>
-
-  <!-- Input card -->
-  <div class="input-card">
-    <!-- URL -->
-    <div id="form-url">
-      <div class="field-group">
-        <label>Website URL</label>
-        <input type="text" id="inp-url" placeholder="https://eggypdf.com" oninput="liveGenerate()"/>
-        <p style="font-size:12px;color:var(--muted);margin-top:6px">⚠️ Must start with <strong>https://</strong> — e.g. https://eggypdf.com</p>
-      </div>
-    </div>
-
-    <!-- Text -->
-    <div id="form-text" style="display:none">
-      <div class="field-group">
-        <label>Text</label>
-        <input type="text" id="inp-text" placeholder="Enter any text..." oninput="liveGenerate()"/>
-        <p style="font-size:12px;color:var(--muted);margin-top:6px">💡 Scanning this QR will display the text on screen.</p>
-      </div>
-    </div>
-
-    <!-- Email -->
-    <div id="form-email" style="display:none">
-      <div class="field-group">
-        <label>Email Address</label>
-        <input type="email" id="inp-email-addr" placeholder="hello@example.com" oninput="liveGenerate()"/>
-      </div>
-      <div class="field-group">
-        <label>Subject (optional)</label>
-        <input type="text" id="inp-email-sub" placeholder="Email subject" oninput="liveGenerate()"/>
-      </div>
-    </div>
-
-    <!-- Phone -->
-    <div id="form-phone" style="display:none">
-      <div class="field-group">
-        <label>Phone Number</label>
-        <input type="tel" id="inp-phone" placeholder="+971 50 000 0000" oninput="liveGenerate()"/>
-      </div>
-    </div>
-
-    <!-- WiFi -->
-    <div id="form-wifi" style="display:none">
-      <div class="field-row">
-        <div class="field-group">
-          <label>Network Name (SSID)</label>
-          <input type="text" id="inp-wifi-ssid" placeholder="MyWiFiNetwork" oninput="liveGenerate()"/>
-        </div>
-        <div class="field-group">
-          <label>Password</label>
-          <input type="password" id="inp-wifi-pass" placeholder="Password" oninput="liveGenerate()"/>
-        </div>
-      </div>
-      <div class="field-group">
-        <label>Security Type</label>
-        <select id="inp-wifi-sec" onchange="liveGenerate()">
-          <option value="WPA">WPA/WPA2</option>
-          <option value="WEP">WEP</option>
-          <option value="nopass">None (Open)</option>
-        </select>
-      </div>
-    </div>
-  </div>
-
-  <!-- Options -->
-  <div class="options-row">
-    <div class="opt-group">
-      <label>Size</label>
-      <select id="opt-size" onchange="liveGenerate()">
-        <option value="200">Small (200px)</option>
-        <option value="300" selected>Medium (300px)</option>
-        <option value="400">Large (400px)</option>
-        <option value="600">Extra Large (600px)</option>
-      </select>
-    </div>
-    <div class="opt-group">
-      <label>QR Colour</label>
-      <div class="color-pick">
-        <input type="color" id="opt-fg" value="#1a1a2e" onchange="liveGenerate()"/>
-        <span style="font-size:13px;color:var(--muted)">Foreground</span>
-      </div>
-    </div>
-    <div class="opt-group">
-      <label>Background</label>
-      <div class="color-pick">
-        <input type="color" id="opt-bg" value="#ffffff" onchange="liveGenerate()"/>
-        <span style="font-size:13px;color:var(--muted)">Background</span>
-      </div>
-    </div>
-    <div class="opt-group">
-      <label>Error Correction</label>
-      <select id="opt-ec" onchange="liveGenerate()">
-        <option value="M" selected>Medium (recommended)</option>
-        <option value="L">Low</option>
-        <option value="Q">High</option>
-        <option value="H">Max</option>
-      </select>
-    </div>
-  </div>
-
-  <button class="action-btn" onclick="generateQR()">📱 Generate QR Code</button>
-
-  <!-- Result -->
-  <div class="qr-result" id="qrResult">
-    <div class="qr-canvas-wrap">
-      <canvas id="qrCanvas"></canvas>
-    </div>
-    <div class="qr-actions">
-      <button class="dl-btn dl-png" onclick="downloadPNG()">⬇️ Download PNG</button>
-      <button class="dl-btn dl-svg" onclick="downloadSVG()">⬇️ Download SVG</button>
-      <button class="dl-btn new-btn" onclick="resetTool()">🔄 New QR Code</button>
-    </div>
-    <div class="privacy-note">🔒 This QR code was generated in your browser. Nothing was sent to our servers or stored anywhere.</div>
-  </div>
-
-</main>
-
-<footer>
-  <div class="footer-inner">
-    <div class="footer-links">
-      <a href="../index.html">Home</a>
-      <a href="../about-us.html">About</a>
-      <a href="../privacy-policy.html">Privacy</a>
-      <a href="../contact.html">Contact</a>
-    </div>
-    <p class="footer-copy">© 2026 EggyPDF. All rights reserved.</p>
-  </div>
-</footer>
-
-<!-- QR Code library — loaded from CDN, runs entirely in browser -->
+<div class="customize"><div class="section-label">2 · Style</div><h2>Make it yours.</h2><div class="customize-grid">
+<div class="control"><label>QR size</label><select id="opt-size" onchange="liveGenerate()"><option value="220">Small</option><option value="300" selected>Medium</option><option value="420">Large</option><option value="600">Extra large</option></select></div>
+<div class="control"><label>Error correction</label><select id="opt-ec" onchange="liveGenerate()"><option value="M">Medium</option><option value="Q" selected>High · recommended</option><option value="H">Maximum</option></select></div>
+<div class="control"><label>QR colour</label><div class="swatch-line"><input type="color" id="opt-fg" value="#171727" onchange="liveGenerate()"/><span>Modules & eyes</span></div></div>
+<div class="control"><label>Egg frame</label><div class="swatch-line"><input type="color" id="opt-accent" value="#f5a623" onchange="liveGenerate()"/><span>Brand accent</span></div></div>
+<div class="control" style="grid-column:1/-1"><label>Module style</label><div class="style-pills"><button class="style-pill active" id="style-round" onclick="setModuleStyle('round',this)" type="button">Rounded</button><button class="style-pill" id="style-dot" onclick="setModuleStyle('dot',this)" type="button">Soft dots</button></div></div>
+</div><div class="safe-note">EggyPDF keeps the QR matrix square and preserves a proper quiet zone. The egg shape is a frame around the code—not a distortion of the code itself.</div></div>
+<button class="action-btn" onclick="generateQR()">Generate Eggy QR</button></section>
+<aside class="preview-card"><div class="section-label">Live preview</div><h2>Your Eggy QR</h2><p class="sub">The downloaded file includes the egg frame and EggyPDF signature.</p><div class="preview-shell" id="previewShell"><canvas id="qrCanvas"></canvas><div class="empty-preview" id="emptyPreview"><div class="empty-egg">QR</div><p>Enter content on the left and your QR will appear here.</p></div></div><div class="preview-meta" id="previewMeta"><div class="meta"><b id="metaType">URL</b><span>Content</span></div><div class="meta"><b id="metaStyle">Rounded</b><span>Style</span></div><div class="meta"><b id="metaLevel">Q</b><span>Error correction</span></div></div><div class="scan-status" id="scanStatus">Scanner-safe layout: quiet zone preserved.</div><div class="qr-actions" id="qrActions"><button class="dl-btn dl-png" onclick="downloadPNG()">Download PNG</button><button class="dl-btn dl-svg" onclick="downloadSVG()">Download SVG</button><button class="dl-btn new-btn" onclick="resetTool()">New QR</button></div><div class="privacy-note">Generated locally in your browser. Nothing is uploaded or stored.</div></aside>
+</div></main>
+<footer><div class="footer-inner"><div class="footer-brand">Eggy<span>PDF</span></div><div class="footer-links"><a href="../index.html">Home</a><a href="../about-us.html">About</a><a href="../privacy-policy.html">Privacy</a><a href="../contact.html">Contact</a></div><div class="footer-copy">© 2026 EggyPDF</div></div></footer>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-// ── State ──
-let currentType = 'url';
-let lastQRData  = null;
-let debounceTimer = null;
-
-// ── Type switcher ──
-function setType(type, btn){
-  currentType = type;
-  document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  ['url','text','email','phone','wifi'].forEach(t => {
-    document.getElementById('form-'+t).style.display = t === type ? 'block' : 'none';
-  });
-  liveGenerate();
-}
-
-// ── Build QR string from inputs ──
-function buildQRString(){
-  switch(currentType){
-    case 'url':{
-      let v = document.getElementById('inp-url').value.trim();
-      if(!v) return null;
-      // Auto-add https:// if user forgot
-      if(!v.startsWith('http://') && !v.startsWith('https://')){
-        v = 'https://' + v;
-        document.getElementById('inp-url').value = v;
-      }
-      return v;
-    }
-    case 'text':{
-      const v = document.getElementById('inp-text').value.trim();
-      return v || null;
-    }
-    case 'email':{
-      const addr = document.getElementById('inp-email-addr').value.trim();
-      const sub  = document.getElementById('inp-email-sub').value.trim();
-      if(!addr) return null;
-      return sub ? `mailto:${addr}?subject=${encodeURIComponent(sub)}` : `mailto:${addr}`;
-    }
-    case 'phone':{
-      const v = document.getElementById('inp-phone').value.trim().replace(/\s/g,'');
-      return v ? `tel:${v}` : null;
-    }
-    case 'wifi':{
-      const ssid = document.getElementById('inp-wifi-ssid').value.trim();
-      const pass = document.getElementById('inp-wifi-pass').value;
-      const sec  = document.getElementById('inp-wifi-sec').value;
-      if(!ssid) return null;
-      return `WIFI:T:${sec};S:${ssid};P:${pass};;`;
-    }
-  }
-  return null;
-}
-
-// ── Live generate with debounce ──
-function liveGenerate(){
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(()=>{
-    const data = buildQRString();
-    if(data) renderQR(data);
-  }, 400);
-}
-
-// ── Render QR onto canvas — mobile compatible ──
-function renderQR(data){
-  const size = parseInt(document.getElementById('opt-size').value);
-  const fg   = document.getElementById('opt-fg').value;
-  const bg   = document.getElementById('opt-bg').value;
-  const ec   = document.getElementById('opt-ec').value;
-
-  try{
-    // Create temp container off-screen
-    const tempDiv = document.createElement('div');
-    tempDiv.style.cssText = 'position:fixed;left:-9999px;top:-9999px;visibility:hidden';
-    document.body.appendChild(tempDiv);
-
-    const qr = new QRCode(tempDiv, {
-      text: data,
-      width: size,
-      height: size,
-      colorDark: fg,
-      colorLight: bg,
-      correctLevel: QRCode.CorrectLevel[ec] || QRCode.CorrectLevel.M
-    });
-
-    // Wait for QR to render then copy to our visible canvas
-    function tryExtract(attempts){
-      const srcCanvas = tempDiv.querySelector('canvas');
-      const srcImg    = tempDiv.querySelector('img');
-
-      if(srcCanvas && srcCanvas.width > 0){
-        // Direct canvas copy — works on all browsers
-        const target = document.getElementById('qrCanvas');
-        target.width  = size;
-        target.height = size;
-        target.getContext('2d').drawImage(srcCanvas, 0, 0, size, size);
-        document.body.removeChild(tempDiv);
-        lastQRData = data;
-        showResult();
-      } else if(srcImg && srcImg.complete && srcImg.naturalWidth > 0){
-        // Image loaded — draw to canvas
-        const target = document.getElementById('qrCanvas');
-        target.width  = size;
-        target.height = size;
-        target.getContext('2d').drawImage(srcImg, 0, 0, size, size);
-        document.body.removeChild(tempDiv);
-        lastQRData = data;
-        showResult();
-      } else if(srcImg && !srcImg.complete){
-        // Image still loading — wait
-        srcImg.onload = ()=>{
-          const target = document.getElementById('qrCanvas');
-          target.width  = size;
-          target.height = size;
-          target.getContext('2d').drawImage(srcImg, 0, 0, size, size);
-          document.body.removeChild(tempDiv);
-          lastQRData = data;
-          showResult();
-        };
-      } else if(attempts > 0){
-        setTimeout(()=>tryExtract(attempts-1), 150);
-      } else {
-        document.body.removeChild(tempDiv);
-        alert('QR generation failed. Please try again.');
-      }
-    }
-
-    setTimeout(()=>tryExtract(10), 100);
-
-  } catch(e){
-    console.error('QR Error:', e);
-    alert('Could not generate QR code: ' + e.message);
-  }
-}
-
-function showResult(){
-  document.getElementById('qrResult').style.display = 'block';
-  setTimeout(()=>{
-    document.getElementById('qrResult').scrollIntoView({behavior:'smooth', block:'nearest'});
-  }, 100);
-}
-
-// ── Generate button click ──
-function generateQR(){
-  const raw = currentType === 'url' ? document.getElementById('inp-url').value.trim() : '';
-  const data = buildQRString();
-  if(!data){
-    if(currentType === 'url' && raw && !raw.includes('.')){
-      alert('Please enter a valid website URL (e.g. https://eggypdf.com). For plain text, use the Text tab instead.');
-    } else {
-      alert('Please enter some content to generate a QR code.');
-    }
-    return;
-  }
-  renderQR(data);
-}
-
-// ── Download PNG ──
-function downloadPNG(){
-  const canvas = document.getElementById('qrCanvas');
-  const link   = document.createElement('a');
-  // Fresh timestamp in filename — never reuses same name
-  link.download = `EggyPDF_QR_${Date.now()}.png`;
-  link.href = canvas.toDataURL('image/png');
-  link.click();
-}
-
-// ── Download SVG ──
-function downloadSVG(){
-  if(!lastQRData) return;
-  const size = parseInt(document.getElementById('opt-size').value);
-  const fg   = document.getElementById('opt-fg').value;
-  const bg   = document.getElementById('opt-bg').value;
-  const canvas = document.getElementById('qrCanvas');
-
-  // Convert canvas to SVG-embedded image
-  const dataURL = canvas.toDataURL('image/png');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-  <rect width="${size}" height="${size}" fill="${bg}"/>
-  <image href="${dataURL}" width="${size}" height="${size}"/>
-</svg>`;
-
-  const blob = new Blob([svg], {type:'image/svg+xml'});
-  const url  = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.download = `EggyPDF_QR_${Date.now()}.svg`;
-  link.href = url;
-  link.click();
-  setTimeout(()=>URL.revokeObjectURL(url), 5000);
-}
-
-// ── Reset ──
-function resetTool(){
-  lastQRData = null;
-  document.getElementById('qrResult').style.display = 'none';
-  document.querySelectorAll('input[type=text],input[type=url],input[type=email],input[type=tel],input[type=password]')
-    .forEach(i => i.value = '');
-  const ctx = document.getElementById('qrCanvas').getContext('2d');
-  ctx.clearRect(0, 0, 600, 600);
-}
-
-// ── Privacy: clear canvas on page hide ──
-document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden){
-    const ctx = document.getElementById('qrCanvas').getContext('2d');
-    ctx.clearRect(0, 0, 600, 600);
-    lastQRData = null;
-  }
-});
+let currentType='url',moduleStyle='round',lastQRData=null,lastMatrix=null,lastSvg='',debounceTimer=null;
+const $=id=>document.getElementById(id);
+function setType(type,btn){currentType=type;document.querySelectorAll('.type-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');['url','text','email','phone','wifi'].forEach(t=>{$('form-'+t).style.display=t===type?'block':'none'});$('metaType').textContent=type.toUpperCase();liveGenerate()}
+function setModuleStyle(style,btn){moduleStyle=style;document.querySelectorAll('.style-pill').forEach(b=>b.classList.remove('active'));btn.classList.add('active');$('metaStyle').textContent=style==='dot'?'Soft dots':'Rounded';liveGenerate()}
+function escWifi(v){return String(v||'').replace(/([\\;,:"])/g,'\\$1')}
+function buildQRString(){switch(currentType){case'url':{let v=$('inp-url').value.trim();if(!v)return null;if(!/^https?:\/\//i.test(v))v='https://'+v;return v}case'text':{const v=$('inp-text').value.trim();return v||null}case'email':{const a=$('inp-email-addr').value.trim(),s=$('inp-email-sub').value.trim();if(!a)return null;return s?`mailto:${a}?subject=${encodeURIComponent(s)}`:`mailto:${a}`}case'phone':{const v=$('inp-phone').value.trim().replace(/\s/g,'');return v?`tel:${v}`:null}case'wifi':{const s=$('inp-wifi-ssid').value.trim(),p=$('inp-wifi-pass').value,sec=$('inp-wifi-sec').value;if(!s)return null;return`WIFI:T:${sec};S:${escWifi(s)};P:${escWifi(p)};;`}default:return null}}
+function liveGenerate(){clearTimeout(debounceTimer);debounceTimer=setTimeout(()=>{const d=buildQRString();if(d)renderQR(d)},300)}
+function roundedRect(ctx,x,y,w,h,r){r=Math.min(r,w/2,h/2);ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();ctx.fill()}
+function isFinder(r,c,n){return(r<7&&c<7)||(r<7&&c>=n-7)||(r>=n-7&&c<7)}
+function drawFinder(ctx,x,y,m,fg,bg){ctx.fillStyle=fg;roundedRect(ctx,x,y,m*7,m*7,m*1.25);ctx.fillStyle=bg;roundedRect(ctx,x+m,y+m,m*5,m*5,m*.85);ctx.fillStyle=fg;roundedRect(ctx,x+m*2,y+m*2,m*3,m*3,m*.7)}
+function eggPath(ctx,w,h,margin){const cx=w/2,top=margin,bottom=h-margin,left=margin,right=w-margin;ctx.beginPath();ctx.moveTo(cx,top);ctx.bezierCurveTo(right*.9,top+22,right,bottom*.55,cx,bottom);ctx.bezierCurveTo(left,bottom*.55,left*.98,top+22,cx,top);ctx.closePath()}
+function matrixToStyledSvg(matrix,qrSize,fg,accent,bg,style){const n=matrix.length,pad=Math.max(4,Math.round(n*.13)),module=qrSize/(n+pad*2),cardW=qrSize+76,cardH=qrSize+118,qrX=(cardW-qrSize)/2,qrY=34;let parts=[`<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}">`,`<rect width="100%" height="100%" rx="28" fill="${bg}"/>`,`<path d="M ${cardW/2} 12 C ${cardW-20} 35 ${cardW-13} ${cardH*.56} ${cardW/2} ${cardH-15} C 13 ${cardH*.56} 20 35 ${cardW/2} 12 Z" fill="none" stroke="${accent}" stroke-width="3" opacity=".75"/>`];
+const ox=qrX+pad*module,oy=qrY+pad*module;for(let r=0;r<n;r++){for(let c=0;c<n;c++){if(!matrix[r][c]||isFinder(r,c,n))continue;const x=ox+c*module,y=oy+r*module;if(style==='dot'){const rad=module*.37;parts.push(`<circle cx="${(x+module/2).toFixed(2)}" cy="${(y+module/2).toFixed(2)}" r="${rad.toFixed(2)}" fill="${fg}"/>`)}else{const s=module*.84,g=(module-s)/2,rr=module*.24;parts.push(`<rect x="${(x+g).toFixed(2)}" y="${(y+g).toFixed(2)}" width="${s.toFixed(2)}" height="${s.toFixed(2)}" rx="${rr.toFixed(2)}" fill="${fg}"/>`)}}}
+function finderSvg(x,y){return`<rect x="${x}" y="${y}" width="${module*7}" height="${module*7}" rx="${module*1.2}" fill="${fg}"/><rect x="${x+module}" y="${y+module}" width="${module*5}" height="${module*5}" rx="${module*.85}" fill="${bg}"/><rect x="${x+module*2}" y="${y+module*2}" width="${module*3}" height="${module*3}" rx="${module*.65}" fill="${fg}"/>`}
+parts.push(finderSvg(ox,oy),finderSvg(ox+(n-7)*module,oy),finderSvg(ox,oy+(n-7)*module));parts.push(`<text x="${cardW/2}" y="${cardH-34}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="14" fill="${fg}">Eggy<tspan fill="${accent}">PDF</tspan></text>`,`<text x="${cardW/2}" y="${cardH-18}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="8" fill="#777786">SCAN · OPEN · DONE</text>`,`</svg>`);return parts.join('')}
+function drawStyled(matrix,size,fg,accent,bg){const n=matrix.length,pad=Math.max(4,Math.round(n*.13)),module=size/(n+pad*2),cardW=size+76,cardH=size+118,qrX=(cardW-size)/2,qrY=34,canvas=$('qrCanvas'),dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(cardW*dpr);canvas.height=Math.round(cardH*dpr);canvas.style.width=cardW+'px';canvas.style.height=cardH+'px';const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);ctx.fillStyle=bg;roundedRect(ctx,0,0,cardW,cardH,28);ctx.save();ctx.strokeStyle=accent;ctx.globalAlpha=.75;ctx.lineWidth=3;eggPath(ctx,cardW,cardH,12);ctx.stroke();ctx.restore();const ox=qrX+pad*module,oy=qrY+pad*module;ctx.fillStyle=fg;for(let r=0;r<n;r++){for(let c=0;c<n;c++){if(!matrix[r][c]||isFinder(r,c,n))continue;const x=ox+c*module,y=oy+r*module;if(moduleStyle==='dot'){ctx.beginPath();ctx.arc(x+module/2,y+module/2,module*.37,0,Math.PI*2);ctx.fill()}else{const s=module*.84,g=(module-s)/2;roundedRect(ctx,x+g,y+g,s,s,module*.24)}}}drawFinder(ctx,ox,oy,module,fg,bg);drawFinder(ctx,ox+(n-7)*module,oy,module,fg,bg);drawFinder(ctx,ox,oy+(n-7)*module,module,fg,bg);ctx.textAlign='center';ctx.font='800 14px Inter,Arial';ctx.fillStyle=fg;ctx.fillText('Eggy',cardW/2-13,cardH-34);ctx.fillStyle=accent;ctx.fillText('PDF',cardW/2+20,cardH-34);ctx.font='500 8px Inter,Arial';ctx.fillStyle='#777786';ctx.fillText('SCAN · OPEN · DONE',cardW/2,cardH-18)}
+function renderQR(data){const size=parseInt($('opt-size').value,10),fg=$('opt-fg').value,accent=$('opt-accent').value,bg='#ffffff',ec=$('opt-ec').value;try{const holder=document.createElement('div');holder.style.cssText='position:fixed;left:-9999px;top:-9999px;visibility:hidden';document.body.appendChild(holder);const qr=new QRCode(holder,{text:data,width:256,height:256,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel[ec]||QRCode.CorrectLevel.Q});setTimeout(()=>{try{const matrix=qr._oQRCode&&qr._oQRCode.modules;if(!matrix||!matrix.length)throw new Error('QR matrix unavailable');lastMatrix=matrix.map(row=>row.slice());lastQRData=data;drawStyled(lastMatrix,size,fg,accent,bg);lastSvg=matrixToStyledSvg(lastMatrix,size,fg,accent,bg,moduleStyle);$('emptyPreview').style.display='none';$('previewMeta').style.display='grid';$('qrActions').style.display='flex';$('scanStatus').style.display='block';$('metaLevel').textContent=ec;document.body.removeChild(holder)}catch(err){if(holder.parentNode)holder.parentNode.removeChild(holder);console.error(err)}},60)}catch(err){console.error('QR generation error',err);alert('Could not generate this QR code. Please try again.')}}
+function generateQR(){const data=buildQRString();if(!data){alert('Please enter content first.');return}renderQR(data)}
+function downloadPNG(){const canvas=$('qrCanvas');if(!lastQRData)return;const link=document.createElement('a');link.download=`EggyPDF_EggyQR_${Date.now()}.png`;link.href=canvas.toDataURL('image/png');link.click()}
+function downloadSVG(){if(!lastSvg)return;const blob=new Blob([lastSvg],{type:'image/svg+xml'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.download=`EggyPDF_EggyQR_${Date.now()}.svg`;link.href=url;link.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
+function resetTool(){lastQRData=null;lastMatrix=null;lastSvg='';document.querySelectorAll('input[type=text],input[type=email],input[type=tel],input[type=password],textarea').forEach(i=>i.value='');const c=$('qrCanvas'),ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);c.width=0;c.height=0;$('emptyPreview').style.display='block';$('previewMeta').style.display='none';$('qrActions').style.display='none';$('scanStatus').style.display='none'}
 </script>
 </body>
 </html>
