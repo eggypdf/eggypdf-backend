@@ -119,12 +119,14 @@ def email_resume():
     try:
         user = _career_user()
         body = request.get_json(silent=True) or {}
-        recipient = str(body.get("email") or user.get("email") or "").strip().lower()
+        # Email delivery is intentionally limited to the signed-in account email.
+        # This keeps the feature personal and prevents the endpoint becoming a mail relay.
+        recipient = str(user.get("email") or "").strip().lower()
         pdf_base64 = str(body.get("pdf_base64") or "").strip()
         filename = str(body.get("filename") or "EggyPDF_Resume.pdf").strip()
 
         if not _EMAIL_RE.match(recipient):
-            return jsonify({"success": False, "error": "Enter a valid email address."}), 400
+            return jsonify({"success": False, "error": "Your account needs a valid email address."}), 400
         if not pdf_base64:
             return jsonify({"success": False, "error": "Resume PDF is required."}), 400
         if pdf_base64.startswith("data:"):
