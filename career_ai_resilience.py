@@ -11,7 +11,6 @@ def _model_candidates(primary: str) -> list[str]:
     ordered = [
         primary,
         "gemini-3.8-flash",
-        "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -29,7 +28,8 @@ def _generation_config(model: str) -> dict:
         "responseMimeType": "application/json",
         "maxOutputTokens": 8192,
     }
-    # Gemini 3.x migration guidance recommends omitting legacy sampling fields.
+    # Keep the existing 2.x sampling behavior. Newer Gemini families can use
+    # their current defaults while we request structured JSON output.
     if model.startswith("gemini-2."):
         config["temperature"] = 0.25
     return config
@@ -70,8 +70,8 @@ def _patched_gemini_request(key: str, model: str, prompt: str):
             transient_seen = True
             continue
 
-        # A model may be unavailable to this project or no longer supported.
-        # Move to the next current model rather than failing the whole request.
+        # A model may not be enabled for this API key/project. In that case,
+        # try the next supported fallback instead of failing the whole request.
         if response.status_code in (400, 404):
             continue
 
