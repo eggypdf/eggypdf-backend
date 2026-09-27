@@ -71,8 +71,8 @@ jobs:
 
           FILE_COUNT="$(find cloudflare-upload -type f | wc -l | tr -d ' ')"
           echo "Cloudflare package file count: $FILE_COUNT"
-          if [ "$FILE_COUNT" -ne 73 ]; then
-            echo "Expected 73 files but package contains $FILE_COUNT. Refusing to publish an incomplete package."
+          if [ "$FILE_COUNT" -ne 75 ]; then
+            echo "Expected 75 files but package contains $FILE_COUNT. Refusing to publish an incomplete package."
             find cloudflare-upload -type f | sort
             exit 1
           fi
@@ -80,7 +80,7 @@ jobs:
       - name: Upload full Cloudflare package
         uses: actions/upload-artifact@v4
         with:
-          name: EggyPDF-Cloudflare-Full-73
+          name: EggyPDF-Cloudflare-Full-75
           path: cloudflare-upload/
           if-no-files-found: error
           retention-days: 7
