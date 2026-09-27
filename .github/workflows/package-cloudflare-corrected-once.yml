@@ -1,4 +1,4 @@
-name: Package Corrected Cloudflare Frontend Once
+name: Package Full Cloudflare Frontend
 
 on:
   push:
@@ -9,32 +9,78 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare corrected Cloudflare upload folder
+
+      - name: Prepare full Cloudflare upload folder
+        shell: bash
         run: |
-          mkdir -p cloudflare-upload/blog
+          set -euo pipefail
+          rm -rf cloudflare-upload
+          mkdir -p cloudflare-upload/blog cloudflare-upload/tools cloudflare-upload/assets
+
+          # Core / career pages
           cp index.html cloudflare-upload/
           cp ats-checker.html cloudflare-upload/
           cp resume-builder.html cloudflare-upload/
           cp career-pro.html cloudflare-upload/
           cp career-resume-builder.html cloudflare-upload/
+          cp career-pdf-summarizer.html cloudflare-upload/
+
+          # Legal, SEO and shared site files
           cp about-us.html contact.html cookie-policy.html privacy-policy.html terms.html robots.txt sitemap.xml favicon.svg cloudflare-upload/
+
+          # Shared account / Career Pro assets
+          cp -R assets/. cloudflare-upload/assets/
+
+          # Blog index and full blog directory
           cp site_editor-1/blog.html cloudflare-upload/blog.html
           cp -R site_editor-1/blog/. cloudflare-upload/blog/
+
+          # Keep the current root tool URLs AND the legacy /tools/ URLs.
+          # Older EggyPDF pages link to /tools/* while newer pages use root URLs.
           for f in compress crop delete-pages excel-to-pdf jpg-to-pdf merge page-numbers pdf-to-excel pdf-to-jpg pdf-to-png pdf-to-ppt pdf-to-text pdf-to-word png-to-pdf ppt-to-pdf protect rotate split unlock watermark word-to-pdf; do
             test -f "$f.html"
-            cp "$f.html" cloudflare-upload/
+            cp "$f.html" "cloudflare-upload/$f.html"
+            cp "$f.html" "cloudflare-upload/tools/$f.html"
           done
-          if [ -f qr-code.html ]; then cp qr-code.html cloudflare-upload/; elif [ -f site_editor-1/tools/qr-code.html ]; then cp site_editor-1/tools/qr-code.html cloudflare-upload/qr-code.html; fi
+
+          if [ -f qr-code.html ]; then
+            cp qr-code.html cloudflare-upload/qr-code.html
+            cp qr-code.html cloudflare-upload/tools/qr-code.html
+          elif [ -f site_editor-1/tools/qr-code.html ]; then
+            cp site_editor-1/tools/qr-code.html cloudflare-upload/qr-code.html
+            cp site_editor-1/tools/qr-code.html cloudflare-upload/tools/qr-code.html
+          else
+            echo "QR Code Generator source is missing"
+            exit 1
+          fi
+
+          # Deployment safety checks
           test -f cloudflare-upload/index.html
           test -f cloudflare-upload/ats-checker.html
           test -f cloudflare-upload/resume-builder.html
           test -f cloudflare-upload/career-pro.html
           test -f cloudflare-upload/career-resume-builder.html
-          test ! -f cloudflare-upload/edit-pdf.html
-      - name: Upload corrected Cloudflare package
+          test -f cloudflare-upload/career-pdf-summarizer.html
+          test -f cloudflare-upload/assets/eggy-account.js
+          test -f cloudflare-upload/assets/eggy-account.css
+          test -f cloudflare-upload/assets/eggy-career-plans.js
+          test -f cloudflare-upload/assets/eggy-career-plans.css
+          test -f cloudflare-upload/tools/merge.html
+          test -f cloudflare-upload/tools/qr-code.html
+          test -f cloudflare-upload/blog.html
+
+          FILE_COUNT="$(find cloudflare-upload -type f | wc -l | tr -d ' ')"
+          echo "Cloudflare package file count: $FILE_COUNT"
+          if [ "$FILE_COUNT" -ne 73 ]; then
+            echo "Expected 73 files but package contains $FILE_COUNT. Refusing to publish an incomplete package."
+            find cloudflare-upload -type f | sort
+            exit 1
+          fi
+
+      - name: Upload full Cloudflare package
         uses: actions/upload-artifact@v4
         with:
-          name: EggyPDF-Cloudflare-Day2-Corrected
+          name: EggyPDF-Cloudflare-Full-73
           path: cloudflare-upload/
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
