@@ -13,8 +13,10 @@ from career_webhook_routes import webhook_bp
 from resume_routes import resume_bp
 from career_security_patch import install as install_career_security
 from career_credit_patch import install as install_credit_enforcement
+from career_ai_resilience import install as install_optimizer_resilience
 
 install_career_security()
+install_optimizer_resilience()
 
 app.register_blueprint(career_bp)
 app.register_blueprint(career_free_bp)
