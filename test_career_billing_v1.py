@@ -64,16 +64,23 @@ class BillingV1Tests(unittest.TestCase):
         self.assertEqual(data['plan'], 'yearly')
         save.assert_called_once()
 
+    @patch.object(billing, '_subscription_record')
     @patch.object(billing, '_payment_record')
     @patch.object(billing, '_checkout_record')
     @patch.object(billing, '_user')
-    def test_checkout_rejects_different_account(self, user, checkout, payment):
+    def test_checkout_rejects_different_account(self, user, checkout, payment, sub):
         user.return_value = {'id': 'user-1'}
         checkout.return_value = {'payment_status': 'succeeded', 'payment_id': 'pay_1'}
         payment.return_value = {
             'status': 'succeeded',
             'checkout_session_id': 'cks_1',
             'subscription_id': 'sub_1',
+            'metadata': {'account_user_id': 'user-2'},
+        }
+        sub.return_value = {
+            'subscription_id': 'sub_1',
+            'product_id': 'prod_yearly',
+            'status': 'active',
             'metadata': {'account_user_id': 'user-2'},
         }
         response = self.client.get('/api/billing/checkout/cks_1')
