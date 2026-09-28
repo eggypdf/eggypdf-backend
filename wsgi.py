@@ -14,6 +14,7 @@ from resume_routes import resume_bp
 from career_security_patch import install as install_career_security
 from career_credit_patch import install as install_credit_enforcement
 from career_ai_resilience import install as install_optimizer_resilience
+from launch_hardening import install as install_launch_hardening
 
 install_career_security()
 install_optimizer_resilience()
@@ -30,6 +31,7 @@ app.register_blueprint(subscription_bp)
 app.register_blueprint(webhook_bp)
 app.register_blueprint(resume_bp)
 install_credit_enforcement(app)
+install_launch_hardening(app)
 
 
 def allow_account_authorization_header(response):
