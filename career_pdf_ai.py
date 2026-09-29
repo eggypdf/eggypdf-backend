@@ -91,56 +91,105 @@ def _extract_json(payload):
     return json.loads(text)
 
 
+def _model_candidates(primary: str = ""):
+    configured_fallback = os.getenv("GEMINI_PDF_SUMMARY_FALLBACK_MODEL", "").strip()
+    models = []
+    for model in (
+        (primary or "").strip(),
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        configured_fallback,
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ):
+        if model and model not in models:
+            models.append(model)
+    return models
+
+
+def _generation_config(model: str, max_output_tokens: int):
+    config = {
+        "responseMimeType": "application/json",
+        "maxOutputTokens": max_output_tokens,
+    }
+    # Keep legacy sampling only for older 2.x models.
+    if model.startswith("gemini-2."):
+        config["temperature"] = 0.15
+    return config
+
+
 def _gemini_call(key: str, model: str, prompt: str, max_output_tokens: int = 4096):
-    """Call Gemini with bounded retries for provider errors and malformed JSON."""
-    response = None
-    last_parse_error = None
-    for attempt in range(3):
-        try:
-            response = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "responseMimeType": "application/json",
-                        "temperature": 0.15,
-                        "maxOutputTokens": max_output_tokens,
-                    },
-                },
-                timeout=80,
-            )
-        except requests.RequestException as exc:
-            if attempt < 2:
-                time.sleep(0.7 * (attempt + 1))
-                continue
-            raise RuntimeError("The AI PDF Summarizer is temporarily unreachable. Please try again in a moment.") from exc
+    """Call Gemini with cross-model fallback plus short bounded retries."""
+    transient_seen = False
+    rate_limited = False
+    parse_error_seen = False
+    permission_failures = 0
+    models = _model_candidates(model)
 
-        if response.ok:
+    for candidate_model in models:
+        for attempt in range(2):
             try:
-                return _extract_json(response.json())
-            except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-                last_parse_error = exc
-                if attempt < 2:
-                    time.sleep(0.5 * (attempt + 1))
+                response = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{candidate_model}:generateContent",
+                    params={"key": key},
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": _generation_config(candidate_model, max_output_tokens),
+                    },
+                    timeout=80,
+                )
+            except requests.RequestException:
+                transient_seen = True
+                if attempt == 0:
+                    time.sleep(0.7)
                     continue
-                raise RuntimeError("The AI PDF Summarizer returned an incomplete response after automatic retries. Please try again.") from exc
+                break
 
-        if response.status_code in RETRYABLE_STATUS and attempt < 2:
-            time.sleep(0.8 * (attempt + 1))
-            continue
-        break
+            if response.ok:
+                try:
+                    result = _extract_json(response.json())
+                    result["_model_used"] = candidate_model
+                    return result
+                except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+                    parse_error_seen = True
+                    if attempt == 0:
+                        time.sleep(0.4)
+                        continue
+                    break
 
-    if last_parse_error is not None:
-        raise RuntimeError("The AI PDF Summarizer returned an incomplete response after automatic retries. Please try again.") from last_parse_error
+            status = response.status_code
+            if status == 401:
+                raise RuntimeError("The AI PDF Summarizer is not authenticated correctly on the server.")
+            if status == 403:
+                permission_failures += 1
+                break
+            if status == 429:
+                rate_limited = True
+                if attempt == 0:
+                    time.sleep(0.8)
+                    continue
+                break
+            if status in (500, 502, 503, 504):
+                transient_seen = True
+                if attempt == 0:
+                    time.sleep(0.8)
+                    continue
+                break
+            if status in (400, 404):
+                # Unsupported/unavailable model or request variant: try next model.
+                break
+            break
 
-    status = response.status_code if response is not None else 503
-    if status == 429:
+    if permission_failures and permission_failures == len(models):
+        raise RuntimeError("The AI PDF Summarizer does not currently have access to an available AI model.")
+    if rate_limited:
         raise RuntimeError("The AI PDF Summarizer is busy right now. Please try again in a minute.")
-    if status in (401, 403):
-        raise RuntimeError("The AI PDF Summarizer is not authenticated correctly on the server.")
-    if status in (500, 502, 503, 504):
-        raise RuntimeError("The AI PDF Summarizer provider is temporarily unavailable after automatic retries. Please try again in a minute.")
-    raise RuntimeError(f"The AI PDF Summarizer failed on the server (HTTP {status}).")
+    if transient_seen:
+        raise RuntimeError("The AI PDF Summarizer provider is temporarily unavailable after automatic model fallback. Please try again in a minute.")
+    if parse_error_seen:
+        raise RuntimeError("The AI PDF Summarizer returned an incomplete response after automatic retries. Please try again.")
+    raise RuntimeError("The AI PDF Summarizer could not reach an available AI model. Please try again shortly.")
 
 
 def _split_text(text: str, limit: int = CHUNK_CHARS):
@@ -192,7 +241,7 @@ EXCERPT {index}:
 
 
 def summarize_pdf_text(text: str, detail: str = "short"):
-    """Summarize extracted PDF text with Gemini without inventing content."""
+    """Summarize extracted PDF text without inventing content."""
     detail = (detail or "short").strip().lower()
     if detail not in ALLOWED_DETAIL:
         raise ValueError("Summary detail must be short or detailed.")
@@ -205,7 +254,7 @@ def summarize_pdf_text(text: str, detail: str = "short"):
     key = (os.getenv("GEMINI_API") or os.getenv("GEMINI_API_KEY") or "").strip()
     if not key:
         raise RuntimeError("The AI PDF Summarizer is not configured on the server.")
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    model = os.getenv("GEMINI_PDF_SUMMARY_MODEL", os.getenv("GEMINI_MODEL", "")).strip()
 
     if detail == "short":
         length_rule = "Keep the overview to roughly 120-180 words and return 5-8 key points. Keep each list item concise."
@@ -268,6 +317,6 @@ important_details (array of strings)
         "detail": detail,
         "mode": "ai",
         "provider": "gemini",
-        "model": model,
+        "model": out.get("_model_used") or model or "automatic",
         "integrity_note": "This summary is generated from text extracted from your PDF. Review important facts, numbers, dates, and obligations against the original document before relying on them.",
     }
