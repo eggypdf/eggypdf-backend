@@ -31,25 +31,34 @@ def _extract_json_text(payload):
 
 
 def _cover_letter_models():
-    """Use the configured Gemini model first, then a stable fallback."""
-    primary = (
+    """Prefer current production Flash models, then retain 2.5 as legacy fallbacks."""
+    configured = (
         os.getenv("GEMINI_COVER_LETTER_MODEL")
         or os.getenv("GEMINI_MODEL")
-        or "gemini-2.5-flash"
+        or ""
     ).strip()
-    fallback = (
+    configured_fallback = (
         os.getenv("GEMINI_COVER_LETTER_FALLBACK_MODEL")
-        or "gemini-2.5-flash-lite"
+        or ""
     ).strip()
+
     models = []
-    for model in (primary, fallback):
+    for model in (
+        configured,
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        configured_fallback,
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ):
         if model and model not in models:
             models.append(model)
     return models
 
 
 def _cover_letter_log(model: str, event: str, detail: str = ""):
-    """Render-safe diagnostics. Never log API keys, prompts, or resume content."""
+    """Server-safe diagnostics. Never log API keys, prompts, or resume content."""
     message = f"[career-cover-letter] model={model} event={event}"
     if detail:
         message += f" detail={detail[:160]}"
@@ -57,23 +66,19 @@ def _cover_letter_log(model: str, event: str, detail: str = ""):
 
 
 def _gemini_cover_letter_request(key: str, model: str, prompt: str):
-    """Call Gemini with bounded exponential-backoff retries.
-
-    Returns (response, transport_error). A non-None transport_error means all
-    attempts failed before a normal HTTP response was received.
-    """
+    """Call one model with a short bounded retry before cross-model fallback."""
     last_error = None
     last_response = None
 
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             response = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                params={"key": key},
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "responseMimeType": "application/json",
-                        "temperature": 0.35,
                         "maxOutputTokens": 4096,
                     },
                 },
@@ -83,8 +88,8 @@ def _gemini_cover_letter_request(key: str, model: str, prompt: str):
         except requests.RequestException as exc:
             last_error = exc
             _cover_letter_log(model, "transport_error", exc.__class__.__name__)
-            if attempt < 2:
-                time.sleep((2 ** attempt) + random.uniform(0.15, 0.55))
+            if attempt == 0:
+                time.sleep(0.8 + random.uniform(0.10, 0.35))
                 continue
             return None, last_error
 
@@ -93,8 +98,8 @@ def _gemini_cover_letter_request(key: str, model: str, prompt: str):
             return response, None
 
         _cover_letter_log(model, "http_error", str(response.status_code))
-        if response.status_code in TRANSIENT_STATUSES and attempt < 2:
-            time.sleep((2 ** attempt) + random.uniform(0.15, 0.55))
+        if response.status_code in TRANSIENT_STATUSES and attempt == 0:
+            time.sleep(0.8 + random.uniform(0.10, 0.35))
             continue
 
         return response, None
@@ -168,6 +173,8 @@ TARGET JOB DESCRIPTION:
 """
 
     failures = []
+    permission_failures = 0
+
     for model in _cover_letter_models():
         response, transport_error = _gemini_cover_letter_request(key, model, prompt)
 
@@ -180,14 +187,17 @@ TARGET JOB DESCRIPTION:
             continue
 
         if not response.ok:
-            if response.status_code in (401, 403):
+            status = response.status_code
+            if status == 401:
                 raise RuntimeError("The AI cover letter generator is not authenticated correctly on the server.")
-            if response.status_code == 404 or response.status_code in TRANSIENT_STATUSES:
-                failures.append(f"{model}: HTTP {response.status_code}")
+            if status == 403:
+                permission_failures += 1
+                failures.append(f"{model}: HTTP 403")
                 continue
-            if response.status_code == 400:
-                raise RuntimeError("The AI cover letter request was rejected by the AI provider. Please review the inputs and try again.")
-            failures.append(f"{model}: HTTP {response.status_code}")
+            if status in (400, 404) or status in TRANSIENT_STATUSES:
+                failures.append(f"{model}: HTTP {status}")
+                continue
+            failures.append(f"{model}: HTTP {status}")
             continue
 
         try:
@@ -222,6 +232,8 @@ TARGET JOB DESCRIPTION:
         }
 
     _cover_letter_log("all", "failed_after_retries", "; ".join(failures))
+    if permission_failures and permission_failures == len(_cover_letter_models()):
+        raise RuntimeError("The AI cover letter generator does not currently have access to an available AI model.")
     raise RuntimeError(
-        "The AI cover letter service is temporarily unavailable after several retries. Please try again shortly."
+        "The AI cover letter service is temporarily unavailable after automatic model fallback. Please try again shortly."
     )
