@@ -30,6 +30,18 @@ def cleanup(*paths):
             elif os.path.isdir(p): shutil.rmtree(p)
         except: pass
 
+def send_temp_file(path, *, cleanup_paths=None, **kwargs):
+    """Send a generated file and remove its temporary storage when the response closes."""
+    response = send_file(path, **kwargs)
+    targets = list(cleanup_paths) if cleanup_paths is not None else [path]
+    response.call_on_close(lambda: cleanup(*targets))
+    return response
+
+
+@app.errorhandler(413)
+def file_too_large(_error):
+    return jsonify({"error": "File is too large. Maximum upload size is 50 MB."}), 413
+
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
@@ -86,7 +98,7 @@ def merge_pdf():
         return jsonify({"error": f"Merge failed: {str(e)}"}), 500
 
     cleanup(*saved)
-    return send_file(out, as_attachment=True, download_name='merged.pdf', mimetype='application/pdf')
+    return send_temp_file(out, as_attachment=True, download_name='merged.pdf', mimetype='application/pdf')
 
 
 # ─── 2. SPLIT PDF ───
@@ -140,6 +152,7 @@ def split_pdf():
     return send_file(zip_buf, as_attachment=True, download_name='split_pages.zip', mimetype='application/zip')
 
 
+
 # ─── 3. COMPRESS PDF ───
 @app.route('/api/compress', methods=['POST', 'OPTIONS'])
 def compress_pdf():
@@ -147,52 +160,87 @@ def compress_pdf():
     if not f or not allowed_file(f.filename, {'pdf'}):
         return jsonify({"error": "Please upload a valid PDF file."}), 400
 
-    level = request.form.get('level', 'medium')
+    level = (request.form.get('level', 'medium') or 'medium').strip().lower()
+    profiles = {
+        # Low = gentler image downsampling, Medium = balanced default,
+        # High = strongest reduction for upload/email size limits.
+        'low':    {'preset': '/printer', 'dpi': 144, 'jpegq': 88},
+        'medium': {'preset': '/ebook',   'dpi': 110, 'jpegq': 78},
+        'high':   {'preset': '/screen',  'dpi': 72,  'jpegq': 62},
+    }
+    profile = profiles.get(level, profiles['medium'])
+
     saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
     f.save(saved)
+    original_size = os.path.getsize(saved)
+    if original_size <= 0:
+        cleanup(saved)
+        return jsonify({"error": "The uploaded PDF is empty."}), 400
+
+    candidates = []
+
+    # Candidate 1: image-aware Ghostscript compression.
+    gs_out = make_output_path('pdf')
+    try:
+        dpi = profile['dpi']
+        result = subprocess.run([
+            'gs', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
+            f"-dPDFSETTINGS={profile['preset']}",
+            '-dNOPAUSE', '-dQUIET', '-dBATCH',
+            '-dDetectDuplicateImages=true',
+            '-dCompressFonts=true', '-dSubsetFonts=true',
+            '-dDownsampleColorImages=true', '-dColorImageDownsampleType=/Bicubic',
+            f'-dColorImageResolution={dpi}', '-dColorImageDownsampleThreshold=1.0',
+            '-dDownsampleGrayImages=true', '-dGrayImageDownsampleType=/Bicubic',
+            f'-dGrayImageResolution={dpi}', '-dGrayImageDownsampleThreshold=1.0',
+            '-dDownsampleMonoImages=true', f'-dMonoImageResolution={max(150, dpi * 2)}',
+            '-dAutoFilterColorImages=false', '-dColorImageFilter=/DCTEncode',
+            '-dAutoFilterGrayImages=false', '-dGrayImageFilter=/DCTEncode',
+            f"-dJPEGQ={profile['jpegq']}",
+            f'-sOutputFile={gs_out}', saved
+        ], capture_output=True, timeout=180)
+        if result.returncode == 0 and os.path.exists(gs_out) and os.path.getsize(gs_out) > 0:
+            candidates.append(gs_out)
+        else:
+            cleanup(gs_out)
+    except Exception:
+        cleanup(gs_out)
+
+    # Candidate 2: lossless object/stream optimization. This can win on
+    # text/vector PDFs where image downsampling has little to reduce.
+    pike_out = make_output_path('pdf')
+    try:
+        import pikepdf
+        with pikepdf.open(saved) as pdf:
+            pdf.save(
+                pike_out,
+                compress_streams=True,
+                object_stream_mode=pikepdf.ObjectStreamMode.generate,
+                recompress_flate=True,
+            )
+        if os.path.exists(pike_out) and os.path.getsize(pike_out) > 0:
+            candidates.append(pike_out)
+        else:
+            cleanup(pike_out)
+    except Exception:
+        cleanup(pike_out)
+
+    if not candidates:
+        cleanup(saved)
+        return jsonify({"error": "We could not compress this PDF. The file may be damaged or use an unsupported structure."}), 500
+
+    best = min(candidates, key=os.path.getsize)
     out = make_output_path('pdf')
 
-    original_size = os.path.getsize(saved)
+    # Never make the user's file larger. If there is no meaningful safe saving,
+    # return the original bytes and let the UI explain that it is already optimized.
+    if os.path.getsize(best) < original_size * 0.995:
+        shutil.move(best, out)
+    else:
+        shutil.copy2(saved, out)
 
-    # ── Method 1: Ghostscript (best real compression) ──
-    gs_settings = {'low': '/ebook', 'medium': '/ebook', 'high': '/screen'}
-    quality = gs_settings.get(level, '/ebook')
-
-    gs_ok = False
-    for gs_cmd in ['gs', 'ghostscript']:
-        try:
-            result = subprocess.run([
-                gs_cmd, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
-                f'-dPDFSETTINGS={quality}', '-dNOPAUSE', '-dQUIET', '-dBATCH',
-                '-dDetectDuplicateImages=true', '-dCompressFonts=true',
-                f'-sOutputFile={out}', saved
-            ], capture_output=True, timeout=120)
-            if result.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 0:
-                gs_ok = True
-                break
-        except Exception:
-            continue
-
-    # ── Method 2: pikepdf fallback (if Ghostscript unavailable) ──
-    if not gs_ok:
-        try:
-            with pikepdf.open(saved) as pdf:
-                pdf.save(out, compress_streams=True,
-                         object_stream_mode=pikepdf.ObjectStreamMode.generate,
-                         recompress_flate=True)
-        except Exception as e:
-            cleanup(saved)
-            return jsonify({"error": f"Compression failed: {str(e)}"}), 500
-
-    # If output somehow ended up larger, return the original instead
-    try:
-        if os.path.exists(out) and os.path.getsize(out) >= original_size:
-            shutil.copy(saved, out)
-    except Exception:
-        pass
-
-    cleanup(saved)
-    return send_file(out, as_attachment=True, download_name='compressed.pdf', mimetype='application/pdf')
+    cleanup(saved, *candidates)
+    return send_temp_file(out, as_attachment=True, download_name='compressed.pdf', mimetype='application/pdf')
 
 
 # ─── 4. PDF TO WORD ───
@@ -202,22 +250,96 @@ def pdf_to_word():
     if not f or not allowed_file(f.filename, {'pdf'}):
         return jsonify({"error": "Please upload a valid PDF file."}), 400
 
+    mode = (request.form.get('mode', 'layout') or 'layout').strip().lower()
+    if mode not in {'layout', 'editable'}:
+        return jsonify({"error": "Unknown PDF to Word conversion mode."}), 400
+
     saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
     f.save(saved)
     out = make_output_path('docx')
+    render_dir = None
 
     try:
-        from pdf2docx import Converter
-        cv = Converter(saved)
-        cv.convert(out, start=0, end=None)
-        cv.close()
+        if mode == 'layout':
+            # Preserve the PDF's visible page appearance by rendering each page
+            # into the Word document. This avoids font substitution/reflow.
+            from docx import Document
+            from docx.shared import Inches, Pt
+            from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+
+            reader = PdfReader(saved)
+            if not reader.pages:
+                raise ValueError("The PDF has no pages.")
+
+            render_dir = os.path.join(OUTPUT_FOLDER, uuid.uuid4().hex)
+            os.makedirs(render_dir, exist_ok=True)
+            prefix = os.path.join(render_dir, 'page')
+            result = subprocess.run([
+                'pdftoppm', '-jpeg', '-r', '144',
+                '-jpegopt', 'quality=90',
+                saved, prefix
+            ], capture_output=True, timeout=180)
+
+            images = sorted([
+                os.path.join(render_dir, name)
+                for name in os.listdir(render_dir)
+                if name.lower().endswith(('.jpg', '.jpeg'))
+            ])
+            if result.returncode != 0 or not images:
+                raise RuntimeError("Could not render the PDF pages.")
+
+            first = reader.pages[0]
+            page_w = float(first.mediabox.width)
+            page_h = float(first.mediabox.height)
+            if int(getattr(first, 'rotation', 0) or 0) % 180:
+                page_w, page_h = page_h, page_w
+
+            doc = Document()
+            section = doc.sections[0]
+            section.page_width = Pt(page_w)
+            section.page_height = Pt(page_h)
+            margin_in = 0.15
+            section.top_margin = Inches(margin_in)
+            section.bottom_margin = Inches(margin_in)
+            section.left_margin = Inches(margin_in)
+            section.right_margin = Inches(margin_in)
+            usable_width_in = max(1.0, page_w / 72.0 - margin_in * 2)
+
+            for idx, image_path in enumerate(images):
+                paragraph = doc.add_paragraph()
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                paragraph.paragraph_format.space_before = Pt(0)
+                paragraph.paragraph_format.space_after = Pt(0)
+                run = paragraph.add_run()
+                run.add_picture(image_path, width=Inches(usable_width_in))
+                if idx < len(images) - 1:
+                    run.add_break(WD_BREAK.PAGE)
+
+            doc.save(out)
+        else:
+            # Editable mode is best-effort: PDF is fixed-position while Word
+            # reflows content, so complex fonts/columns can still shift.
+            from pdf2docx import Converter
+            cv = Converter(saved)
+            try:
+                cv.convert(out, start=0, end=None, multi_processing=False)
+            finally:
+                cv.close()
+
+        if not os.path.exists(out) or os.path.getsize(out) == 0:
+            raise RuntimeError("The Word file could not be created.")
+
     except Exception as e:
-        cleanup(saved)
+        cleanup(saved, render_dir, out)
         return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
 
-    cleanup(saved)
-    return send_file(out, as_attachment=True, download_name='converted.docx',
-                     mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    cleanup(saved, render_dir)
+    return send_temp_file(
+        out,
+        as_attachment=True,
+        download_name='converted.docx',
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
 
 
 # ─── 5. WORD TO PDF ───
@@ -227,7 +349,8 @@ def word_to_pdf():
     if not f or not allowed_file(f.filename, {'doc', 'docx'}):
         return jsonify({"error": "Please upload a valid Word (.doc or .docx) file."}), 400
 
-    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.docx")
+    ext = f.filename.rsplit('.', 1)[-1].lower()
+    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.{ext}")
     f.save(saved)
     out = make_output_path('pdf')
 
@@ -236,22 +359,24 @@ def word_to_pdf():
             result = subprocess.run([
                 cmd, '--headless', '--convert-to', 'pdf',
                 '--outdir', OUTPUT_FOLDER, saved
-            ], capture_output=True, timeout=60)
-            expected = os.path.join(OUTPUT_FOLDER,
-                        os.path.splitext(os.path.basename(saved))[0] + '.pdf')
-            if os.path.exists(expected):
+            ], capture_output=True, timeout=90)
+            expected = os.path.join(
+                OUTPUT_FOLDER,
+                os.path.splitext(os.path.basename(saved))[0] + '.pdf'
+            )
+            if result.returncode == 0 and os.path.exists(expected):
                 shutil.move(expected, out)
                 break
     except Exception as e:
-        cleanup(saved)
+        cleanup(saved, out)
         return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
 
     cleanup(saved)
-    if not os.path.exists(out):
-        return jsonify({"error": "Conversion failed. LibreOffice may not be available."}), 500
+    if not os.path.exists(out) or os.path.getsize(out) == 0:
+        cleanup(out)
+        return jsonify({"error": "Conversion failed. Please check the Word file and try again."}), 500
 
-    return send_file(out, as_attachment=True, download_name='converted.pdf', mimetype='application/pdf')
-
+    return send_temp_file(out, as_attachment=True, download_name='converted.pdf', mimetype='application/pdf')
 
 # ─── 6. JPG TO PDF ───
 @app.route('/api/jpg-to-pdf', methods=['POST', 'OPTIONS'])
@@ -282,7 +407,8 @@ def jpg_to_pdf():
         return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
 
     cleanup(*saved_paths)
-    return send_file(out, as_attachment=True, download_name='images.pdf', mimetype='application/pdf')
+    return send_temp_file(out, as_attachment=True, download_name='images.pdf', mimetype='application/pdf')
+
 
 
 # ─── 7. ADD WATERMARK ───
@@ -292,42 +418,47 @@ def add_watermark():
     text = request.form.get('text', 'CONFIDENTIAL')
     if not f or not allowed_file(f.filename, {'pdf'}):
         return jsonify({"error": "Please upload a valid PDF file."}), 400
+    if not text.strip():
+        return jsonify({"error": "Please enter watermark text."}), 400
 
     saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
     f.save(saved)
-    wm_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}_wm.pdf")
 
     try:
         from reportlab.pdfgen import canvas as rl_canvas
-        from reportlab.lib.pagesizes import A4
-        c = rl_canvas.Canvas(wm_path, pagesize=A4)
-        c.setFont("Helvetica-Bold", 48)
-        c.setFillColorRGB(0.7, 0.7, 0.7, alpha=0.35)
-        c.saveState()
-        c.translate(A4[0]/2, A4[1]/2)
-        c.rotate(45)
-        c.drawCentredString(0, 0, text.upper())
-        c.restoreState()
-        c.save()
 
         reader = PdfReader(saved)
-        wm_reader = PdfReader(wm_path)
-        wm_page = wm_reader.pages[0]
         writer = PdfWriter()
+
         for page in reader.pages:
-            page.merge_page(wm_page)
+            w = float(page.mediabox.width)
+            h = float(page.mediabox.height)
+            overlay_buf = io.BytesIO()
+            c = rl_canvas.Canvas(overlay_buf, pagesize=(w, h))
+            font_size = max(24, min(52, min(w, h) / 11))
+            c.setFont("Helvetica-Bold", font_size)
+            c.setFillColorRGB(0.62, 0.62, 0.62, alpha=0.32)
+            c.saveState()
+            c.translate(w / 2, h / 2)
+            c.rotate(45)
+            c.drawCentredString(0, 0, text.strip()[:180])
+            c.restoreState()
+            c.save()
+            overlay_buf.seek(0)
+
+            overlay_page = PdfReader(overlay_buf).pages[0]
+            page.merge_page(overlay_page)
             writer.add_page(page)
 
         out = make_output_path('pdf')
         with open(out, 'wb') as fh:
             writer.write(fh)
     except Exception as e:
-        cleanup(saved, wm_path)
+        cleanup(saved, locals().get('out'))
         return jsonify({"error": f"Watermark failed: {str(e)}"}), 500
 
-    cleanup(saved, wm_path)
-    return send_file(out, as_attachment=True, download_name='watermarked.pdf', mimetype='application/pdf')
-
+    cleanup(saved)
+    return send_temp_file(out, as_attachment=True, download_name='watermarked.pdf', mimetype='application/pdf')
 
 # ─── 8. PROTECT PDF ───
 @app.route('/api/protect', methods=['POST', 'OPTIONS'])
@@ -356,7 +487,7 @@ def protect_pdf():
         return jsonify({"error": f"Protection failed: {str(e)}"}), 500
 
     cleanup(saved)
-    return send_file(out, as_attachment=True, download_name='protected.pdf', mimetype='application/pdf')
+    return send_temp_file(out, as_attachment=True, download_name='protected.pdf', mimetype='application/pdf')
 
 
 # ─── 9. PDF TO JPG ───
@@ -394,7 +525,7 @@ def pdf_to_jpg():
         if len(jpg_files) == 1:
             # Single page — return JPG directly
             cleanup(saved)
-            return send_file(jpg_files[0], as_attachment=True,
+            return send_temp_file(jpg_files[0], cleanup_paths=[out_dir], as_attachment=True,
                            download_name='page_1.jpg', mimetype='image/jpeg')
         else:
             # Multiple pages — zip them
@@ -444,7 +575,7 @@ def pdf_to_png():
 
         if len(png_files) == 1:
             cleanup(saved)
-            return send_file(png_files[0], as_attachment=True,
+            return send_temp_file(png_files[0], cleanup_paths=[out_dir], as_attachment=True,
                            download_name='page_1.png', mimetype='image/png')
         else:
             zip_buf = io.BytesIO()
@@ -491,7 +622,7 @@ def png_to_pdf():
         return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
 
     cleanup(*saved_paths)
-    return send_file(out, as_attachment=True,
+    return send_temp_file(out, as_attachment=True,
                     download_name='converted.pdf', mimetype='application/pdf')
 
 
@@ -542,7 +673,7 @@ def rotate_pdf():
         return jsonify({"error": f"Rotation failed: {str(e)}"}), 500
 
     cleanup(saved)
-    return send_file(out, as_attachment=True,
+    return send_temp_file(out, as_attachment=True,
                     download_name='rotated.pdf', mimetype='application/pdf')
 
 
@@ -593,7 +724,7 @@ def delete_pages():
         return jsonify({"error": f"Page deletion failed: {str(e)}"}), 500
 
     cleanup(saved)
-    return send_file(out, as_attachment=True,
+    return send_temp_file(out, as_attachment=True,
                     download_name='edited.pdf', mimetype='application/pdf')
 
 
@@ -680,7 +811,7 @@ def unlock_pdf():
         return jsonify({"error": "Unlock failed. The file may be corrupted."}), 500
 
     cleanup(saved)
-    return send_file(out, as_attachment=True,
+    return send_temp_file(out, as_attachment=True,
                     download_name='unlocked.pdf', mimetype='application/pdf')
 
 
@@ -754,7 +885,7 @@ def add_page_numbers():
         return jsonify({"error": f"Failed to add page numbers: {str(e)}"}), 500
 
     cleanup(saved)
-    return send_file(out, as_attachment=True,
+    return send_temp_file(out, as_attachment=True,
                      download_name='numbered.pdf', mimetype='application/pdf')
 
 
@@ -804,8 +935,9 @@ def crop_pdf():
         return jsonify({"error": f"Crop failed: {str(e)}"}), 500
 
     cleanup(saved)
-    return send_file(out, as_attachment=True,
+    return send_temp_file(out, as_attachment=True,
                      download_name='cropped.pdf', mimetype='application/pdf')
+
 
 
 # ─── 17. POWERPOINT TO PDF ───
@@ -815,7 +947,8 @@ def ppt_to_pdf():
     if not f or not allowed_file(f.filename, {'ppt', 'pptx'}):
         return jsonify({"error": "Please upload a valid PowerPoint (.ppt or .pptx) file."}), 400
 
-    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pptx")
+    ext = f.filename.rsplit('.', 1)[-1].lower()
+    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.{ext}")
     f.save(saved)
     out = make_output_path('pdf')
 
@@ -829,20 +962,19 @@ def ppt_to_pdf():
                 OUTPUT_FOLDER,
                 os.path.splitext(os.path.basename(saved))[0] + '.pdf'
             )
-            if os.path.exists(expected):
+            if result.returncode == 0 and os.path.exists(expected):
                 shutil.move(expected, out)
                 break
     except Exception as e:
-        cleanup(saved)
+        cleanup(saved, out)
         return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
 
     cleanup(saved)
-    if not os.path.exists(out):
-        return jsonify({"error": "Conversion failed. Please try again."}), 500
+    if not os.path.exists(out) or os.path.getsize(out) == 0:
+        cleanup(out)
+        return jsonify({"error": "Conversion failed. Please check the PowerPoint file and try again."}), 500
 
-    return send_file(out, as_attachment=True,
-                     download_name='converted.pdf', mimetype='application/pdf')
-
+    return send_temp_file(out, as_attachment=True, download_name='converted.pdf', mimetype='application/pdf')
 
 # ─── 18. EXCEL TO PDF ───
 @app.route('/api/excel-to-pdf', methods=['POST', 'OPTIONS'])
@@ -877,7 +1009,7 @@ def excel_to_pdf():
     if not os.path.exists(out):
         return jsonify({"error": "Conversion failed. Please try again."}), 500
 
-    return send_file(out, as_attachment=True,
+    return send_temp_file(out, as_attachment=True,
                      download_name='converted.pdf', mimetype='application/pdf')
 
 
@@ -932,7 +1064,7 @@ def pdf_to_excel():
         return jsonify({"error": f"Extraction failed: {str(e)}"}), 500
 
     cleanup(saved)
-    return send_file(
+    return send_temp_file(
         out, as_attachment=True,
         download_name='extracted.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -974,6 +1106,7 @@ def pdf_to_text():
                      download_name='extracted.txt', mimetype='text/plain')
 
 
+
 # ─── 21. PDF TO POWERPOINT ───
 @app.route('/api/pdf-to-ppt', methods=['POST', 'OPTIONS'])
 def pdf_to_ppt():
@@ -981,19 +1114,18 @@ def pdf_to_ppt():
     if not f or not allowed_file(f.filename, {'pdf'}):
         return jsonify({"error": "Please upload a valid PDF file."}), 400
 
-    saved   = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
+    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
     f.save(saved)
     out_dir = os.path.join(OUTPUT_FOLDER, uuid.uuid4().hex)
     os.makedirs(out_dir)
-    out     = make_output_path('pptx')
+    out = make_output_path('pptx')
 
     try:
         from pptx import Presentation
-        from pptx.util import Inches, Pt
-        import re
+        from pptx.util import Inches
+        from PIL import Image as PILImage
 
-        # Render each page as image via ghostscript
-        subprocess.run([
+        result = subprocess.run([
             'gs', '-dNOPAUSE', '-dBATCH', '-dSAFER',
             '-sDEVICE=png16m', '-r150',
             f'-sOutputFile={out_dir}/slide_%03d.png', saved
@@ -1003,40 +1135,66 @@ def pdf_to_ppt():
             os.path.join(out_dir, fn)
             for fn in os.listdir(out_dir) if fn.endswith('.png')
         ])
-
-        if not slides:
+        if result.returncode != 0 or not slides:
             raise Exception("Could not render PDF pages")
 
+        # Match the presentation aspect ratio to the first PDF page instead of
+        # stretching portrait pages into a fixed 4:3 slide.
+        reader = PdfReader(saved)
+        first = reader.pages[0]
+        page_w = float(first.mediabox.width)
+        page_h = float(first.mediabox.height)
+        if int(getattr(first, 'rotation', 0) or 0) % 180:
+            page_w, page_h = page_h, page_w
+
         prs = Presentation()
-        prs.slide_width  = Inches(10)
-        prs.slide_height = Inches(7.5)
-        blank_layout     = prs.slide_layouts[6]  # blank
+        if page_w >= page_h:
+            slide_w_in = 10.0
+            slide_h_in = 10.0 * page_h / page_w
+        else:
+            slide_h_in = 10.0
+            slide_w_in = 10.0 * page_w / page_h
+        prs.slide_width = Inches(slide_w_in)
+        prs.slide_height = Inches(slide_h_in)
+        blank_layout = prs.slide_layouts[6]
 
         for slide_img in slides:
             slide = prs.slides.add_slide(blank_layout)
+            with PILImage.open(slide_img) as im:
+                img_ratio = im.width / im.height
+            slide_ratio = slide_w_in / slide_h_in
+            if img_ratio >= slide_ratio:
+                width = slide_w_in
+                height = width / img_ratio
+                left = 0
+                top = (slide_h_in - height) / 2
+            else:
+                height = slide_h_in
+                width = height * img_ratio
+                top = 0
+                left = (slide_w_in - width) / 2
             slide.shapes.add_picture(
-                slide_img, Inches(0), Inches(0),
-                width=Inches(10), height=Inches(7.5)
+                slide_img,
+                Inches(left), Inches(top),
+                width=Inches(width), height=Inches(height)
             )
 
         prs.save(out)
 
     except ImportError:
-        cleanup(saved, out_dir)
-        return jsonify({"error": "python-pptx not installed on server."}), 500
+        cleanup(saved, out_dir, out)
+        return jsonify({"error": "PowerPoint conversion support is temporarily unavailable."}), 500
     except Exception as e:
-        cleanup(saved, out_dir)
+        cleanup(saved, out_dir, out)
         return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
 
     cleanup(saved, out_dir)
-    return send_file(
-        out, as_attachment=True,
+    return send_temp_file(
+        out,
+        as_attachment=True,
         download_name='converted.pptx',
         mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation'
     )
-
-
-
 
 # ─── SEND CV TO EMAIL ───
 @app.route('/api/send-cv-email', methods=['POST', 'OPTIONS'])
