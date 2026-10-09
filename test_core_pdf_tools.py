@@ -24,24 +24,46 @@ class CorePdfToolRegressionTests(unittest.TestCase):
         buf.seek(0)
         return buf.getvalue()
 
-    def test_compress_never_returns_larger_file(self):
+    def test_compress_all_three_levels_can_reduce(self):
         original = self._pdf_bytes()
+
+        for level in ("low", "medium", "high"):
+            def fake_run(cmd, **kwargs):
+                out_arg = next(x for x in cmd if x.startswith("-sOutputFile="))
+                out_path = out_arg.split("=", 1)[1]
+                with open(out_path, "wb") as fh:
+                    fh.write(original[: max(100, len(original) // 2)])
+                return mock.Mock(returncode=0)
+
+            with self.subTest(level=level):
+                with mock.patch.object(app_module.subprocess, "run", side_effect=fake_run):
+                    response = self.client.post(
+                        "/api/compress",
+                        data={"file": (io.BytesIO(original), "sample.pdf"), "level": level},
+                        content_type="multipart/form-data",
+                    )
+                self.assertEqual(response.status_code, 200)
+                self.assertLess(len(response.data), len(original))
+
+    def test_compress_accepts_small_real_saving(self):
+        original = self._pdf_bytes()
+        target_size = max(100, len(original) - 1)
 
         def fake_run(cmd, **kwargs):
             out_arg = next(x for x in cmd if x.startswith("-sOutputFile="))
             out_path = out_arg.split("=", 1)[1]
             with open(out_path, "wb") as fh:
-                fh.write(original[: max(100, len(original) // 2)])
+                fh.write(original[:target_size])
             return mock.Mock(returncode=0)
 
         with mock.patch.object(app_module.subprocess, "run", side_effect=fake_run):
             response = self.client.post(
                 "/api/compress",
-                data={"file": (io.BytesIO(original), "sample.pdf"), "level": "medium"},
+                data={"file": (io.BytesIO(original), "sample.pdf"), "level": "low"},
                 content_type="multipart/form-data",
             )
         self.assertEqual(response.status_code, 200)
-        self.assertLessEqual(len(response.data), len(original))
+        self.assertLess(len(response.data), len(original))
 
     def test_pdf_to_word_layout_mode_creates_docx(self):
         pdf_bytes = self._pdf_bytes()
