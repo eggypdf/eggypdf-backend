@@ -167,8 +167,8 @@ main{max-width:760px;margin:0 auto;padding:36px 1.5rem 60px}
 
   <div class="result-card" id="resultCard">
     <div class="check">✅</div>
-    <h3>Compression complete!</h3>
-    <p>Your PDF has been compressed successfully.</p>
+    <h3 id="resultTitle">Compression complete!</h3>
+    <p id="resultText">Your PDF has been compressed successfully.</p>
     <a id="downloadLink" class="download-btn" download="compressed.pdf">⬇️ Download Compressed PDF</a>
     <button class="new-btn" onclick="resetTool()">🔄 Compress another</button>
   </div>
@@ -200,7 +200,7 @@ main{max-width:760px;margin:0 auto;padding:36px 1.5rem 60px}
     <p>It depends on the compression level you choose. Low compression keeps quality nearly identical. High compression reduces size the most but may slightly reduce image sharpness. Text-only PDFs are not visually affected at any level.</p>
 
     <h3>Is there a file size limit?</h3>
-    <p>EggyPDF accepts PDF files up to 100MB. For extremely large files, try splitting the PDF first, then compressing each part.</p>
+    <p>EggyPDF accepts PDF files up to 50MB. For extremely large files, try splitting the PDF first, then compressing each part.</p>
 
     <h3>Can I compress a PDF on my phone?</h3>
     <p>Yes. EggyPDF works fully on mobile browsers — no app download required. Open the page, upload your file, and download the compressed PDF directly to your phone.</p>
@@ -371,6 +371,17 @@ function hideError(){document.getElementById('errorBox').style.display='none';}
 let selectedFile=null,level='medium';
 function setFile(f){selectedFile=f;document.getElementById('filePreview').innerHTML=`<div class="file-preview"><span style="font-size:1.4rem">📄</span><span style="font-size:13.5px;font-weight:500;flex:1">${f.name}</span><span style="font-size:12px;color:var(--muted)">${(f.size/1024/1024).toFixed(2)} MB</span></div>`;document.getElementById('optionsCard').style.display='block';document.getElementById('actionBtn').disabled=false;}
 function setLevel(l){level=l;['low','medium','high'].forEach(x=>{const el=document.getElementById('lvl-'+x);el.style.border='2px solid var(--border)';el.style.background='';});const a=document.getElementById('lvl-'+l);a.style.border='2px solid var(--brand)';a.style.background='var(--brand-light)';}
+function fmtSize(b){return b>=1048576?(b/1048576).toFixed(2)+' MB':Math.max(1,Math.round(b/1024))+' KB';}
+function showResult(orig,now){
+  const saved=orig>0?Math.round((1-now/orig)*100):0,t=document.getElementById('resultText'),h=document.getElementById('resultTitle');
+  if(now>=orig||saved<5){
+    h.textContent='Already well optimised';
+    t.innerHTML='<b>'+fmtSize(orig)+' \u2192 '+fmtSize(Math.min(now,orig))+'</b> ('+Math.max(saved,0)+'% smaller).<br>This PDF has very little left to remove at this level.'+(level!=='high'?' Try <b>High</b> for a smaller file.':' Text-only PDFs and files that are already compressed can\u2019t shrink much.');
+  }else{
+    h.textContent='Compression complete!';
+    t.innerHTML='<b>'+fmtSize(orig)+' \u2192 '+fmtSize(now)+'</b> &nbsp;(<b>'+saved+'% smaller</b>)';
+  }
+}
 async function processFile(){
   if(!selectedFile){showError('Please upload a PDF.');return;}
   hideError();
@@ -382,7 +393,7 @@ async function processFile(){
     finishEggProgress();
     if(!res.ok){const e=await res.json();throw new Error(e.error||'Compression failed.');}
     const blob=await res.blob();
-    document.getElementById('downloadLink').href=URL.createObjectURL(blob);
+    document.getElementById('downloadLink').href=URL.createObjectURL(blob);showResult(selectedFile.size,blob.size);
     hideEggProgress();document.getElementById('resultCard').style.display='block';document.getElementById('continueSection') && (document.getElementById('continueSection').style.display='block');
   }catch(err){hideEggProgress();showError(err.message);document.getElementById('actionBtn').disabled=false;}
 }
@@ -438,7 +449,7 @@ function resetTool(){selectedFile=null;document.getElementById('filePreview').in
     <p>It depends on the compression level you choose. Low compression keeps quality nearly identical. High compression reduces size the most but may slightly reduce image sharpness. Text-only PDFs are not visually affected at any level.</p>
 
     <h3>Is there a file size limit?</h3>
-    <p>EggyPDF accepts PDF files up to 100MB. For extremely large files, try splitting the PDF first, then compressing each part.</p>
+    <p>EggyPDF accepts PDF files up to 50MB. For extremely large files, try splitting the PDF first, then compressing each part.</p>
 
     <h3>Can I compress a PDF on my phone?</h3>
     <p>Yes. EggyPDF works fully on mobile browsers — no app download required. Open the page, upload your file, and download the compressed PDF directly to your phone.</p>

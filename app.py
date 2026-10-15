@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import os, uuid, zipfile, tempfile, shutil, subprocess, io
+import os, uuid, zipfile, tempfile, shutil, subprocess, io, time
 from werkzeug.utils import secure_filename
 
 # Core only — heavy libs imported lazily inside each route
@@ -155,6 +155,85 @@ def split_pdf():
 
 
 # ─── 3. COMPRESS PDF ───
+#
+# Each level is a ladder of progressively stronger (image DPI, JPEG QFactor)
+# steps. The route tries the lossless pass first, then climbs the ladder only
+# until the level's target saving is reached. That keeps quality as high as
+# the level promises while still producing a visible reduction.
+#
+# Things Ghostscript's pdfwrite does that the previous version got wrong:
+#   * -dJPEGQ is ignored by pdfwrite. JPEG quality is only controlled through
+#     the ColorImageDict / GrayImageDict QFactor (0.4 ~ q80, 0.76 ~ q62,
+#     1.3 ~ q38).
+#   * Existing JPEGs are copied through untouched unless
+#     -dPassThroughJPEGImages=false, so images already at or below the target
+#     DPI were never recompressed. A 2 MB file came back as 1.95 MB.
+COMPRESS_LEVELS = {
+    # target = saving the level aims for; steps = (image dpi, QFactor), gentlest first
+    'low':    {'target': 0.20, 'steps': [(200, 0.33), (170, 0.42), (150, 0.52), (135, 0.62)]},
+    'medium': {'target': 0.45, 'steps': [(150, 0.50), (130, 0.62), (110, 0.76), (96, 0.90)]},
+    'high':   {'target': 0.65, 'steps': [(110, 0.76), (96, 0.92), (80, 1.10), (72, 1.30)]},
+}
+COMPRESS_TIME_BUDGET = 60       # seconds for lossy passes (the page gives up after 90s)
+COMPRESS_LOSSY_MIN_GAIN = 0.03  # a lossy result must beat the lossless one by 3%
+
+
+def _lossless_optimize(src):
+    """Structure-only optimization (no visible change). Returns a path or None."""
+    out = make_output_path('pdf')
+    try:
+        import pikepdf
+        with pikepdf.open(src) as pdf:
+            pdf.save(
+                out,
+                compress_streams=True,
+                object_stream_mode=pikepdf.ObjectStreamMode.generate,
+                recompress_flate=True,
+            )
+        if os.path.exists(out) and os.path.getsize(out) > 0:
+            return out
+    except Exception as exc:
+        print(f"[compress] lossless pass failed: {exc!r}", flush=True)
+    cleanup(out)
+    return None
+
+
+def _run_ghostscript(src, dpi, qfactor, timeout):
+    """One Ghostscript pass at the given image DPI and JPEG QFactor."""
+    out = make_output_path('pdf')
+    mono_dpi = max(150, int(dpi * 1.5))
+    color_dict = f"<< /QFactor {qfactor} /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >>"
+    gray_dict = f"<< /QFactor {qfactor} /Blend 1 /HSamples [1 1 1 1] /VSamples [1 1 1 1] >>"
+    cmd = [
+        'gs', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
+        '-dNOPAUSE', '-dQUIET', '-dBATCH',
+        '-dPassThroughJPEGImages=false',
+        '-dDetectDuplicateImages=true',
+        '-dCompressFonts=true', '-dSubsetFonts=true',
+        '-dDownsampleColorImages=true', '-dColorImageDownsampleType=/Bicubic',
+        f'-dColorImageResolution={dpi}', '-dColorImageDownsampleThreshold=1.0',
+        '-dDownsampleGrayImages=true', '-dGrayImageDownsampleType=/Bicubic',
+        f'-dGrayImageResolution={dpi}', '-dGrayImageDownsampleThreshold=1.0',
+        '-dDownsampleMonoImages=true', f'-dMonoImageResolution={mono_dpi}',
+        '-dAutoFilterColorImages=false', '-dColorImageFilter=/DCTEncode',
+        '-dAutoFilterGrayImages=false', '-dGrayImageFilter=/DCTEncode',
+        f'-sOutputFile={out}',
+        '-c', f'<< /ColorImageDict {color_dict} /GrayImageDict {gray_dict} >> setdistillerparams',
+        '-f', src,
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        if result.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 0:
+            return out
+        stderr = (getattr(result, 'stderr', b'') or b'')[:300]
+        print(f"[compress] gs pass failed (dpi={dpi}, qf={qfactor}): rc={result.returncode} {stderr!r}", flush=True)
+    except Exception as exc:
+        # Includes "gs not installed" (FileNotFoundError) and timeouts.
+        print(f"[compress] gs pass error (dpi={dpi}, qf={qfactor}): {exc!r}", flush=True)
+    cleanup(out)
+    return None
+
+
 @app.route('/api/compress', methods=['POST', 'OPTIONS'])
 def compress_pdf():
     f = request.files.get('file')
@@ -162,27 +241,9 @@ def compress_pdf():
         return jsonify({"error": "Please upload a valid PDF file."}), 400
 
     level = (request.form.get('level', 'medium') or 'medium').strip().lower()
-
-    # Each level now has a primary profile plus a slightly stronger fallback.
-    # The fallback is attempted only when the primary profile cannot reduce
-    # the file at all. This keeps quality differences real while preventing
-    # Low/Medium from silently returning the untouched original for PDFs that
-    # need a little more downsampling before a saving becomes possible.
-    profiles = {
-        'low': {
-            'primary':  {'preset': '/ebook', 'dpi': 150, 'jpegq': 90},
-            'fallback': {'preset': '/ebook', 'dpi': 125, 'jpegq': 86},
-        },
-        'medium': {
-            'primary':  {'preset': '/ebook', 'dpi': 110, 'jpegq': 80},
-            'fallback': {'preset': '/ebook', 'dpi': 90,  'jpegq': 74},
-        },
-        'high': {
-            'primary':  {'preset': '/screen', 'dpi': 72, 'jpegq': 62},
-            'fallback': {'preset': '/screen', 'dpi': 60, 'jpegq': 55},
-        },
-    }
-    selected = profiles.get(level, profiles['medium'])
+    if level not in COMPRESS_LEVELS:
+        level = 'medium'
+    cfg = COMPRESS_LEVELS[level]
 
     saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
     f.save(saved)
@@ -191,83 +252,66 @@ def compress_pdf():
         cleanup(saved)
         return jsonify({"error": "The uploaded PDF is empty."}), 400
 
-    candidates = []
+    started = time.monotonic()
+    saving = lambda path: 1 - os.path.getsize(path) / original_size
 
-    def run_ghostscript(profile):
-        out_path = make_output_path('pdf')
-        try:
-            dpi = profile['dpi']
-            result = subprocess.run([
-                'gs', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
-                f"-dPDFSETTINGS={profile['preset']}",
-                '-dNOPAUSE', '-dQUIET', '-dBATCH',
-                '-dDetectDuplicateImages=true',
-                '-dCompressFonts=true', '-dSubsetFonts=true',
-                '-dDownsampleColorImages=true', '-dColorImageDownsampleType=/Bicubic',
-                f'-dColorImageResolution={dpi}', '-dColorImageDownsampleThreshold=1.0',
-                '-dDownsampleGrayImages=true', '-dGrayImageDownsampleType=/Bicubic',
-                f'-dGrayImageResolution={dpi}', '-dGrayImageDownsampleThreshold=1.0',
-                '-dDownsampleMonoImages=true', f'-dMonoImageResolution={max(150, dpi * 2)}',
-                '-dAutoFilterColorImages=false', '-dColorImageFilter=/DCTEncode',
-                '-dAutoFilterGrayImages=false', '-dGrayImageFilter=/DCTEncode',
-                f"-dJPEGQ={profile['jpegq']}",
-                f'-sOutputFile={out_path}', saved
-            ], capture_output=True, timeout=180)
-            if result.returncode == 0 and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-                return out_path
-        except Exception:
-            pass
-        cleanup(out_path)
-        return None
+    lossless = _lossless_optimize(saved)
+    if lossless and os.path.getsize(lossless) >= original_size:
+        cleanup(lossless)
+        lossless = None
 
-    primary_out = run_ghostscript(selected['primary'])
-    if primary_out:
-        candidates.append(primary_out)
+    lossy = []          # every lossy candidate, gentlest first
+    chosen = None
+    chosen_desc = ''
 
-    # If the gentler pass did not make the file smaller, try a controlled
-    # stronger pass within the same user-selected quality tier.
-    if not primary_out or os.path.getsize(primary_out) >= original_size:
-        fallback_out = run_ghostscript(selected['fallback'])
-        if fallback_out:
-            candidates.append(fallback_out)
-
-    # Lossless stream/object optimization is useful for text/vector-heavy PDFs
-    # where image downsampling is not the main source of size.
-    pike_out = make_output_path('pdf')
-    try:
-        import pikepdf
-        with pikepdf.open(saved) as pdf:
-            pdf.save(
-                pike_out,
-                compress_streams=True,
-                object_stream_mode=pikepdf.ObjectStreamMode.generate,
-                recompress_flate=True,
-            )
-        if os.path.exists(pike_out) and os.path.getsize(pike_out) > 0:
-            candidates.append(pike_out)
-        else:
-            cleanup(pike_out)
-    except Exception:
-        cleanup(pike_out)
-
-    if not candidates:
-        cleanup(saved)
-        return jsonify({"error": "We could not compress this PDF. The file may be damaged or use an unsupported structure."}), 500
-
-    best = min(candidates, key=os.path.getsize)
-    best_size = os.path.getsize(best)
-    out = make_output_path('pdf')
-
-    # Accept any genuine size reduction. The previous 0.5% cutoff could make
-    # Low/Medium appear broken even when the compressor had produced a smaller
-    # valid file. Never return a larger file.
-    if 0 < best_size < original_size:
-        shutil.move(best, out)
+    if lossless and saving(lossless) >= cfg['target']:
+        chosen, chosen_desc = lossless, 'lossless'
     else:
-        shutil.copy2(saved, out)
+        for dpi, qfactor in cfg['steps']:
+            remaining = COMPRESS_TIME_BUDGET - (time.monotonic() - started)
+            if remaining < 5:
+                break
+            out_path = _run_ghostscript(saved, dpi, qfactor, timeout=min(150, max(20, remaining)))
+            if not out_path:
+                continue
+            if os.path.getsize(out_path) >= original_size:
+                cleanup(out_path)       # this step made it bigger; try a stronger one
+                continue
+            lossy.append((out_path, f'lossy {dpi}dpi qf{qfactor}'))
+            if saving(out_path) >= cfg['target']:
+                chosen, chosen_desc = out_path, lossy[-1][1]
+                break
 
-    cleanup(saved, *candidates)
+    if chosen is None:
+        # Target not reachable: take the smallest lossy result, unless the
+        # lossless one is nearly as small (then keep full quality).
+        best_lossy = min(lossy, key=lambda c: os.path.getsize(c[0])) if lossy else None
+        if best_lossy and lossless:
+            if os.path.getsize(best_lossy[0]) < os.path.getsize(lossless) * (1 - COMPRESS_LOSSY_MIN_GAIN):
+                chosen, chosen_desc = best_lossy
+            else:
+                chosen, chosen_desc = lossless, 'lossless'
+        elif best_lossy:
+            chosen, chosen_desc = best_lossy
+        elif lossless:
+            chosen, chosen_desc = lossless, 'lossless'
+
+    out = make_output_path('pdf')
+    if chosen:
+        shutil.move(chosen, out)
+    else:
+        # Nothing could make the file smaller: hand back the original unchanged.
+        shutil.copy2(saved, out)
+        chosen_desc = 'original (no reduction possible)'
+
+    final_size = os.path.getsize(out)
+    print(f"[compress] level={level} original={original_size} final={final_size} "
+          f"saved={100 * (1 - final_size / original_size):.1f}% via {chosen_desc} "
+          f"in {time.monotonic() - started:.1f}s", flush=True)
+
+    cleanup(saved, lossless, *[c[0] for c in lossy])
     return send_temp_file(out, as_attachment=True, download_name='compressed.pdf', mimetype='application/pdf')
+
 
 # ─── 4. PDF TO WORD ───
 @app.route('/api/pdf-to-word', methods=['POST', 'OPTIONS'])

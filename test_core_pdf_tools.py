@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -108,6 +109,79 @@ class CorePdfToolRegressionTests(unittest.TestCase):
             self.assertIn("Maximum upload size", response.get_json()["error"])
         finally:
             app_module.app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+
+
+def _photo_like(width, height):
+    """Photo-like test image (smooth gradients + noise) built with Pillow only."""
+    from PIL import ImageChops
+    base = Image.linear_gradient("L").resize((width, height))
+    channels = []
+    for shift in (0, 60, 120):
+        noise = Image.effect_noise((width, height), 40)
+        channels.append(ImageChops.add(base.rotate(shift % 90), noise, scale=2))
+    return Image.merge("RGB", channels)
+
+
+def _image_pdf(pages, px_w, px_h, jpeg_quality):
+    """A4 PDF with one full-width JPEG per page. dpi ~= px_w / 7.27in."""
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(595, 842))
+    from reportlab.lib.utils import ImageReader
+    for _ in range(pages):
+        img_buf = io.BytesIO()
+        _photo_like(px_w, px_h).save(img_buf, "JPEG", quality=jpeg_quality)
+        img_buf.seek(0)
+        c.drawImage(ImageReader(img_buf), 30, 120, 535, 700)
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+@unittest.skipUnless(shutil.which("gs"), "Ghostscript is required for real compression tests")
+class RealCompressionTests(unittest.TestCase):
+    """Runs the real Ghostscript pipeline (no mocks).
+
+    Regression guard for: Low compression returning 2 MB as 1.95 MB because
+    images already at or below the target DPI were passed through untouched.
+    """
+
+    def setUp(self):
+        app_module.app.config["TESTING"] = True
+        self.client = app_module.app.test_client()
+
+    def _compress(self, data, level):
+        response = self.client.post(
+            "/api/compress",
+            data={"file": (io.BytesIO(data), "in.pdf"), "level": level},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data.startswith(b"%PDF"))
+        return response.data
+
+    def test_low_level_compresses_images_already_below_target_dpi(self):
+        # ~110 dpi at JPEG quality 92: below every Low-level DPI step, so only
+        # real JPEG recompression can shrink it. (The old pass-through code
+        # saved ~20% here; the fixed ladder saves ~50%.)
+        original = _image_pdf(pages=3, px_w=800, px_h=1000, jpeg_quality=92)
+        result = self._compress(original, "low")
+        saving = 1 - len(result) / len(original)
+        self.assertGreaterEqual(saving, 0.35, f"Low level only saved {saving:.1%}")
+
+    def test_levels_are_ordered_and_never_larger_than_original(self):
+        original = _image_pdf(pages=3, px_w=1400, px_h=1800, jpeg_quality=90)
+        sizes = {lvl: len(self._compress(original, lvl)) for lvl in ("low", "medium", "high")}
+        for lvl, size in sizes.items():
+            self.assertLessEqual(size, len(original), lvl)
+        self.assertGreaterEqual(sizes["low"], sizes["medium"])
+        self.assertGreaterEqual(sizes["medium"], sizes["high"])
+        self.assertLess(sizes["high"], len(original) * 0.5)
+
+    def test_unshrinkable_pdf_is_returned_valid_and_not_larger(self):
+        original = CorePdfToolRegressionTests._pdf_bytes(None)
+        for lvl in ("low", "medium", "high"):
+            result = self._compress(original, lvl)
+            self.assertLessEqual(len(result), len(original))
 
 
 if __name__ == "__main__":
