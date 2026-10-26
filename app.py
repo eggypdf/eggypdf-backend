@@ -104,54 +104,86 @@ def merge_pdf():
 # ─── 2. SPLIT PDF ───
 @app.route('/api/split', methods=['POST', 'OPTIONS'])
 def split_pdf():
+    import pikepdf
+    import time
+
     f = request.files.get('file')
     if not f or not allowed_file(f.filename, {'pdf'}):
-        return jsonify({"error": "Please upload a valid PDF file."}), 400
+        return jsonify({'error': 'Please upload a valid PDF file.'}), 400
 
     split_type = request.form.get('type', 'all')
-    page_range = request.form.get('range', '')
+    range_text = request.form.get('range', '').strip()
+    if split_type not in ('all', 'range'):
+        return jsonify({'error': 'Choose a valid split type.'}), 400
 
-    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
-    f.save(saved)
-
+    input_path = os.path.join(UPLOAD_FOLDER, f'{uuid.uuid4().hex}.pdf')
+    output_path = make_output_path('zip')
+    temp_pdf = make_output_path('pdf')
+    started = time.monotonic()
     try:
-        reader = PdfReader(saved)
-        total = len(reader.pages)
-        zip_buf = io.BytesIO()
+        f.save(input_path)
+        with pikepdf.Pdf.open(input_path) as source:
+            page_count = len(source.pages)
+            if not page_count:
+                return jsonify({'error': 'The PDF has no pages.'}), 422
 
-        with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            selected = []
             if split_type == 'all':
-                for i in range(total):
-                    writer = PdfWriter()
-                    writer.add_page(reader.pages[i])
-                    buf = io.BytesIO()
-                    writer.write(buf)
-                    zf.writestr(f"page_{i+1}.pdf", buf.getvalue())
+                selected = list(range(page_count))
             else:
-                pages = set()
-                for part in page_range.split(','):
-                    part = part.strip()
-                    if '-' in part:
-                        a, b = part.split('-')
-                        pages.update(range(int(a)-1, int(b)))
-                    elif part.isdigit():
-                        pages.add(int(part)-1)
-                writer = PdfWriter()
-                for idx in sorted(pages):
-                    if 0 <= idx < total:
-                        writer.add_page(reader.pages[idx])
-                buf = io.BytesIO()
-                writer.write(buf)
-                zf.writestr("split_pages.pdf", buf.getvalue())
-    except Exception as e:
-        cleanup(saved)
-        return jsonify({"error": f"Split failed: {str(e)}"}), 500
+                if not range_text:
+                    return jsonify({'error': 'Enter a page range such as 73-125.'}), 400
+                for chunk in range_text.split(','):
+                    chunk = chunk.strip()
+                    pieces = [piece.strip() for piece in chunk.split('-')]
+                    try:
+                        if len(pieces) == 1 and pieces[0].isdigit():
+                            first = last = int(pieces[0])
+                        elif len(pieces) == 2 and all(piece.isdigit() for piece in pieces):
+                            first, last = map(int, pieces)
+                        else:
+                            raise ValueError('bad range syntax')
+                        if first < 1 or last < first or last > page_count:
+                            return jsonify({'error': f'Page range must be within 1-{page_count} and in ascending order.'}), 400
+                        selected.extend(range(first - 1, last))
+                    except ValueError:
+                        return jsonify({'error': 'Use page numbers like 73-125 or 1-3,5,7-9.'}), 400
+                selected = sorted(set(selected))
+                if not selected:
+                    return jsonify({'error': 'Select at least one valid page.'}), 400
 
-    cleanup(saved)
-    zip_buf.seek(0)
-    return send_file(zip_buf, as_attachment=True, download_name='split_pages.zip', mimetype='application/zip')
+            # PDFs already compress images/fonts; ZIP_STORED avoids redundant deflation.
+            # pikepdf copies page objects using the native qpdf engine.
+            with zipfile.ZipFile(output_path, 'w', compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
+                if split_type == 'range':
+                    with pikepdf.Pdf.new() as result:
+                        for index in selected:
+                            result.pages.append(source.pages[index])
+                        result.save(temp_pdf)
+                    archive.write(temp_pdf, 'split_pages.pdf')
+                    cleanup(temp_pdf)
+                else:
+                    for index in selected:
+                        with pikepdf.Pdf.new() as result:
+                            result.pages.append(source.pages[index])
+                            result.save(temp_pdf)
+                        archive.write(temp_pdf, f'page_{index + 1}.pdf')
+                        cleanup(temp_pdf)
 
-
+        app.logger.info('split_pdf complete pages=%s selected=%s seconds=%.2f',
+                        page_count, len(selected), time.monotonic() - started)
+        return send_temp_file(output_path, cleanup_paths=[output_path],
+                              as_attachment=True, download_name='split_pages.zip',
+                              mimetype='application/zip')
+    except pikepdf.PasswordError:
+        cleanup(output_path)
+        return jsonify({'error': 'This PDF is password-protected. Unlock it first.'}), 422
+    except Exception:
+        app.logger.exception('split_pdf processing failed')
+        cleanup(output_path)
+        return jsonify({'error': 'Unable to split this PDF. Try a smaller page range or a different file.'}), 500
+    finally:
+        cleanup(input_path, temp_pdf)
 
 
 # ─── 3. COMPRESS PDF ───
