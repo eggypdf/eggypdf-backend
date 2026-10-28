@@ -209,6 +209,8 @@ def compress_pdf():
         'high':   {'preset': '/screen', 'dpi': 72, 'jpegq': 62},
     }
     profile = profiles[level]
+    gs_status = 'not_started'
+    candidate_sizes = {}
     saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
     pike_out = make_output_path('pdf')
     gs_out = make_output_path('pdf')
@@ -250,18 +252,27 @@ def compress_pdf():
             '-dAutoFilterColorImages=false', '-dColorImageFilter=/DCTEncode',
             '-dAutoFilterGrayImages=false', '-dGrayImageFilter=/DCTEncode',
             f"-dJPEGQ={profile['jpegq']}",
-            f'-sOutputFile={gs_out}', saved,
         ]
+        # Explicit JPEG recompression is reserved for stronger settings:
+        # Low preserves original image data where possible.
+        if level in ('medium', 'high'):
+            command.append('-dPassThroughJPEGImages=false')
+        command.extend([f'-sOutputFile={gs_out}', saved])
         try:
             result = subprocess.run(command, stdout=subprocess.DEVNULL,
                                     stderr=subprocess.PIPE, timeout=40, check=False)
             if result.returncode != 0:
+                gs_status = 'exit_error'
                 app.logger.warning("compress_pdf Ghostscript exit=%s", result.returncode)
                 cleanup(gs_out)
+            else:
+                gs_status = 'completed'
         except subprocess.TimeoutExpired:
+            gs_status = 'timed_out'
             app.logger.warning("compress_pdf Ghostscript capped at 40 seconds")
             cleanup(gs_out)
         except Exception:
+            gs_status = 'exception'
             app.logger.exception("compress_pdf Ghostscript unavailable")
             cleanup(gs_out)
 
@@ -271,6 +282,7 @@ def compress_pdf():
                 try:
                     with pikepdf.Pdf.open(candidate):
                         valid.append(candidate)
+                        candidate_sizes['lossless' if candidate == pike_out else 'image_optimized'] = os.path.getsize(candidate)
                 except Exception:
                     cleanup(candidate)
 
@@ -279,12 +291,28 @@ def compress_pdf():
 
         smaller = [candidate for candidate in valid if os.path.getsize(candidate) < original_size]
         best = min(smaller, key=os.path.getsize) if smaller else saved
+        method = ('image_optimized' if best == gs_out else
+                  'lossless' if best == pike_out else 'original')
         shutil.copy2(best, out)
-        app.logger.info("compress_pdf level=%s original=%s result=%s seconds=%.2f",
-                        level, original_size, os.path.getsize(out), time.monotonic() - started)
-        return send_temp_file(out, cleanup_paths=[out],
-                              as_attachment=True, download_name='compressed.pdf',
-                              mimetype='application/pdf')
+        app.logger.info(
+            "compress_pdf level=%s method=%s ghostscript=%s original=%s "
+            "lossless=%s image=%s result=%s seconds=%.2f",
+            level, method, gs_status, original_size,
+            candidate_sizes.get('lossless'), candidate_sizes.get('image_optimized'),
+            os.path.getsize(out), time.monotonic() - started,
+        )
+        response = send_temp_file(
+            out, cleanup_paths=[out], as_attachment=True,
+            download_name='compressed.pdf', mimetype='application/pdf',
+        )
+        # Let the frontend report when the stronger image pass could not be
+        # applied instead of pretending every quality level had an effect.
+        response.headers['X-EggyPDF-Compression-Method'] = method
+        response.headers['X-EggyPDF-Requested-Level'] = level
+        response.headers['Access-Control-Expose-Headers'] = (
+            'X-EggyPDF-Compression-Method, X-EggyPDF-Requested-Level'
+        )
+        return response
     except Exception:
         app.logger.exception("compress_pdf processing failed")
         cleanup(out)
