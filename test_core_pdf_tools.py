@@ -24,46 +24,75 @@ class CorePdfToolRegressionTests(unittest.TestCase):
         buf.seek(0)
         return buf.getvalue()
 
-    def test_compress_all_three_levels_can_reduce(self):
+    def test_compress_all_levels_return_valid_pdf_when_ghostscript_times_out(self):
+        # Compression must complete safely even if Ghostscript is too slow.
+        from pypdf import PdfReader
         original = self._pdf_bytes()
 
         for level in ("low", "medium", "high"):
-            def fake_run(cmd, **kwargs):
-                out_arg = next(x for x in cmd if x.startswith("-sOutputFile="))
-                out_path = out_arg.split("=", 1)[1]
-                with open(out_path, "wb") as fh:
-                    fh.write(original[: max(100, len(original) // 2)])
-                return mock.Mock(returncode=0)
-
             with self.subTest(level=level):
-                with mock.patch.object(app_module.subprocess, "run", side_effect=fake_run):
+                with mock.patch.object(
+                    app_module.subprocess, "run",
+                    side_effect=app_module.subprocess.TimeoutExpired(cmd="gs", timeout=40),
+                ) as runner:
                     response = self.client.post(
                         "/api/compress",
                         data={"file": (io.BytesIO(original), "sample.pdf"), "level": level},
                         content_type="multipart/form-data",
                     )
-                self.assertEqual(response.status_code, 200)
-                self.assertLess(len(response.data), len(original))
+                self.assertEqual(response.status_code, 200, response.data[:200])
+                self.assertEqual(response.mimetype, "application/pdf")
+                self.assertEqual(len(PdfReader(io.BytesIO(response.data)).pages), 1)
+                self.assertEqual(runner.call_count, 1)
+                self.assertEqual(runner.call_args.kwargs["timeout"], 40)
 
-    def test_compress_accepts_small_real_saving(self):
+    def test_compress_does_not_return_broken_ghostscript_output(self):
+        from pypdf import PdfReader
         original = self._pdf_bytes()
-        target_size = max(100, len(original) - 1)
 
-        def fake_run(cmd, **kwargs):
+        def invalid_ghostscript_output(cmd, **kwargs):
             out_arg = next(x for x in cmd if x.startswith("-sOutputFile="))
-            out_path = out_arg.split("=", 1)[1]
-            with open(out_path, "wb") as fh:
-                fh.write(original[:target_size])
+            with open(out_arg.split("=", 1)[1], "wb") as fh:
+                fh.write(b"%PDF-invalid")
             return mock.Mock(returncode=0)
 
-        with mock.patch.object(app_module.subprocess, "run", side_effect=fake_run):
+        with mock.patch.object(app_module.subprocess, "run", side_effect=invalid_ghostscript_output):
             response = self.client.post(
                 "/api/compress",
-                data={"file": (io.BytesIO(original), "sample.pdf"), "level": "low"},
+                data={"file": (io.BytesIO(original), "sample.pdf"), "level": "medium"},
                 content_type="multipart/form-data",
             )
-        self.assertEqual(response.status_code, 200)
-        self.assertLess(len(response.data), len(original))
+        self.assertEqual(response.status_code, 200, response.data[:200])
+        self.assertEqual(len(PdfReader(io.BytesIO(response.data)).pages), 1)
+
+    def test_compress_invalid_level_rejected(self):
+        response = self.client.post(
+            "/api/compress",
+            data={"file": (io.BytesIO(self._pdf_bytes()), "sample.pdf"), "level": "ultra"},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_split_page_range_returns_valid_zip(self):
+        from pypdf import PdfReader
+        import zipfile
+
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=(300, 400))
+        for page in range(12):
+            c.drawString(40, 340, f"Page {page+1}")
+            c.showPage()
+        c.save()
+        response = self.client.post(
+            "/api/split",
+            data={"file": (io.BytesIO(buf.getvalue()), "sample.pdf"), "type": "range", "range": "3-6"},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200, response.data[:200])
+        with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
+            self.assertEqual(archive.namelist(), ["split_pages.pdf"])
+            pages = PdfReader(io.BytesIO(archive.read("split_pages.pdf"))).pages
+            self.assertEqual(len(pages), 4)
 
     def test_pdf_to_word_layout_mode_creates_docx(self):
         pdf_bytes = self._pdf_bytes()

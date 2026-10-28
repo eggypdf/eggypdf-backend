@@ -104,170 +104,194 @@ def merge_pdf():
 # ─── 2. SPLIT PDF ───
 @app.route('/api/split', methods=['POST', 'OPTIONS'])
 def split_pdf():
+    import pikepdf
+    import time
+
     f = request.files.get('file')
     if not f or not allowed_file(f.filename, {'pdf'}):
-        return jsonify({"error": "Please upload a valid PDF file."}), 400
+        return jsonify({'error': 'Please upload a valid PDF file.'}), 400
 
     split_type = request.form.get('type', 'all')
-    page_range = request.form.get('range', '')
+    range_text = request.form.get('range', '').strip()
+    if split_type not in ('all', 'range'):
+        return jsonify({'error': 'Choose a valid split type.'}), 400
 
-    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
-    f.save(saved)
-
+    input_path = os.path.join(UPLOAD_FOLDER, f'{uuid.uuid4().hex}.pdf')
+    output_path = make_output_path('zip')
+    temp_pdf = make_output_path('pdf')
+    started = time.monotonic()
     try:
-        reader = PdfReader(saved)
-        total = len(reader.pages)
-        zip_buf = io.BytesIO()
+        f.save(input_path)
+        with pikepdf.Pdf.open(input_path) as source:
+            page_count = len(source.pages)
+            if not page_count:
+                return jsonify({'error': 'The PDF has no pages.'}), 422
 
-        with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            selected = []
             if split_type == 'all':
-                for i in range(total):
-                    writer = PdfWriter()
-                    writer.add_page(reader.pages[i])
-                    buf = io.BytesIO()
-                    writer.write(buf)
-                    zf.writestr(f"page_{i+1}.pdf", buf.getvalue())
+                selected = list(range(page_count))
             else:
-                pages = set()
-                for part in page_range.split(','):
-                    part = part.strip()
-                    if '-' in part:
-                        a, b = part.split('-')
-                        pages.update(range(int(a)-1, int(b)))
-                    elif part.isdigit():
-                        pages.add(int(part)-1)
-                writer = PdfWriter()
-                for idx in sorted(pages):
-                    if 0 <= idx < total:
-                        writer.add_page(reader.pages[idx])
-                buf = io.BytesIO()
-                writer.write(buf)
-                zf.writestr("split_pages.pdf", buf.getvalue())
-    except Exception as e:
-        cleanup(saved)
-        return jsonify({"error": f"Split failed: {str(e)}"}), 500
+                if not range_text:
+                    return jsonify({'error': 'Enter a page range such as 73-125.'}), 400
+                for chunk in range_text.split(','):
+                    chunk = chunk.strip()
+                    pieces = [piece.strip() for piece in chunk.split('-')]
+                    try:
+                        if len(pieces) == 1 and pieces[0].isdigit():
+                            first = last = int(pieces[0])
+                        elif len(pieces) == 2 and all(piece.isdigit() for piece in pieces):
+                            first, last = map(int, pieces)
+                        else:
+                            raise ValueError('bad range syntax')
+                        if first < 1 or last < first or last > page_count:
+                            return jsonify({'error': f'Page range must be within 1-{page_count} and in ascending order.'}), 400
+                        selected.extend(range(first - 1, last))
+                    except ValueError:
+                        return jsonify({'error': 'Use page numbers like 73-125 or 1-3,5,7-9.'}), 400
+                selected = sorted(set(selected))
+                if not selected:
+                    return jsonify({'error': 'Select at least one valid page.'}), 400
 
-    cleanup(saved)
-    zip_buf.seek(0)
-    return send_file(zip_buf, as_attachment=True, download_name='split_pages.zip', mimetype='application/zip')
+            # PDFs already compress images/fonts; ZIP_STORED avoids redundant deflation.
+            # pikepdf copies page objects using the native qpdf engine.
+            with zipfile.ZipFile(output_path, 'w', compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
+                if split_type == 'range':
+                    with pikepdf.Pdf.new() as result:
+                        for index in selected:
+                            result.pages.append(source.pages[index])
+                        result.save(temp_pdf)
+                    archive.write(temp_pdf, 'split_pages.pdf')
+                    cleanup(temp_pdf)
+                else:
+                    for index in selected:
+                        with pikepdf.Pdf.new() as result:
+                            result.pages.append(source.pages[index])
+                            result.save(temp_pdf)
+                        archive.write(temp_pdf, f'page_{index + 1}.pdf')
+                        cleanup(temp_pdf)
 
-
+        app.logger.info('split_pdf complete pages=%s selected=%s seconds=%.2f',
+                        page_count, len(selected), time.monotonic() - started)
+        return send_temp_file(output_path, cleanup_paths=[output_path],
+                              as_attachment=True, download_name='split_pages.zip',
+                              mimetype='application/zip')
+    except pikepdf.PasswordError:
+        cleanup(output_path)
+        return jsonify({'error': 'This PDF is password-protected. Unlock it first.'}), 422
+    except Exception:
+        app.logger.exception('split_pdf processing failed')
+        cleanup(output_path)
+        return jsonify({'error': 'Unable to split this PDF. Try a smaller page range or a different file.'}), 500
+    finally:
+        cleanup(input_path, temp_pdf)
 
 
 # ─── 3. COMPRESS PDF ───
 @app.route('/api/compress', methods=['POST', 'OPTIONS'])
 def compress_pdf():
+    """Bounded best-effort compression; avoid two 180-second Ghostscript passes."""
+    import time
+    import pikepdf
+    started = time.monotonic()
     f = request.files.get('file')
     if not f or not allowed_file(f.filename, {'pdf'}):
         return jsonify({"error": "Please upload a valid PDF file."}), 400
-
     level = (request.form.get('level', 'medium') or 'medium').strip().lower()
+    if level not in ('low', 'medium', 'high'):
+        return jsonify({"error": "Choose Low, Medium, or High compression."}), 400
 
-    # Each level now has a primary profile plus a slightly stronger fallback.
-    # The fallback is attempted only when the primary profile cannot reduce
-    # the file at all. This keeps quality differences real while preventing
-    # Low/Medium from silently returning the untouched original for PDFs that
-    # need a little more downsampling before a saving becomes possible.
+    # One image-optimizing Ghostscript pass at most, bounded to 40 s.
+    # Save a fast structure-optimized fallback first, so a slow Ghostscript
+    # cannot force repeated multi-minute attempts.
     profiles = {
-        'low': {
-            'primary':  {'preset': '/ebook', 'dpi': 150, 'jpegq': 90},
-            'fallback': {'preset': '/ebook', 'dpi': 125, 'jpegq': 86},
-        },
-        'medium': {
-            'primary':  {'preset': '/ebook', 'dpi': 110, 'jpegq': 80},
-            'fallback': {'preset': '/ebook', 'dpi': 90,  'jpegq': 74},
-        },
-        'high': {
-            'primary':  {'preset': '/screen', 'dpi': 72, 'jpegq': 62},
-            'fallback': {'preset': '/screen', 'dpi': 60, 'jpegq': 55},
-        },
+        'low':    {'preset': '/ebook', 'dpi': 150, 'jpegq': 90},
+        'medium': {'preset': '/ebook', 'dpi': 110, 'jpegq': 80},
+        'high':   {'preset': '/screen', 'dpi': 72, 'jpegq': 62},
     }
-    selected = profiles.get(level, profiles['medium'])
-
+    profile = profiles[level]
     saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
-    f.save(saved)
-    original_size = os.path.getsize(saved)
-    if original_size <= 0:
-        cleanup(saved)
-        return jsonify({"error": "The uploaded PDF is empty."}), 400
-
-    candidates = []
-
-    def run_ghostscript(profile):
-        out_path = make_output_path('pdf')
-        try:
-            dpi = profile['dpi']
-            result = subprocess.run([
-                'gs', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
-                f"-dPDFSETTINGS={profile['preset']}",
-                '-dNOPAUSE', '-dQUIET', '-dBATCH',
-                '-dDetectDuplicateImages=true',
-                '-dCompressFonts=true', '-dSubsetFonts=true',
-                '-dDownsampleColorImages=true', '-dColorImageDownsampleType=/Bicubic',
-                f'-dColorImageResolution={dpi}', '-dColorImageDownsampleThreshold=1.0',
-                '-dDownsampleGrayImages=true', '-dGrayImageDownsampleType=/Bicubic',
-                f'-dGrayImageResolution={dpi}', '-dGrayImageDownsampleThreshold=1.0',
-                '-dDownsampleMonoImages=true', f'-dMonoImageResolution={max(150, dpi * 2)}',
-                '-dAutoFilterColorImages=false', '-dColorImageFilter=/DCTEncode',
-                '-dAutoFilterGrayImages=false', '-dGrayImageFilter=/DCTEncode',
-                f"-dJPEGQ={profile['jpegq']}",
-                f'-sOutputFile={out_path}', saved
-            ], capture_output=True, timeout=180)
-            if result.returncode == 0 and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-                return out_path
-        except Exception:
-            pass
-        cleanup(out_path)
-        return None
-
-    primary_out = run_ghostscript(selected['primary'])
-    if primary_out:
-        candidates.append(primary_out)
-
-    # If the gentler pass did not make the file smaller, try a controlled
-    # stronger pass within the same user-selected quality tier.
-    if not primary_out or os.path.getsize(primary_out) >= original_size:
-        fallback_out = run_ghostscript(selected['fallback'])
-        if fallback_out:
-            candidates.append(fallback_out)
-
-    # Lossless stream/object optimization is useful for text/vector-heavy PDFs
-    # where image downsampling is not the main source of size.
     pike_out = make_output_path('pdf')
-    try:
-        import pikepdf
-        with pikepdf.open(saved) as pdf:
-            pdf.save(
-                pike_out,
-                compress_streams=True,
-                object_stream_mode=pikepdf.ObjectStreamMode.generate,
-                recompress_flate=True,
-            )
-        if os.path.exists(pike_out) and os.path.getsize(pike_out) > 0:
-            candidates.append(pike_out)
-        else:
-            cleanup(pike_out)
-    except Exception:
-        cleanup(pike_out)
-
-    if not candidates:
-        cleanup(saved)
-        return jsonify({"error": "We could not compress this PDF. The file may be damaged or use an unsupported structure."}), 500
-
-    best = min(candidates, key=os.path.getsize)
-    best_size = os.path.getsize(best)
+    gs_out = make_output_path('pdf')
     out = make_output_path('pdf')
+    try:
+        f.save(saved)
+        original_size = os.path.getsize(saved)
+        if not original_size:
+            return jsonify({"error": "The uploaded PDF is empty."}), 400
 
-    # Accept any genuine size reduction. The previous 0.5% cutoff could make
-    # Low/Medium appear broken even when the compressor had produced a smaller
-    # valid file. Never return a larger file.
-    if 0 < best_size < original_size:
-        shutil.move(best, out)
-    else:
-        shutil.copy2(saved, out)
+        is_readable = False
+        try:
+            with pikepdf.Pdf.open(saved) as document:
+                is_readable = True
+                document.save(
+                    pike_out,
+                    compress_streams=True,
+                    object_stream_mode=pikepdf.ObjectStreamMode.generate,
+                    recompress_flate=False,
+                )
+        except pikepdf.PasswordError:
+            return jsonify({"error": "Unlock the PDF before compressing it."}), 422
+        except Exception:
+            app.logger.warning("compress_pdf pikepdf optimization unavailable", exc_info=True)
+            cleanup(pike_out)
 
-    cleanup(saved, *candidates)
-    return send_temp_file(out, as_attachment=True, download_name='compressed.pdf', mimetype='application/pdf')
+        command = [
+            'gs', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
+            f"-dPDFSETTINGS={profile['preset']}",
+            '-dNOPAUSE', '-dQUIET', '-dBATCH',
+            '-dDetectDuplicateImages=true',
+            '-dCompressFonts=true', '-dSubsetFonts=true',
+            '-dDownsampleColorImages=true', '-dColorImageDownsampleType=/Bicubic',
+            f"-dColorImageResolution={profile['dpi']}", '-dColorImageDownsampleThreshold=1.0',
+            '-dDownsampleGrayImages=true', '-dGrayImageDownsampleType=/Bicubic',
+            f"-dGrayImageResolution={profile['dpi']}", '-dGrayImageDownsampleThreshold=1.0',
+            '-dDownsampleMonoImages=true',
+            f"-dMonoImageResolution={max(150, profile['dpi'] * 2)}",
+            '-dAutoFilterColorImages=false', '-dColorImageFilter=/DCTEncode',
+            '-dAutoFilterGrayImages=false', '-dGrayImageFilter=/DCTEncode',
+            f"-dJPEGQ={profile['jpegq']}",
+            f'-sOutputFile={gs_out}', saved,
+        ]
+        try:
+            result = subprocess.run(command, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.PIPE, timeout=40, check=False)
+            if result.returncode != 0:
+                app.logger.warning("compress_pdf Ghostscript exit=%s", result.returncode)
+                cleanup(gs_out)
+        except subprocess.TimeoutExpired:
+            app.logger.warning("compress_pdf Ghostscript capped at 40 seconds")
+            cleanup(gs_out)
+        except Exception:
+            app.logger.exception("compress_pdf Ghostscript unavailable")
+            cleanup(gs_out)
+
+        valid = []
+        for candidate in (pike_out, gs_out):
+            if os.path.isfile(candidate) and os.path.getsize(candidate) > 0:
+                try:
+                    with pikepdf.Pdf.open(candidate):
+                        valid.append(candidate)
+                except Exception:
+                    cleanup(candidate)
+
+        if not is_readable and not valid:
+            return jsonify({"error": "This PDF is damaged or unsupported. Try a different file."}), 422
+
+        smaller = [candidate for candidate in valid if os.path.getsize(candidate) < original_size]
+        best = min(smaller, key=os.path.getsize) if smaller else saved
+        shutil.copy2(best, out)
+        app.logger.info("compress_pdf level=%s original=%s result=%s seconds=%.2f",
+                        level, original_size, os.path.getsize(out), time.monotonic() - started)
+        return send_temp_file(out, cleanup_paths=[out],
+                              as_attachment=True, download_name='compressed.pdf',
+                              mimetype='application/pdf')
+    except Exception:
+        app.logger.exception("compress_pdf processing failed")
+        cleanup(out)
+        return jsonify({"error": "Compression failed. Please try another file or compression level."}), 500
+    finally:
+        cleanup(saved, pike_out, gs_out)
+
 
 # ─── 4. PDF TO WORD ───
 @app.route('/api/pdf-to-word', methods=['POST', 'OPTIONS'])
