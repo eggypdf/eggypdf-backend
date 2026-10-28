@@ -155,84 +155,53 @@ def split_pdf():
 
 
 # ─── 3. COMPRESS PDF ───
-@app.route('/api/compress', methods=['POST', 'OPTIONS'])
-def compress_pdf():
-    f = request.files.get('file')
-    if not f or not allowed_file(f.filename, {'pdf'}):
-        return jsonify({"error": "Please upload a valid PDF file."}), 400
+import threading, time
 
-    level = (request.form.get('level', 'medium') or 'medium').strip().lower()
+# Each level has a primary profile plus a slightly stronger fallback. The
+# fallback runs only when the primary pass could not shrink the file at all.
+# Low keeps Bicubic resampling for the best visual quality; Medium/High use the
+# much faster Average resampling, which is what made big PDFs crawl before.
+COMPRESS_PROFILES = {
+    'low': {
+        'primary':  {'preset': '/ebook',  'dpi': 150, 'jpegq': 90, 'resample': '/Bicubic'},
+        'fallback': {'preset': '/ebook',  'dpi': 125, 'jpegq': 86, 'resample': '/Bicubic'},
+    },
+    'medium': {
+        'primary':  {'preset': '/ebook',  'dpi': 110, 'jpegq': 80, 'resample': '/Average'},
+        'fallback': {'preset': '/ebook',  'dpi': 90,  'jpegq': 74, 'resample': '/Average'},
+    },
+    'high': {
+        'primary':  {'preset': '/screen', 'dpi': 72,  'jpegq': 62, 'resample': '/Average'},
+        'fallback': {'preset': '/screen', 'dpi': 60,  'jpegq': 55, 'resample': '/Average'},
+    },
+}
 
-    # Each level now has a primary profile plus a slightly stronger fallback.
-    # The fallback is attempted only when the primary profile cannot reduce
-    # the file at all. This keeps quality differences real while preventing
-    # Low/Medium from silently returning the untouched original for PDFs that
-    # need a little more downsampling before a saving becomes possible.
-    profiles = {
-        'low': {
-            'primary':  {'preset': '/ebook', 'dpi': 150, 'jpegq': 90},
-            'fallback': {'preset': '/ebook', 'dpi': 125, 'jpegq': 86},
-        },
-        'medium': {
-            'primary':  {'preset': '/ebook', 'dpi': 110, 'jpegq': 80},
-            'fallback': {'preset': '/ebook', 'dpi': 90,  'jpegq': 74},
-        },
-        'high': {
-            'primary':  {'preset': '/screen', 'dpi': 72, 'jpegq': 62},
-            'fallback': {'preset': '/screen', 'dpi': 60, 'jpegq': 55},
-        },
-    }
-    selected = profiles.get(level, profiles['medium'])
+# One hard time budget for the WHOLE job (not 180s per Ghostscript pass), so a
+# slow server can never hold a request open for 6+ minutes.
+COMPRESS_BUDGET_SECONDS = int(os.environ.get('COMPRESS_BUDGET_SECONDS', '170'))
+# Render's small instances have little CPU/RAM. Running two Ghostscript jobs at
+# once makes both slower (or gets the process OOM-killed), so jobs take turns.
+_COMPRESS_SLOTS = threading.BoundedSemaphore(int(os.environ.get('COMPRESS_CONCURRENCY', '1')))
+COMPRESS_JOB_TTL_SECONDS = 15 * 60
 
-    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
-    f.save(saved)
+_compress_jobs = {}
+_compress_jobs_lock = threading.Lock()
+
+
+def _compress_pdf_file(saved, level):
+    """Compress `saved`. Returns (out_path, error_message, http_status).
+
+    out_path is a new file in OUTPUT_FOLDER on success; the caller owns it.
+    The input file is never modified or deleted here.
+    """
+    selected = COMPRESS_PROFILES.get(level, COMPRESS_PROFILES['medium'])
     original_size = os.path.getsize(saved)
-    if original_size <= 0:
-        cleanup(saved)
-        return jsonify({"error": "The uploaded PDF is empty."}), 400
-
+    deadline = time.monotonic() + COMPRESS_BUDGET_SECONDS
     candidates = []
+    timed_out = False
 
-    def run_ghostscript(profile):
-        out_path = make_output_path('pdf')
-        try:
-            dpi = profile['dpi']
-            result = subprocess.run([
-                'gs', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
-                f"-dPDFSETTINGS={profile['preset']}",
-                '-dNOPAUSE', '-dQUIET', '-dBATCH',
-                '-dDetectDuplicateImages=true',
-                '-dCompressFonts=true', '-dSubsetFonts=true',
-                '-dDownsampleColorImages=true', '-dColorImageDownsampleType=/Bicubic',
-                f'-dColorImageResolution={dpi}', '-dColorImageDownsampleThreshold=1.0',
-                '-dDownsampleGrayImages=true', '-dGrayImageDownsampleType=/Bicubic',
-                f'-dGrayImageResolution={dpi}', '-dGrayImageDownsampleThreshold=1.0',
-                '-dDownsampleMonoImages=true', f'-dMonoImageResolution={max(150, dpi * 2)}',
-                '-dAutoFilterColorImages=false', '-dColorImageFilter=/DCTEncode',
-                '-dAutoFilterGrayImages=false', '-dGrayImageFilter=/DCTEncode',
-                f"-dJPEGQ={profile['jpegq']}",
-                f'-sOutputFile={out_path}', saved
-            ], capture_output=True, timeout=180)
-            if result.returncode == 0 and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-                return out_path
-        except Exception:
-            pass
-        cleanup(out_path)
-        return None
-
-    primary_out = run_ghostscript(selected['primary'])
-    if primary_out:
-        candidates.append(primary_out)
-
-    # If the gentler pass did not make the file smaller, try a controlled
-    # stronger pass within the same user-selected quality tier.
-    if not primary_out or os.path.getsize(primary_out) >= original_size:
-        fallback_out = run_ghostscript(selected['fallback'])
-        if fallback_out:
-            candidates.append(fallback_out)
-
-    # Lossless stream/object optimization is useful for text/vector-heavy PDFs
-    # where image downsampling is not the main source of size.
+    # Fast lossless pass first: takes seconds, so even if Ghostscript runs out
+    # of time below we still have a valid result for text/vector-heavy PDFs.
     pike_out = make_output_path('pdf')
     try:
         import pikepdf
@@ -250,24 +219,171 @@ def compress_pdf():
     except Exception:
         cleanup(pike_out)
 
+    def run_ghostscript(profile):
+        nonlocal timed_out
+        remaining = deadline - time.monotonic()
+        if remaining < 8:
+            timed_out = True
+            return None
+        out_path = make_output_path('pdf')
+        try:
+            dpi = profile['dpi']
+            rs = profile['resample']
+            result = subprocess.run([
+                'gs', '-dSAFER', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
+                f"-dPDFSETTINGS={profile['preset']}",
+                '-dNOPAUSE', '-dQUIET', '-dBATCH',
+                '-dCompressFonts=true', '-dSubsetFonts=true',
+                '-dDownsampleColorImages=true', f'-dColorImageDownsampleType={rs}',
+                f'-dColorImageResolution={dpi}', '-dColorImageDownsampleThreshold=1.0',
+                '-dDownsampleGrayImages=true', f'-dGrayImageDownsampleType={rs}',
+                f'-dGrayImageResolution={dpi}', '-dGrayImageDownsampleThreshold=1.0',
+                '-dDownsampleMonoImages=true', f'-dMonoImageResolution={max(150, dpi * 2)}',
+                '-dAutoFilterColorImages=false', '-dColorImageFilter=/DCTEncode',
+                '-dAutoFilterGrayImages=false', '-dGrayImageFilter=/DCTEncode',
+                f"-dJPEGQ={profile['jpegq']}",
+                f'-sOutputFile={out_path}', saved
+            ], capture_output=True, timeout=remaining)
+            if result.returncode == 0 and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                return out_path
+        except subprocess.TimeoutExpired:
+            # subprocess.run already killed Ghostscript for us.
+            timed_out = True
+        except Exception:
+            pass
+        cleanup(out_path)
+        return None
+
+    primary_out = run_ghostscript(selected['primary'])
+    if primary_out:
+        candidates.append(primary_out)
+
+    # Only try the stronger pass if the first one did not shrink the file AND
+    # there is still time left in the budget.
+    if not primary_out or os.path.getsize(primary_out) >= original_size:
+        fallback_out = run_ghostscript(selected['fallback'])
+        if fallback_out:
+            candidates.append(fallback_out)
+
     if not candidates:
-        cleanup(saved)
-        return jsonify({"error": "We could not compress this PDF. The file may be damaged or use an unsupported structure."}), 500
+        if timed_out:
+            return None, "This PDF is too heavy to compress right now. Try the High level, or a smaller file.", 504
+        return None, "We could not compress this PDF. The file may be damaged or use an unsupported structure.", 500
 
     best = min(candidates, key=os.path.getsize)
     best_size = os.path.getsize(best)
     out = make_output_path('pdf')
 
-    # Accept any genuine size reduction. The previous 0.5% cutoff could make
-    # Low/Medium appear broken even when the compressor had produced a smaller
-    # valid file. Never return a larger file.
+    # Accept any genuine size reduction. Never return a larger file.
     if 0 < best_size < original_size:
         shutil.move(best, out)
     else:
         shutil.copy2(saved, out)
 
-    cleanup(saved, *candidates)
+    cleanup(*candidates)
+    return out, None, 200
+
+
+def _reap_compress_jobs():
+    """Drop finished/abandoned jobs (and their output files) after the TTL."""
+    now = time.time()
+    with _compress_jobs_lock:
+        stale = [jid for jid, j in _compress_jobs.items()
+                 if now - j['created'] > COMPRESS_JOB_TTL_SECONDS]
+        for jid in stale:
+            job = _compress_jobs.pop(jid)
+            if job.get('out'):
+                cleanup(job['out'])
+
+
+def _compress_worker(job_id, saved, level):
+    out, err, status = None, "Compression failed unexpectedly. Please try again.", 500
+    try:
+        with _COMPRESS_SLOTS:
+            with _compress_jobs_lock:
+                job = _compress_jobs.get(job_id)
+                if job is None:  # reaped while waiting in the queue
+                    return
+                job['status'] = 'processing'
+            out, err, status = _compress_pdf_file(saved, level)
+    except Exception:
+        pass
+    finally:
+        original_size = os.path.getsize(saved) if os.path.exists(saved) else 0
+        cleanup(saved)
+        with _compress_jobs_lock:
+            job = _compress_jobs.get(job_id)
+            if job is None:
+                if out:
+                    cleanup(out)
+            elif out:
+                job.update(status='done', out=out, original_size=original_size,
+                           compressed_size=os.path.getsize(out))
+            else:
+                job.update(status='error', error=err, error_status=status)
+
+
+@app.route('/api/compress', methods=['POST', 'OPTIONS'])
+def compress_pdf():
+    f = request.files.get('file')
+    if not f or not allowed_file(f.filename, {'pdf'}):
+        return jsonify({"error": "Please upload a valid PDF file."}), 400
+
+    level = (request.form.get('level', 'medium') or 'medium').strip().lower()
+
+    saved = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4().hex}.pdf")
+    f.save(saved)
+    if os.path.getsize(saved) <= 0:
+        cleanup(saved)
+        return jsonify({"error": "The uploaded PDF is empty."}), 400
+
+    # Async mode (used by the site): answer immediately with a job id and let
+    # the browser poll. No request is held open while Ghostscript works.
+    if (request.form.get('async') or '').strip() in ('1', 'true', 'yes'):
+        _reap_compress_jobs()
+        job_id = uuid.uuid4().hex
+        with _compress_jobs_lock:
+            _compress_jobs[job_id] = {'status': 'queued', 'created': time.time()}
+        threading.Thread(target=_compress_worker, args=(job_id, saved, level), daemon=True).start()
+        return jsonify({"job_id": job_id, "status": "queued"}), 202
+
+    # Legacy synchronous mode (old frontends / API callers): same result, but
+    # now bounded by the time budget and taking turns with other compressions.
+    try:
+        with _COMPRESS_SLOTS:
+            out, err, status = _compress_pdf_file(saved, level)
+    finally:
+        cleanup(saved)
+    if not out:
+        return jsonify({"error": err}), status
     return send_temp_file(out, as_attachment=True, download_name='compressed.pdf', mimetype='application/pdf')
+
+
+@app.route('/api/compress/status/<job_id>', methods=['GET', 'OPTIONS'])
+def compress_status(job_id):
+    with _compress_jobs_lock:
+        job = _compress_jobs.get(job_id)
+        if job is None:
+            return jsonify({"status": "unknown",
+                            "error": "This compression job expired or the server restarted. Please try again."}), 404
+        payload = {"status": job['status']}
+        if job['status'] == 'done':
+            payload.update(original_size=job['original_size'], compressed_size=job['compressed_size'])
+        elif job['status'] == 'error':
+            payload['error'] = job['error']
+    return jsonify(payload)
+
+
+@app.route('/api/compress/download/<job_id>', methods=['GET', 'OPTIONS'])
+def compress_download(job_id):
+    with _compress_jobs_lock:
+        job = _compress_jobs.get(job_id)
+        out = job.get('out') if job and job['status'] == 'done' else None
+    if not out or not os.path.exists(out):
+        return jsonify({"error": "This file is no longer available. Please compress it again."}), 404
+    # Output is kept until the TTL reaper removes it, so a dropped connection
+    # can retry the download instead of losing the result.
+    return send_file(out, as_attachment=True, download_name='compressed.pdf', mimetype='application/pdf')
 
 # ─── 4. PDF TO WORD ───
 @app.route('/api/pdf-to-word', methods=['POST', 'OPTIONS'])

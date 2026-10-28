@@ -168,7 +168,7 @@ main{max-width:760px;margin:0 auto;padding:36px 1.5rem 60px}
   <div class="result-card" id="resultCard">
     <div class="check">✅</div>
     <h3>Compression complete!</h3>
-    <p>Your PDF has been compressed successfully.</p>
+    <p id="resultStats">Your PDF has been compressed successfully.</p>
     <a id="downloadLink" class="download-btn" download="compressed.pdf">⬇️ Download Compressed PDF</a>
     <button class="new-btn" onclick="resetTool()">🔄 Compress another</button>
   </div>
@@ -371,18 +371,58 @@ function hideError(){document.getElementById('errorBox').style.display='none';}
 let selectedFile=null,level='medium';
 function setFile(f){selectedFile=f;document.getElementById('filePreview').innerHTML=`<div class="file-preview"><span style="font-size:1.4rem">📄</span><span style="font-size:13.5px;font-weight:500;flex:1">${f.name}</span><span style="font-size:12px;color:var(--muted)">${(f.size/1024/1024).toFixed(2)} MB</span></div>`;document.getElementById('optionsCard').style.display='block';document.getElementById('actionBtn').disabled=false;}
 function setLevel(l){level=l;['low','medium','high'].forEach(x=>{const el=document.getElementById('lvl-'+x);el.style.border='2px solid var(--border)';el.style.background='';});const a=document.getElementById('lvl-'+l);a.style.border='2px solid var(--brand)';a.style.background='var(--brand-light)';}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const fmtMB=b=>(b/1024/1024).toFixed(2)+' MB';
 async function processFile(){
   if(!selectedFile){showError('Please upload a PDF.');return;}
   hideError();
-  const fd=new FormData();fd.append('file',selectedFile);fd.append('level',level);
+  const fd=new FormData();fd.append('file',selectedFile);fd.append('level',level);fd.append('async','1');
   document.getElementById('actionBtn').disabled=true;
   showEggProgress();
   try{
-    const res=await fetchWithTimeout(API_BASE+'/api/compress',{method:'POST',body:fd});
+    // 1) Upload. Server answers instantly with a job id (no long-held request).
+    const res=await fetchWithTimeout(API_BASE+'/api/compress',{method:'POST',body:fd},180000);
+    let blob=null,stats=null;
+    if((res.headers.get('content-type')||'').includes('application/pdf')){
+      blob=await res.blob(); // older backend still answering synchronously
+    }else{
+      const start=await res.json().catch(()=>({}));
+      if(!res.ok||!start.job_id) throw new Error(start.error||'Compression failed. Please try again.');
+      // 2) Poll until the job finishes (max ~6 min), tolerating brief network blips.
+      const t0=Date.now();let fails=0,done=false;
+      while(Date.now()-t0<360000){
+        await sleep(2000);
+        const secs=(Date.now()-t0)/1000;
+        if(secs>15){const tt=document.getElementById('eggTitle');if(tt) tt.textContent=secs>60?'Still working — big files take a bit longer...':'Compressing your PDF...';}
+        let j;
+        try{
+          const sr=await fetchWithTimeout(API_BASE+'/api/compress/status/'+start.job_id,{},20000);
+          j=await sr.json();fails=0;
+          if(sr.status===404) throw new Error(j.error||'Job expired. Please try again.');
+        }catch(e){
+          if(e.message && !/timed out|Failed to fetch|NetworkError|Load failed/i.test(e.message)) throw e;
+          if(++fails>=6) throw new Error('Lost connection to the server. Please try again.');
+          continue;
+        }
+        if(j.status==='error') throw new Error(j.error||'Compression failed.');
+        if(j.status==='done'){stats=j;done=true;break;}
+      }
+      if(!done) throw new Error('Compression is taking too long. Try the High level or a smaller file.');
+      // 3) Download the result.
+      const dl=await fetchWithTimeout(API_BASE+'/api/compress/download/'+start.job_id,{},180000);
+      if(!dl.ok){const e=await dl.json().catch(()=>({}));throw new Error(e.error||'Download failed. Please try again.');}
+      blob=await dl.blob();
+    }
     finishEggProgress();
-    if(!res.ok){const e=await res.json();throw new Error(e.error||'Compression failed.');}
-    const blob=await res.blob();
     document.getElementById('downloadLink').href=URL.createObjectURL(blob);
+    const st=document.getElementById('resultStats');
+    if(st){
+      const before=stats?stats.original_size:selectedFile.size,after=stats?stats.compressed_size:blob.size;
+      const pct=before>0?Math.round((1-after/before)*100):0;
+      st.textContent=pct>=3
+        ? `${fmtMB(before)} → ${fmtMB(after)} (${pct}% smaller)`
+        : `${fmtMB(before)} → ${fmtMB(after)}. This PDF could barely be reduced at this level — try "High" for a smaller file.`;
+    }
     hideEggProgress();document.getElementById('resultCard').style.display='block';document.getElementById('continueSection') && (document.getElementById('continueSection').style.display='block');
   }catch(err){hideEggProgress();showError(err.message);document.getElementById('actionBtn').disabled=false;}
 }
