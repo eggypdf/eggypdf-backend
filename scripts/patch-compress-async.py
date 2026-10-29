@@ -17,6 +17,8 @@ if "compressViaJob" in html:
     print("compress.html already patched; nothing to do.")
     sys.exit(0)
 
+# Variant A: the plain repo compress.html. Variant B: the live Cloudflare one
+# (90s timeout, its own error handling and result stats just below the call).
 old_request = """    const res=await fetchWithTimeout(API_BASE+'/api/compress',{method:'POST',body:fd});
     finishEggProgress();
     if(!res.ok){const e=await res.json();throw new Error(e.error||'Compression failed.');}
@@ -24,15 +26,20 @@ old_request = """    const res=await fetchWithTimeout(API_BASE+'/api/compress',{
 new_request = """    const res=await compressViaJob(fd);
     finishEggProgress();
 """
-if old_request not in html:
+old_live = "const res=await fetchWithTimeout(API_BASE+'/api/compress',{method:'POST',body:fd},90000);"
+new_live = "const res=await compressViaJob(fd);"
+if old_request in html:
+    html = html.replace(old_request, new_request, 1)
+elif old_live in html:
+    html = html.replace(old_live, new_live, 1)
+else:
     raise RuntimeError("compress.html request block not found.")
-html = html.replace(old_request, new_request, 1)
 
 helper = r"""const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const fmtMB=b=>(b/1024/1024).toFixed(2)+' MB';
 function showCompressStats(before,after){
   const st=document.getElementById('resultStats');
-  if(!st||!(before>0)||!(after>0)) return;
+  if(!st||st.tagName!=='P'||!(before>0)||!(after>0)) return;
   const pct=Math.round((1-after/before)*100);
   st.textContent=pct>=3
     ? `${fmtMB(before)} → ${fmtMB(after)} (${pct}% smaller)`
@@ -58,7 +65,7 @@ async function compressViaJob(fd){
       j=await sr.json();fails=0;
       if(sr.status===404) throw new Error(j.error||'Job expired. Please try again.');
     }catch(e){
-      if(e.message&&!/timed out|Failed to fetch|NetworkError|Load failed/i.test(e.message)) throw e;
+      if(e.message&&!/timed out|taking too long|Failed to fetch|NetworkError|Load failed/i.test(e.message)) throw e;
       if(++fails>=6) throw new Error('Lost connection to the server. Please try again.');
       continue;
     }

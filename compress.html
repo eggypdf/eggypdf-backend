@@ -375,7 +375,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const fmtMB=b=>(b/1024/1024).toFixed(2)+' MB';
 function showCompressStats(before,after){
   const st=document.getElementById('resultStats');
-  if(!st||!(before>0)||!(after>0)) return;
+  if(!st||st.tagName!=='P'||!(before>0)||!(after>0)) return;
   const pct=Math.round((1-after/before)*100);
   st.textContent=pct>=3
     ? `${fmtMB(before)} → ${fmtMB(after)} (${pct}% smaller)`
@@ -401,7 +401,7 @@ async function compressViaJob(fd){
       j=await sr.json();fails=0;
       if(sr.status===404) throw new Error(j.error||'Job expired. Please try again.');
     }catch(e){
-      if(e.message&&!/timed out|Failed to fetch|NetworkError|Load failed/i.test(e.message)) throw e;
+      if(e.message&&!/timed out|taking too long|Failed to fetch|NetworkError|Load failed/i.test(e.message)) throw e;
       if(++fails>=6) throw new Error('Lost connection to the server. Please try again.');
       continue;
     }
