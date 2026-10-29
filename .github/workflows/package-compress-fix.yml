@@ -1,0 +1,56 @@
+name: Package Compress Fix (Cloudflare)
+
+# Manual run: takes the newest full Cloudflare package, swaps in the async
+# Compress PDF code, and publishes a new ready-to-upload zip as an artifact.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download newest full Cloudflare package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf base release && mkdir -p base release
+          id=$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=50" \
+            --jq '[.artifacts[] | select(.expired==false and (.name|startswith("EggyPDF-Cloudflare-Full")))] | sort_by(.created_at) | last | .id')
+          test -n "$id" && test "$id" != "null"
+          echo "Using artifact $id"
+          gh api "repos/${{ github.repository }}/actions/artifacts/$id/zip" > base/a.zip
+          unzip -q base/a.zip -d base/outer
+          # Some artifacts wrap the site in one inner zip.
+          inner=$(find base/outer -maxdepth 1 -name '*.zip' | head -n 1 || true)
+          if [ -n "$inner" ]; then unzip -q "$inner" -d release; else cp -r base/outer/. release/; fi
+          test -f release/index.html
+
+      - name: Patch Compress PDF to the async version
+        run: |
+          set -euo pipefail
+          n=0
+          for f in release/compress.html release/tools/compress.html; do
+            if [ -f "$f" ]; then python scripts/patch-compress-async.py "$f"; n=$((n+1)); fi
+          done
+          test "$n" -ge 1
+          grep -q 'compressViaJob' release/compress.html release/tools/compress.html 2>/dev/null
+
+      - name: Zip
+        run: |
+          set -euo pipefail
+          rm -f EggyPDF-Compress-Fix-Cloudflare.zip
+          (cd release && zip -qr ../EggyPDF-Compress-Fix-Cloudflare.zip .)
+          unzip -t EggyPDF-Compress-Fix-Cloudflare.zip >/dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EggyPDF-Compress-Fix-Cloudflare
+          path: EggyPDF-Compress-Fix-Cloudflare.zip
+          if-no-files-found: error
